@@ -1,506 +1,324 @@
-# Implement laputa-systems/cmake-build
-
-You are an autonomous senior build-systems and toolchain engineer. Implement a complete, production-quality repository named `laputa-systems/cmake-build`.
-
-**This is an implementation assignment, not a research or planning assignment.** Inspect the reference repositories, establish the architecture, write the build system, build and qualify real artifacts wherever the environment permits, fix failures, write tests and documentation, and commit the completed changes.
-
-Work unattended. Make reasonable technical decisions without asking for approval. Never claim a validation passed unless it actually ran and passed.
-
-## 1. Reference implementations
-
-Thoroughly inspect these repositories before implementation:
-
-- https://github.com/laputa-systems/python-build
-- https://github.com/laputa-systems/chromium-build
-- https://github.com/laputa-systems/llvm-prebuilt-musl
-- https://github.com/laputa-systems/laputa
-
-Pay particular attention to:
-
-**python-build**
-- `AGENTS.md`
-- `build.py`, `buildsys/`, `bootstrap.lock.json`, `sources.lock.json`
-- `docs/build-system.md`
-- `docs/qualification-and-packaging.md`
-- `docs/ci-and-releases.md`
-- `buildsys/elf.py`, `buildsys/inputs.py`, `buildsys/generations.py`
-- Controller tests, sealed builds, release generations, and artifact acceptance.
-
-**chromium-build**
-- Build orchestration and resumable phases.
-- Source and dependency locking.
-- Native musl compilation.
-- Compiler/linker identity checks.
-- Independent binary and build-graph audits.
-- Functional and packaged-runtime acceptance.
-- Compiler-cache behavior and isolation.
-
-**llvm-prebuilt-musl**
-- Compiler/runtime package contracts.
-- `clang.cfg`, `clang++.cfg`, compiler-rt, libc++, libunwind, and bundled musl.
-- Exact release archives and validation requirements.
-- GCC-free dependency enforcement and purity checks.
-
-**laputa**
-- Package layout and the current `llvm-toolchain` recipe.
-- Runtime dependencies, sysroot expectations, package consumption, and compatibility requirements.
-
-Reuse engineering patterns, not gratuitous code duplication. Do not introduce a shared framework or modify the reference repositories merely to simplify this implementation.
-
-## 2. Product contract
-
-Build a small, fast, secure, relocatable, fully functional upstream CMake distribution.
-
-Start with **upstream CMake 4.4.5** from Kitware, pinned to the exact source release with a verified checksum. No moving branches, floating versions, or unverified downloads.
-
-Production targets:
-
-- `x86_64-unknown-linux-musl`
-- `aarch64-unknown-linux-musl`
-
-No glibc target, Windows, or macOS build in this campaign. Linux architectures must build natively, not under QEMU emulation.
-
-The distributed product must contain:
-
-- The actual `cmake` executable.
-- All essential CMake modules, platform definitions, compiler detection files, templates, and runtime resources.
-- Required legal notices and version/provenance metadata.
-
-The normal product must not contain:
-
-- `ccmake`, `cmake-gui`, `cpack`, or `ctest` executables.
-- GUI dependencies, documentation generators, tests, or development-only build tools.
-- GCC runtime libraries, libstdc++, libgcc_s, glibc, or OpenSSL.
-- Unnecessary shared libraries, debug symbols, build caches, or temporary files.
-
-Build-only `ctest` is permitted and encouraged for upstream regression qualification. Do not sacrifice testing merely to reduce the release payload.
-
-**Critical:** This is a distribution of actual CMake with its established language semantics and generator compatibility. It is not a new CMake interpreter or a limited CMake-compatible frontend.
-
-Keep full ordinary functionality: script mode, configure/generate, Ninja and Makefile generators, compiler detection, `try_compile`, generator expressions, package discovery, install/export, presets, file API, and CMake's command-line utility operations.
-
-Do not remove an upstream feature just because the initial tests do not exercise it.
-
-## 3. Authoritative compiler and runtime
-
-Use:
-
-https://github.com/laputa-systems/llvm-prebuilt-musl
-
-Current reference version: LLVM/Clang/LLD 23.1.5.
-
-This toolchain provides:
-
-- `clang`, `clang++`, `ld.lld`
-- LLVM binutils
-- compiler-rt
-- static libc++, libc++abi, and libunwind
-- clang-built musl libc and startup objects
-
-It deliberately avoids GNU runtime code.
-
-Use this toolchain to compile and link **every shipped native object**, including dependency libraries.
-
-The Python-build and Laputa repositories currently reference different release revisions of the same LLVM 23.1.5 toolchain. Investigate and reconcile this explicitly. Select one verified, immutable release and record the complete asset identity in the lock. Never silently mix them.
-
-Set explicit CC, CXX, AR, RANLIB, NM, STRIP, compiler target, linker, and sysroot configuration. Use the toolchain's configured defaults where appropriate.
-
-Only obtain target musl headers and Linux headers from verified sysroot inputs. The packaged toolchain must supply the runtime/startup objects. Do not accidentally link Alpine's GCC-built startup objects or libc archive.
-
-Before building CMake, run a standalone compiler-provenance fixture proving:
-
-1. C and C++ compile correctly.
-2. Static and dynamic musl linking work.
-3. C++ exceptions, destructors, and filesystem functionality work.
-4. Compiler-rt and libc++ are actually selected.
-5. ThinLTO compilation, archiving, linking, and execution work.
-6. ELF output has the expected machine architecture and runtime closure.
-
-Fail closed if any compiler or linker falls back to an unapproved executable or library.
-
-## 4. Source and dependency policy
-
-Build from immutable, checksum-verified inputs.
-
-Implement:
-
-- `sources.lock.json`
-- `bootstrap.lock.json`
-- A documented patch inventory with hashes, rationale, and application order.
-- A complete build-time dependency inventory, including upstream-bundled libraries.
-
-Follow python-build's patterns for verifying cached and freshly downloaded bytes, rejecting hostile archive paths, and refusing invalid source or toolchain identities.
-
-Prefer CMake's upstream-bundled libraries where they reduce dependency complexity, provided they are compiled using our Clang toolchain and their licensing and runtime behavior are acceptable.
-
-Study CMake's bundled bzip2, curl, expat, jsoncpp, libarchive, liblzma, librhash, libuv, nghttp2, zlib, and zstd arrangements.
-
-Do not automatically import Alpine's shared versions.
-
-Inspect the actual CMake target graph. Determine which dependencies are reachable from the `cmake` executable and which belong exclusively to CPack, CTest, the debugger, or GUI.
-
-Eliminate unnecessary build targets through upstream-supported configuration first. Maintain a small, well-documented patch series only where upstream offers no suitable mechanism.
-
-Do not carry forks of large libraries when straightforward upstream configuration or a small surgical patch suffices.
-
-### HTTPS and TLS
-
-The release must support secure HTTPS downloads for normal CMake workflows.
-
-The product must remain OpenSSL-free.
-
-Investigate a statically linked libcurl with a Rustls backend, using a pinned and audited Rustls C ABI implementation where appropriate. Prefer existing trustworthy upstream infrastructure.
-
-Use system-configured certificate trust. Do not ship a private, permanently frozen Mozilla root store.
-
-Verify actual TLS certificate validation, hostname checking, and rejection of untrusted certificates. Support standard certificate configuration mechanisms.
-
-Do not disable certificate verification or silently drop HTTPS functionality to make a smaller binary.
-
-If OpenSSL-free HTTPS proves difficult, establish a separately identified development candidate and document the blocker. Do not promote a release that fails the product contract.
-
-## 5. Build architecture
-
-Implement a small, understandable orchestration layer, preferably using standard-library Python following python-build's separation of concerns.
-
-Provide an entry point resembling:
-
-```text
-python3 build.py doctor
-python3 build.py fetch --target <triple>
-python3 build.py prepare --target <triple>
-python3 build.py configure --target <triple>
-python3 build.py build --target <triple>
-python3 build.py test --target <triple>
-python3 build.py package --target <triple>
-python3 build.py qualify --target <triple>
-python3 build.py reproduce --target <triple>
-python3 build.py benchmark --target <triple>
-python3 build.py controller-test
-```
-
-Make clean operations non-destructive to externally supplied sources and caches.
-
-Use explicit phases with content-based fingerprints. A phase can be reused only when all its relevant inputs match.
-
-Builds must be resumable and idempotent.
-
-Separate:
-
-1. Network-enabled, verification-enforced input acquisition.
-2. Offline preparation and configuration.
-3. Offline native compilation.
-4. Runtime staging.
-5. Isolated qualification of staged and packaged bytes.
-6. Atomic publication of immutable artifacts.
-
-Do not allow network access during sealed compilation. Record evidence of the enforced boundary.
-
-### Bootstrap strategy
-
-CMake can bootstrap itself, but its source bootstrap can be costly.
-
-Investigate the fastest trustworthy approach:
-
-- A separately pinned build-host CMake used only to configure the production build.
-- CMake's own bootstrap as a verified fallback.
-- Ninja versus Samurai as the build executor.
-
-Measure the alternatives. Prefer the faster, maintainable path with equivalent final-artifact correctness.
-
-The bootstrap CMake is never part of the product.
-
-The production compiler must always remain our selected LLVM/musl toolchain, regardless of how the initial configuration is executed.
-
-## 6. Compilation and optimization
-
-The objective is a small and fast executable without compromising compatibility.
-
-Establish a conventional, reproducible Release baseline before optimizing.
-
-Investigate, measure, and selectively adopt:
-
-- `-O2`, `-O3`, and `-Oz`
-- Function/data sections and linker garbage collection
-- ThinLTO
-- LLD identical-code folding where safe
-- Symbol visibility and symbol stripping
-- Static PIE versus musl-dynamic linking
-- Incremental rebuilds and compiler caching
-- Exclusion of truly unreachable optional targets
-- Build parallelism and memory-bound linking limits
-
-Do not indiscriminately combine flags.
-
-Retain necessary C++ language behavior, including exceptions and RTTI where required. Do not use unsafe optimization assumptions or host-specific `-march=native` in release artifacts.
-
-Prefer fully static PIE if it is demonstrably compatible with the complete product contract.
-
-Otherwise use a strictly audited musl-only dynamic closure, ideally with no external C++ runtime dependencies. Record the tradeoff.
-
-Never assume static linkage is superior without measuring its size, startup cost, and functionality.
-
-PGO and BOLT are optional research lanes, not prerequisites for an initial accepted release.
-
-## 7. Functional validation
-
-Build a real acceptance suite, not merely a collection of version-string checks.
-
-Test the actual extracted distribution in a clean environment with no access to the original build tree.
-
-Mandatory areas:
-
-**CLI and scripting:** `--version`, `--help`, `-E`, `-P`, `-S`, `-B`, `--build`, `--install`, presets, file API, and basic cache operations.
-
-**C/C++ projects:** configure, compile, link, install, and run a small C and C++ project using our LLVM/musl compiler.
-
-**Build graph:** multiple libraries, PUBLIC/PRIVATE/INTERFACE dependencies, imported targets, generator expressions, source generation, custom commands, and transitive includes.
-
-**Compiler features:** language detection, feature checks, `try_compile`, and appropriate `try_run` behavior.
-
-**Packages:** `find_package`, config-mode package discovery, module-mode discovery, install/export, and downstream consumption of an installed exported target.
-
-**Generators:** Ninja and Unix Makefiles. Test generated commands and incremental rebuilding, including correctly detecting a modified source, header, or build definition.
-
-**Resources:** confirm `CMAKE_ROOT` resolves inside the relocated package and essential modules are found without falling back to a host CMake installation.
-
-**Networking:** HTTPS downloads, redirects where appropriate, trusted and untrusted certificates, checksum validation, and at least one representative network-based CMake workflow.
-
-**Archive operations:** CMake's tar creation and extraction behavior and its relevant `file(ARCHIVE_*)` commands.
-
-**Real projects:** configure and build multiple pinned, reasonably representative upstream CMake projects, including one with nontrivial custom commands and dependencies.
-
-Run a meaningful subset of CMake's upstream regression tests, supplemented by our own compatibility tests.
-
-When useful, compare outputs against an unmodified reference CMake of the exact same version. Report differences rather than assuming they are harmless.
-
-### Negative controls
-
-Explicitly test:
-
-- Corrupted downloaded inputs.
-- Missing or modified lock entries.
-- Unexpected toolchain identity.
-- Architecture mismatch.
-- Source archive traversal and unsafe symlinks.
-- Attempts to fetch during offline build phases.
-- Unapproved ELF dependencies.
-- Broken relocation.
-- Missing runtime resources.
-- TLS certificate verification failures.
-- Incomplete or interrupted qualification.
-- Stale output from a previous build fingerprint.
-
-Failures, timeouts, missing test reports, and zero executed tests must not become passing verdicts.
-
-## 8. Binary purity audit
-
-Create an independent ELF auditor, modeled on the strongest purity checks in python-build and llvm-prebuilt-musl.
-
-Validate all packaged executables and shared objects using LLVM binary tools.
-
-Require:
-
-- Exact architecture.
-- Approved musl interpreter, if dynamically linked.
-- Approved `DT_NEEDED` closure.
-- No glibc or `GLIBC_*` dependencies.
-- No libgcc, libgcc_s, or libstdc++.
-- No OpenSSL dependency or embedded OpenSSL runtime.
-- No GCC-compiled objects, including through static libraries.
-- No unapproved GNU symbol-version requirements.
-- Non-executable stack.
-- Appropriate PIE, RELRO, and binding hardening for the chosen linkage.
-- No unexpected RPATH/RUNPATH or builder-host paths.
-
-Inspect object provenance and archive members before final linking where necessary; final ELF metadata alone cannot prove every static object came from Clang.
-
-Build a negative-control fixture showing that the auditor rejects a deliberately contaminated binary.
-
-Do not establish purity by grepping only `ldd`.
-
-## 9. Packaging and reproducibility
-
-Produce one immutable archive for each target:
-
-```text
-cmake-4.4.5-x86_64-unknown-linux-musl.tar.xz
-cmake-4.4.5-aarch64-unknown-linux-musl.tar.xz
-```
-
-Include a machine-readable `artifact.json` containing:
-
-- Source version and digest.
-- Repository commit and patch-set identity.
-- LLVM toolchain release, digest, and compiler identity.
-- Target architecture and CPU baseline.
-- Effective compiler and linker flags.
-- Build-time dependency closure.
-- Build mode and isolation evidence.
-- Artifact file inventory and cryptographic hashes.
-- ELF audit results.
-- Complete qualification summary.
-- Archive size and unpacked size.
-
-Construct deterministic archives with normalized ownership, ordering, permissions, and timestamps.
-
-After packaging, extract the exact archive to a fresh directory whose name contains spaces. Perform runtime and functional tests against those extracted bytes.
-
-Implement python-build-style immutable generations and atomic active-artifact selection.
-
-Never replace a previously accepted artifact with a partial or failed candidate.
-
-Implement independent clean-build reproducibility comparison. Check file types, permissions, symlink targets, content, archive bytes, and embedded build paths.
-
-Fix reproducibility defects where feasible; otherwise report them explicitly and do not claim reproducibility.
-
-Record third-party licenses and provide the necessary notices.
-
-## 10. Performance and size evaluation
-
-Measure the resulting tool against an official upstream CMake build of the same version.
-
-Use identical target projects, the same native machine, controlled environments, and repeated runs.
-
-Record:
-
-- Clean CMake compilation wall time and peak memory.
-- Incremental CMake compilation wall time.
-- Configure/generate time on small, medium, and large projects.
-- Reconfigure time with no changes.
-- Reconfigure time after a relevant input change.
-- Startup and `cmake -P` execution latency.
-- Peak RSS during configuration.
-- Executable size.
-- Installed runtime-resource size.
-- Compressed archive size.
-
-Include cold and warm filesystem-cache results when practical; distinguish them clearly.
-
-Measure toolchain options rather than making performance claims from intuition.
-
-Do not compare native x86-64 timing with emulated AArch64 timing.
-
-Establish an initial size and performance budget from measured baseline artifacts. Document the rationale and detect meaningful regressions.
-
-Avoid overengineering marginal optimizations. Prefer simple, sustainable improvements with demonstrable benefit.
-
-## 11. CI and releases
-
-Mirror the mature CI discipline of python-build.
-
-Provide:
-
-- Fast controller and policy tests.
-- Native x86-64 qualification.
-- Native AArch64 qualification.
-- Clean-container runtime validation.
-- Artifact assembly and integrity checks.
-- Manual release dispatch.
-- Source/commit/tag identity verification.
-- Immutable published artifacts and checksums.
-
-Use GitHub's native ARM64 runners where available.
-
-Expensive native builds should not run automatically on every trivial commit. Keep normal checks cheap and releases intentional.
-
-A release must require current, complete qualification at the exact source revision. Historical CI success cannot substitute for current evidence.
-
-Do not upload or publish an unqualified artifact.
-
-## 12. Repository structure and documentation
-
-Keep the repository compact and understandable. Suggested layout:
-
-```text
-cmake-build/
-  AGENTS.md
-  README.md
-  build.py
-  sources.lock.json
-  bootstrap.lock.json
-  release-budgets.json
-  buildsys/
-  patches/
-  tests/
-  docs/
-  .github/workflows/
-```
-
-Produce concise, authoritative documentation covering:
-
-- Product and target contracts.
-- Bootstrap and toolchain architecture.
-- Source and dependency provenance.
-- Exact build commands.
-- Offline build isolation.
-- Native dependency and ELF purity policies.
-- Qualification matrix and evidence.
-- Packaging, relocation, and reproducibility.
-- Performance measurements and optimization decisions.
-- Integration instructions for Laputa.
-- Outstanding limitations and follow-up work.
-
-Keep the README accessible; put detailed engineering contracts in `docs/`.
-
-Add a useful `AGENTS.md` for subsequent maintenance.
-
-Avoid speculative abstraction layers, duplicated validation logic, large dependencies in the orchestrator, or meaningless configuration knobs.
-
-## 13. Laputa consumption
-
-The resulting CMake installation must be suitable for use inside Laputa's musl environment.
-
-Document how its binary and resources should be incorporated into a Laputa package or build-tool root.
-
-Prove operation with the prebuilt LLVM toolchain and the chosen Ninja/Samurai executor.
-
-Ensure that it does not require D-Bus, systemd, glibc, GCC runtimes, or host-installed CMake resource files.
-
-Keep changes to the Laputa repository out of scope unless explicitly authorized. Deliver a precise integration handoff instead.
-
-## 14. Execution discipline
-
-Proceed in this order:
-
-**Phase A — reconnaissance:** Read the reference repositories and the pinned upstream CMake source. Identify the actual target graph, toolchain requirements, optional components, dependency closure, and bootstrap paths.
-
-**Phase B — viability:** Prove native Clang/musl C++ compilation, static/runtime closure, basic CMake compilation, and OpenSSL-free HTTPS. Eliminate architectural unknowns before spending effort on a full build.
-
-**Phase C — minimum complete product:** Implement a locked, repeatable build producing a functioning CMake executable and its required resources. Qualify basic compiler, generator, and relocation behavior.
-
-**Phase D — hardening:** Add sealed isolation, independent audits, negative controls, real-project compatibility tests, reproducibility, and transactional packaging.
-
-**Phase E — optimization:** Benchmark, reduce unnecessary targets and dependencies, evaluate compiler/linker settings, and establish measured budgets.
-
-**Phase F — release engineering:** Add native CI, archive-bound qualification, documentation, and release controls.
-
-Do not stop after producing plans or scaffolding.
-
-Make real implementation progress on every phase. Prioritize the minimum complete, working product over prematurely exhaustive infrastructure.
-
-Use focused checks while developing. Do not run unrelated formatters, modify unrelated repositories, or launch expensive CI speculatively.
-
-If the available environment cannot execute an architecture's native build, complete its deterministic build/CI support and explicitly mark that architecture unqualified. Never substitute emulation as native performance evidence.
-
-## 15. Completion criteria
-
-The project is complete only when:
-
-1. Both supported architectures have a reproducible, locked build procedure.
-2. The resulting CMake distribution passes real functional and compatibility tests.
-3. Every packaged binary passes independent architecture and runtime-purity audits.
-4. HTTPS works with certificate verification and without OpenSSL.
-5. The extracted distribution works from an arbitrary relocated prefix.
-6. Packaging and publication are atomic and qualification-bound.
-7. Native CI can build and independently validate both architectures.
-8. Performance and size are measured against an appropriate baseline.
-9. Documentation accurately reflects implemented and verified functionality.
-
-Anything not executed must be recorded as not executed, not passed.
-
-Commit the implementation with conventional commit messages, following the repository's authorization and push rules. Do not open a PR unless required.
-
-In the final report include the commit SHA, exact implemented scope, actual tests executed, per-architecture verdicts, artifact sizes where measured, performance results, and any remaining blockers.
-
-**Governing principle:** Maintain python-build's level of correctness, provenance, and packaging rigor, chromium-build's real-world acceptance discipline, and llvm-prebuilt-musl's strict GCC-free toolchain purity. Optimization must never weaken these guarantees.
+# Campaign: laputa-systems/cmake-build
+
+Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4.5 for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`. Every shipped native object is compiled with the pinned GCC-free LLVM/musl toolchain. HTTPS goes through OpenSSL-free curl+Rustls with system trust. Packages are qualified, reproducible, and published atomically.
+
+## Status
+
+- **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
+- **Last accepted revision:** `a4ed2a6` (repo holds only this doc).
+- **Accepted:** none. **Red:** none. **Parked:** none.
+- **Next slice:** `G1`.
+
+## Charter
+
+- **Decide and keep going.** Make judgment calls inside **Decisions**. Record a decision in this doc only when a later slice depends on it. Otherwise the commit body carries it.
+- **Execution grant.** You may write anything in this repository and commit to `main`. You may push verified commits to `origin main`. You may run `gh workflow run` for the qualification workflows, and `gh run watch`/`gh run view` for their results. You may download the locked inputs listed in **Decisions** and the crates their lockfiles name. You may pull and build Docker images. A plan does not grant more than this. Park any item that needs more.
+- **Hard stops.** Each one parks the item with its cause:
+  - dispatching the release workflow or creating a GitHub release or tag;
+  - writing to any other repository (`laputa`, `python-build`, `llvm-prebuilt-musl`, `chromium-build`, `h12tiny`, upstream);
+  - force-pushing or rewriting pushed history;
+  - deleting anything outside `.work/` and this repo's build outputs;
+  - a loop that cannot check anything.
+- **Failing item rule.** Establish the cause before you retry, using `root-cause`. Allow three attempts per slice. Then park the slice on branch `park/<id>` with the cause and a retry condition, and move on to the next unblocked slice. A shared environment blocker (Docker, network, GitHub runner) gets one owner slice. Nothing else waits on a retry.
+- **Fix egregious problems on the way, in their own commit.** These are:
+  - a phase that reruns while its fingerprint is unchanged;
+  - `controller-test` taking over 60 s;
+  - any slice acceptance command taking over 2× its **Baseline** time;
+  - a check that reports pass on zero executed tests.
+
+  Record anything smaller in the slice's commit body and leave it.
+- **Parity before optimization.** Optimization flags, size work, and PGO/BOLT belong to phase E only. Before E, measure and record sizes and timings, but they do not gate.
+- **One writer by default.** Parallel lanes are allowed only for the pairs named in **Sequence**. Each lane works in a worktree at `.work/wt/<lane>`, following `orchestrate`'s worktree lifecycle. Subagents launch only through `pi-subagent-bridge`.
+- **Paths.** Put scratch, caches, downloads, and worktrees under `.work/` (ignored via `.git/info/exclude`). Never use `/tmp` or `$TMPDIR`. Export `TMPDIR=$PWD/.work/tmp` for builds.
+- **Commits.** Each commit is a Conventional Commit with the workstream as its scope (`controller`, `toolchain`, `cmake`, `tls`, `audit`, `package`, `qualify`, `bench`, `ci`, `docs`). Put the item ID in the body, and end the body with the session's attribution lines. Code comments never cite this doc. No formatters.
+- **Verification.** Run the slice's acceptance command and the narrowest affected suite on the integrated tree. Run the full local suite (`python3 build.py qualify --target x86_64-unknown-linux-musl`) only at milestones M1–M3 and at close. Run time-based perf measurements only when `perf-gate-ready` exits 0, and again with `-1` afterwards. Discard any run that overlapped load. Never claim a check passed unless it ran and passed. Anything not executed is reported as not executed.
+- **Steering.** After each accepted slice, on resume, and after any second failure of a slice, run `orchestrate`'s parent steering checkpoint (`~/.claude/skills/orchestrate/references/campaigns.md#parent-steering-checkpoint`). Then rewrite **Status** in place. Never append logs.
+
+## Decisions
+
+### Owner (2026-11-10)
+
+- **O1 Toolchain release.** Use the latest llvm-prebuilt-musl release, `llvm-musl-23.1.5-dc0d9b9`, pinned by asset sha256 (values in **Reference**). Laputa's `llvm-toolchain` recipe pins `llvm-musl-23.1.5-2f0b039`. That release no longer exists on GitHub (`gh release view` → not found). Laputa updates its own pin later. This campaign only notes it in the Laputa handoff.
+- **O2 HTTP stack.** Keep CMake's bundled curl (`Utilities/cmcurl`, curl 8.20.0) with the Rustls backend. h12tiny was considered and rejected for now: its blocking client has no proxy, redirect, or FTP support, so replacing curl would mean a shim with more friction.
+- **O3 Push and CI.** The executor may push verified commits to `origin main` and dispatch the native x86_64 and aarch64 qualification workflows. Release dispatch stays with the owner (see **Needs environment**).
+
+### Prescribed
+
+Each decision gives its reason and, where one exists, the condition that would reverse it.
+
+- **P1 Source.** CMake 4.4.5 from `https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5.tar.gz`, sha256 `a0c54c88abb8078dd8eccadb717fc6bb194bf18e7d44c86309910288886e04e2`, size 13289246. This was verified on 2026-11-10 against GitHub's asset digest and Kitware's `cmake-4.4.5-SHA-256.txt`. Lock both the digest and the signed checksum file's sha256 (`f502d705…dd25`). The archive has no absolute or `..` members. Extraction must still reject them, and reject symlinks that escape the tree.
+- **P2 Builder environment.** All offline phases (`prepare` through `package`) run in a Docker container started with `--network none`:
+  - The image is built from Alpine `3.25.0_alpha20260805`, image index `sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000`. This is the image python-build pins, and it matches this host.
+  - Each apk in the image is pinned by sha256 in `bootstrap.lock.json`.
+  - The image has no `gcc`, `binutils`, `musl-dev`, `libstdc++-dev`, or OpenSSL dev package. It may contain `python3`, `make`, `linux-headers`, `xz`, and runtime libraries.
+  - Locked apk entries are produced the way python-build's `build/relock_linux.py` produces them: from the APKINDEX, checked against `alpine-keys`. Never lock-on-first-fetch.
+  - Alpine edge drops superseded apks from its CDN. If a locked apk returns 404, relock that package to the current version by the same method, in its own `build(lock)` commit, and continue. Never publish a mirror.
+  - The index digest was verified on 2026-11-10: its amd64 manifest is `alpinelinux/docker-alpine@410e6fcf`.
+
+  `fetch` and image construction are the only networked steps. Evidence of the boundary is recorded in `artifact.json`. It is the container's `NetworkMode=none` plus a live probe inside the container showing that a TCP connect to a listener the controller opened on the host fails. That probe follows python-build's `buildsys/sandbox.py` `network_boundary_selftest`. `controller-test` runs on the host Python without Docker.
+- **P3 Sysroot.** Supplies headers plus one link-time loader:
+  - musl headers come from `make install-headers ARCH=<arch>` on musl 1.2.6 source (`https://musl.libc.org/releases/musl-1.2.6.tar.gz`, sha256 `d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a`). That is the same source as the toolchain's bundled `libc.a`.
+  - Linux UAPI headers come from the locked Alpine `linux-headers` apk (x86_64 `7.2.1-r0`, sha256 `45e0d4df3e4002122c953d0af6e208f1e8369fc6c88c67138400b87f871fd54b`; the aarch64 entry is relocked by the P2 method). Both sha256s were re-verified on download on 2026-11-10.
+  - The toolchain's `lib/musl/libc.so` is a linker script, `GROUP ( =/lib/ld-musl-<arch>.so.1 )`, resolved through `--sysroot`. A headers-only sysroot therefore fails every dynamic link with `cannot open <sysroot>//lib/ld-musl-x86_64.so.1`. This was reproduced on 2026-11-10 by `./bootstrap`'s compiler probe. So the sysroot also gets `lib/ld-musl-<arch>.so.1`: musl 1.2.6 `lib/libc.so`, built from the same source by the P4 clang, configured as `LIBCC=$(clang -print-libgcc-file-name) ./configure --target=<arch>` and built with `make lib/libc.so LDFLAGS=-Wl,-soname,libc.musl-<arch>.so.1`. The build takes about 10 s, and its `.comment` holds only clang and LLD. It is a link-time DSO and fixture loader only, and is never shipped.
+  - The soname is required. Without it, lld records the sysroot path itself as `DT_NEEDED`: `[/home/…/sysroot//lib/ld-musl-x86_64.so.1]`, observed on 2026-11-10 in a bootstrap-built `cmake`. With it, `DT_NEEDED` is `libc.musl-<arch>.so.1`, matching Alpine's loader. The D1 audit's builder-host-path rule must catch the soname-less case, and `tests/audit` keeps it as a fixture.
+
+  Startup objects, `libc.a`, and the loader script always come from the toolchain's `lib/musl/` (its `clang.cfg` searches there first). The provenance fixture fails if any linked object resolves from the sysroot (other than that loader DSO) or from `/usr/lib`. Reverse only if musl 1.2.6 headers and the toolchain's libc disagree, which the fixture would show.
+- **P4 Toolchain invocation.** Set explicitly:
+  - `CC=<tc>/bin/clang`, `CXX=<tc>/bin/clang++`;
+  - `AR/RANLIB/NM/STRIP/OBJCOPY/READELF=<tc>/bin/llvm-*`;
+  - `--target=<arch>-linux-musl --sysroot=<sysroot>`, `-fuse-ld=lld`, `--rtlib=compiler-rt`, `--unwindlib=libunwind`, `-stdlib=libc++`.
+
+  Use a CMake toolchain file generated per target under the build root. Before every phase, compiler identity is checked against the lock: `clang --version` must equal `clang version 23.1.5` with the locked LLVM commit, `ld.lld --version` must equal `LLD 23.1.5`, and every tool must resolve inside `<tc>`. A tool resolving outside `<tc>`, or a different version string, is a hard failure.
+- **P5 TLS.** Configure curl with `CMAKE_USE_OPENSSL=OFF`, `CURL_USE_RUSTLS=ON`, `CURL_CA_BUNDLE=none`, and `CURL_CA_PATH=none`, so no build-host path is baked in.
+  - **Library.** rustls-ffi `v0.15.7`. curl 8.20 requires 0.15 or newer, checked at `Utilities/cmcurl/CMakeLists.txt:1158`. Build it as a staticlib with `--no-default-features --features ring`. ring's C and asm are compiled by the pinned clang through `CC`/`AR`, and the audit covers them.
+    - Reverse to `aws-lc-rs` only if ring fails the purity audit or the build.
+    - Graviola (used by python-build and h12tiny) would need a rustls-ffi patch. It is not adopted unless the owner overrules.
+  - **Rust toolchain.** Pin `nightly-2026-09-15` with the component sha256s from python-build `backend/linux-bootstrap-x86_64.json` and `linux-bootstrap.lock.json` (aarch64). Build with `-Zbuild-std=std,panic_unwind -Zbuild-std-features=panic-unwind,backtrace,llvm-libunwind`, linking the toolchain's `lib/libunwind.a`. python-build `backend/build-no-openssl.py:914-960` found that the prebuilt musl `libstd` carries GCC-compiled compiler-rt and libunwind objects.
+  - **Crate sources.** Vendor them with `cargo vendor --locked` in `fetch`. Cargo verifies the `Cargo.lock` checksums. `build` runs `cargo --offline --frozen`. Do not change the nightly pin.
+  - **Trust patch.** curl's rustls backend ignores `CURLOPT_CAPATH` (no CAPATH handling in `lib/vtls/rustls.c`). With no CA it fails closed, because no verifier is set (`rustls.c:1039-1060`). Patch `Source/cmCurl.cxx` `cmCurlSetCAInfo` (`:128-185`):
+    - Keep `CAINFO` for `CMAKE_TLS_CAINFO`, for `SSL_CERT_FILE`, and for the first existing upstream default file.
+    - In every other case, including `SSL_CERT_DIR`, set `CURLSSLOPT_NATIVE_CA`. That selects `rustls_platform_server_cert_verifier`, which reads `SSL_CERT_FILE`, `SSL_CERT_DIR`, and the probed system paths.
+    - Never embed a root store, never disable verification unless the user sets `CMAKE_TLS_VERIFY OFF`, and keep upstream's default of verifying.
+- **P6 Bootstrap and executor.** The bootstrap CMake is never shipped. The production compiler is always the P4 toolchain.
+  - The default is upstream `./bootstrap --parallel=$(nproc) --no-system-libs` built with the P4 toolchain. Its output is cached under a fingerprint of source, toolchain, and sysroot. Timing is in **Baseline**.
+  - Slice `G3` also measures the locked Alpine `cmake` apk. Switch to the apk only if it cuts the cold pipeline wall time by more than 20%.
+  - The executor is samurai 1.3 (`https://github.com/michaelforney/samurai/releases/download/1.3/samurai-1.3.tar.gz`, sha256 `1bc020a9e133432df51911ac71cc34322f828934d9a2282ba2916d88c15976af`, Laputa's pin) built with the P4 toolchain. Switch to Ninja (latest release, locked) only if `G3` measures a full CMake build or a no-op rebuild more than 5% faster. Record the numbers either way.
+- **P7 Configuration and targets.**
+  - Settings: `CMAKE_BUILD_TYPE=Release`, `BUILD_CursesDialog=OFF`, `BUILD_QtDialog=OFF`, `SPHINX_*=OFF`, `CMAKE_USE_SYSTEM_LIBRARIES=OFF` (every bundled library is compiled by P4), `CMake_ENABLE_DEBUGGER=ON`.
+  - The debugger stays because `cmake --debugger` is a `cmake` feature.
+  - `ctest` and `cpack` are built because upstream tests need `ctest`. They are excluded at staging, not by patch.
+  - Remove targets only through upstream options. Patch only where upstream has no option, and give each patch an inventory entry.
+  - Laputa's three musl patches (`laputa/packages/cmake/patches/`) are candidates, not defaults. Apply one only after the unpatched build fails on our P3 sysroot with the error it fixes, and record that error. The 2026-11-10 Baseline build needed none of them, and the `linux/fs.h` failure they work around came from a sysroot missing Linux headers.
+- **P8 Hardening and linkage.** The baseline, before phase E, is:
+  - upstream Release flags;
+  - static PIE (`-static-pie`);
+  - `-fstack-protector-strong -fstack-clash-protection`;
+  - `-Wl,-z,relro,-z,now,-z,noexecstack`;
+  - no `-march`. The CPU baseline is generic `x86-64` and `armv8-a`, because CMake is a build tool and must run on every host Laputa supports.
+
+  No `_FORTIFY_SOURCE`: musl has no fortify without fortify-headers, which is a recorded non-goal. Phase E compares static PIE against musl-dynamic. It switches to musl-dynamic only if static PIE fails an acceptance item or costs more than 10% startup latency.
+- **P9 Reference CMake.**
+  - Kitware's official `cmake-4.4.5-linux-{x86_64,aarch64}.tar.gz` (sha256s in **Reference**) is the performance baseline and the output-comparison oracle. It is glibc-linked, so it runs only in a reference container: `debian:trixie-slim`, pinned by index digest at `fetch` time. Docker index digests are content addresses, so locking one when first resolved is sound.
+  - A second build of unmodified 4.4.5 with the P4 toolchain, default options, and no patches is the baseline for upstream-test failures and for patch impact.
+- **P10 Real projects.** Lock each by release tarball sha256 in `sources.lock.json`:
+  - **small:** fmt (latest release): configure, build, test.
+  - **medium:** zstd `build/cmake`: configure, build, run.
+  - **nontrivial custom commands and dependencies:** libjpeg-turbo (latest release, `-DWITH_SIMD=OFF` because nasm is not locked): configure, build, run `tjunittest`.
+  - **large (configure only):** LLVM 23.1.5 `llvm-project-23.1.5.src.tar.xz` with `-DLLVM_ENABLE_PROJECTS=clang`, used for the configure and generate timings.
+
+  Delegated bound: you may substitute a project with another of the same tier only when its build needs an unlocked tool, and you must record why.
+- **P11 Upstream regression subset.** Write it to `tests/upstream-subset.txt` as `ctest -R` regexes. It runs from the build tree with the built `ctest`.
+  - It covers RunCMake `CommandLine`, `CommandLineTar`, `File_Archive`, `file`, `file-DOWNLOAD`, `CMakePresets`, `FileAPI`, `GeneratorExpression`, `try_compile`, `try_run`, `find_package`, `install`, `export`, `Ninja`, `BuildDepends`, `ExternalProject`, `FetchContent`, and the `CMakeLib` and `kwsys` unit tests.
+  - Bound: at most 20 minutes on 8 cores. Add tests to the subset freely. Remove one only by recording an upstream-failing reason.
+  - A test is red when it fails on our build and passes on the P9 unmodified build. A failure shared with the P9 build is listed in `docs/qualification.md`, not hidden.
+  - The full upstream `ctest` runs once at close. It is expensive, so report its start before running it.
+- **P12 Release budgets.** `release-budgets.json` holds the budgets measured at milestone M2: executable size, unpacked size, compressed size, `cmake --version` latency, and the small-project configure time. The regression threshold for each metric is the larger of 3% and 2× the observed spread over at least 10 interleaved runs. Before phase E, budgets are logged and not gating. From E onward, `qualify` fails on a regression beyond the threshold.
+- **P13 CI shape.** Mirror python-build `.github/workflows/build.yml`:
+  - `controller.yml` runs `controller-test` on push and PR.
+  - `qualify.yml` uses `workflow_dispatch` only, with native jobs on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs `python3 build.py qualify --target <triple>` in the P2 container and uploads its archive, `artifact.json`, and qualification report.
+  - `release.yml` uses `workflow_dispatch` with inputs `tag` and `sha`. It requires a `qualify` run at that exact SHA and verifies that the uploaded artifacts' `artifact.json` source and commit identity match. It publishes the archives plus `SHA256SUMS` to a new immutable release. It never reruns a build or reuses historical evidence.
+
+  No emulation is used anywhere. CI cache keys include the full input fingerprint.
+
+### Delegated (executor decides within the bound and records the choice in the commit body)
+
+- **Module layout.** Organize `buildsys/` the way python-build is organized (`inputs`, `elf`, `generations`, `reproduce`, `sandbox`), with no third-party Python dependencies. Copy no file wholesale; reuse patterns. The bound: one module per concern, and no framework shared with other repos.
+- **Phase E flag choices.** Adopt a flag set only if it improves a measured metric by more than its threshold and keeps every acceptance check green. Candidates: `-O2`/`-O3`/`-Oz`, sections plus `--gc-sections`, ThinLTO, `--icf=safe` (never `all`), `-fvisibility=hidden` for bundled libraries, and stripping. RTTI and exceptions stay on. Never use `-ffast-math` or `-march=native`. On a tie, keep the simpler set.
+- **Compiler cache.** ccache is allowed only for developer rebuilds, keyed on the toolchain identity, and never in `qualify`, `reproduce`, or release builds. Adopt it only if `G3` measures more than a 2× warm rebuild gain.
+- **Link parallelism.** Set `-j` to `nproc` and limit ThinLTO link jobs so peak RSS stays below 75% of available memory, measured.
+- **PGO and BOLT.** These are optional research items after `E3`. Do them only if all of E is accepted, and never let them gate release.
+
+## Baseline
+
+- **Host:** x86_64 Alpine 3.25.0_alpha20260805, 8 CPUs, 29 GiB RAM, Docker 29.9.2, `unshare -rn` works. There is no host `cmake`, `ninja`, or `samu`. Host `/usr/include` has musl headers but no `linux/fs.h` (no linux-headers). That explains Laputa's ioctl patch, and P3 supplies the missing headers.
+- **Known red:** none (greenfield).
+- **Foundation proof (2026-11-10, x86_64):** `dc0d9b9` `clang++ -O2 -flto=thin` built a C++ program using exceptions, destructors, and `std::filesystem`, both static-PIE and musl-dynamic, and both ran correctly. The dynamic build's `DT_NEEDED` was only `libc.musl-x86_64.so.1`, with interpreter `/lib/ld-musl-x86_64.so.1`. `.comment` held only `clang version 23.1.5` and `Linker: LLD 23.1.5`. Each compile and link took about 1 s.
+- **Loop timings (2026-11-10, x86_64 host, not in a container, P4 clang with the P3 sysroot, unpatched 4.4.5, `-DCMAKE_USE_OPENSSL=OFF -DBUILD_CursesDialog=OFF`, Release, upstream test targets on):**
+  - upstream `./bootstrap --parallel=8`: 207 s, peak RSS 343 MB;
+  - full `make -j8`: 410 s, peak RSS 368 MB;
+  - rebuild after touching `Source/cmake.cxx`: 25 s.
+
+  The bootstrap-built `cmake` reports `4.4.5`. It is a 23.4 MB unstripped, dynamic, PIE binary. No musl patch was needed with the P3 headers. A cold C1 build therefore costs about 10 minutes, and a phase-reused rerun only the changed objects. Size C1 and the later CMake-rebuilding slices on that basis. Their acceptance reuses phase outputs whenever fingerprints match.
+- **Fetch:** the toolchain archive (100.7 MB) downloads in about 9 s here.
+
+## Sequence
+
+The `ID` names the slice. Each slice lists the files it owns, its prerequisites, and the acceptance command that ends it. Slices run in order unless a pair is named parallel. `M` marks a milestone, where the full local suite runs.
+
+### Phase G: ground and viability
+
+1. **G1 Controller skeleton and input verification.**
+   - Owns `build.py`, `buildsys/{__init__,inputs,phases,targets}.py`, `sources.lock.json`, `bootstrap.lock.json`, `tests/controller/`, `AGENTS.md`.
+   - Work: the subcommands from the source brief (`doctor`, `fetch`, `prepare`, `configure`, `build`, `test`, `package`, `qualify`, `reproduce`, `benchmark`, `controller-test`); the lock schema; download into `.work/cache` with sha256 and size verification of both cached and fresh bytes; archive extraction that rejects absolute paths, `..`, escaping symlinks, hardlinks, and device nodes; content-fingerprinted phase records whose reuse requires every input to match; and clean operations that never touch externally supplied sources or caches.
+   - Accept: `python3 build.py controller-test` (≤ 60 s). It covers these negative controls: a corrupted cached input, a corrupted fresh input, a missing lock entry, a modified lock entry, a traversal archive, an unsafe-symlink archive, stale reuse after a fingerprint change, and an interrupted phase that is never marked complete.
+2. **G2 Builder image, sysroot, and provenance fixture.**
+   - Owns `docker/builder.Dockerfile`, `buildsys/{sandbox,toolchain,sysroot}.py`, `tests/fixtures/provenance/`.
+   - Prereq: G1.
+   - Work: build the P2 image; lay out the P3 sysroot; run the six-point provenance fixture from the source brief inside the sealed container. The six points: C and C++ compile; static and dynamic musl links; exceptions, destructors, and `std::filesystem`; selection of compiler-rt and libc++ proven from `-Wl,--trace`/`-Wl,-Map` input paths inside `<tc>`; a ThinLTO compile, `llvm-ar` archive, link, and run; and ELF machine plus closure.
+   - Accept: `python3 build.py doctor --target x86_64-unknown-linux-musl && python3 build.py prepare --target x86_64-unknown-linux-musl`, which runs the fixture and the network-boundary probe. Negative controls in `controller-test`: a fake `clang` earlier on `PATH` or a wrong version string fails `doctor`; an `--target aarch64` artifact fails the x86_64 machine check; a link that pulls an object from a sysroot `crt1.o` fails; a fetch attempted inside `prepare` fails.
+3. **G3 Bootstrap and executor, measured.**
+   - Owns `buildsys/bootstrap.py`, `docs/build-system.md` (bootstrap section).
+   - Prereq: G2.
+   - Work: apply P6. Measure cold bootstrap+build wall time and peak RSS for (a) upstream bootstrap and (b) the Alpine `cmake` apk, and for samurai versus Ninja (full build and no-op), each over 3 interleaved runs.
+   - Accept: `python3 build.py configure --target x86_64-unknown-linux-musl`, then rerun it and show the phase is reused with no work. Record the measurements in `docs/build-system.md`.
+4. **G4 OpenSSL-free HTTPS viability.**
+   - Owns `buildsys/rust.py`, `buildsys/tls.py`, `patches/0001-cmcurl-native-ca-fallback.patch`, `patches/README.md`, `tests/tls/`.
+   - Prereq: G2. G3 and G4 may run as parallel lanes: their files are disjoint, and the only shared file, `bootstrap.lock.json`, is edited by the coordinator only.
+   - Work: build rustls-ffi per P5 and link a minimal C program against it plus cmcurl in isolation. The program runs against a local TLS server whose CA and certificates are generated at test time by the `openssl` CLI in the test container. That CLI is test-only and never in the product.
+   - Accept: `python3 build.py controller-test -k tls` and `tests/tls/run.sh`, proving: a trusted CA via `CAINFO` succeeds; `SSL_CERT_DIR`-only succeeds through `NATIVE_CA`; an untrusted CA fails; a hostname mismatch fails; an expired certificate fails; and `nm` on the archive shows no `SSL_`/`OPENSSL_` symbols. If this cannot pass, mark the HTTPS lane `dev-candidate`, record the blocker in `docs/tls.md`, and continue. A dev candidate is never promoted (Acceptance A4).
+
+### Phase C: minimum complete product
+
+5. **C1 Locked CMake build.**
+   - Owns `buildsys/cmake.py`, `patches/` (series additions), `buildsys/patches.py`.
+   - Prereq: G3, G4.
+   - Work: configure and build the full CMake with P5, P7, and P8 in the sealed container. Write the patch inventory (`patches/README.md`: file, sha256, rationale, order), checked at `prepare`. Write the dependency inventory, generated from the actual CMake target graph via `cmake --graphviz` plus the link map. It records each bundled library's version, license, and whether it is reachable from `cmake` or only from `ctest`/`cpack`/the debugger.
+   - Accept: `python3 build.py build --target x86_64-unknown-linux-musl`. Then the built `bin/cmake --version` prints `4.4.5`, and `cmake -E capabilities` shows the TLS/`curl` feature enabled.
+6. **C2 Staging, relocation, and basic qualification.**
+   - Owns `buildsys/stage.py`, `tests/acceptance/{cli,c_cxx,generators,relocation}/`, `buildsys/qualify.py`.
+   - Prereq: C1.
+   - Work: stage `bin/cmake`, `share/cmake-4.4/` (modules, templates, platform files, compiler detection), `share/doc/cmake-build/` (notices plus `artifact.json`), and nothing else. Run acceptance against the staged tree copied to a directory with spaces, with the build tree unmounted.
+   - Accept: `python3 build.py test --target x86_64-unknown-linux-musl --suite basic`. It covers: CLI (`--version`, `--help`, `-E`, `-P`, `-S`/`-B`, `--build`, `--install`, cache `-D`/`-U`/`-L`); a C and C++ configure, build, install, and run with the P4 compiler under both Ninja/samurai and Unix Makefiles; and `CMAKE_ROOT` resolving inside the relocated prefix with no host CMake. Negative controls: a removed `Modules/CMakeDetermineCCompiler.cmake` fails with a missing-resource error; a broken relocation (moved `share/` only) fails.
+   - **M1:** run `qualify` (basic suites).
+
+### Phase D: hardening and parity
+
+Slices D2, D3, and D4 own disjoint test directories. Any two of them may run in parallel after D1. Each D slice runs on top of C2's controller, and the coordinator alone edits `buildsys/qualify.py` to register the suites.
+
+7. **D1 Independent ELF audit.**
+   - Owns `buildsys/elf.py`, `tests/audit/`, including a contaminated fixture.
+   - Prereq: C1.
+   - Work: audit every packaged ELF with `llvm-readelf`/`llvm-objdump`/`llvm-nm` against python-build `buildsys/elf.py` and llvm-prebuilt-musl `scripts/check-purity.sh`. Checks: exact `e_machine`; static PIE, or the approved musl interpreter plus `DT_NEEDED` ⊆ {`libc.musl-<arch>.so.1`}; no `GLIBC_*`, libgcc, libgcc_s, libstdc++, or OpenSSL (symbols, strings, `DT_NEEDED`); `.comment` free of `GCC:`; no `.gnu.version_r` beyond musl's; `PT_GNU_STACK` not executable; `PT_GNU_RELRO` plus `BIND_NOW`; ET_DYN PIE; no RPATH or RUNPATH; no build-host paths (`/home/`, the build root, `.work`) in strings. Before the final link, also audit every archive member the link actually extracts (`-Wl,--why-extract=`), including `librustls.a`, for `.comment` provenance.
+   - Accept: `python3 build.py controller-test -k audit` passes on the real `cmake`. It must reject fixtures with each of these: GCC-built objects, a `libstdc++` `DT_NEEDED`, an exec stack, a host RPATH, and a wrong machine.
+8. **D2 Functional parity suite.**
+   - Owns `tests/acceptance/{graph,features,packages,incremental,presets_fileapi,archive}/`.
+   - Prereq: C2.
+   - Work: build graphs with multiple libraries, PUBLIC/PRIVATE/INTERFACE dependencies, imported targets, genexes, generated sources, custom commands, and transitive includes; language detection, feature checks, `try_compile`, and `try_run`; `find_package` in config and module mode, plus install/export and downstream consumption of the installed export; incremental rebuild after touching a source, a header, and `CMakeLists.txt` on both generators; presets and file API replies; `cmake -E tar` create and extract (gz, xz, zstd, bz2, zip) and `file(ARCHIVE_CREATE|ARCHIVE_EXTRACT)`. Each output that could differ (file API JSON with paths normalized, generated `build.ninja` command lines, `--system-information` subsets) is diffed against the P9 Kitware binary. Differences are reported in `docs/qualification.md`, never assumed harmless.
+   - Accept: `python3 build.py test --target x86_64-unknown-linux-musl --suite parity`.
+9. **D3 Networking.**
+   - Owns `tests/acceptance/network/`.
+   - Prereq: C2, G4.
+   - Work: test against the local TLS server: `file(DOWNLOAD)` over HTTPS, a 302 redirect, `EXPECTED_HASH` success and mismatch, an untrusted CA, a hostname mismatch, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CMAKE_TLS_CAINFO`, `CMAKE_TLS_VERIFY OFF` honored only when set, and an `https_proxy` CONNECT through a local proxy. Then one real-internet workflow: `FetchContent` of a locked GitHub tarball with `URL_HASH`.
+   - Accept: `python3 build.py test --target x86_64-unknown-linux-musl --suite network`. The internet case reports `skipped: no network`, never pass, when offline.
+10. **D4 Real projects and upstream subset.**
+    - Owns `tests/projects/`, `tests/upstream-subset.txt`.
+    - Prereq: C2.
+    - Work: P10 and P11.
+    - Accept: `python3 build.py test --target x86_64-unknown-linux-musl --suite projects,upstream`. Zero executed tests, a missing report, or a timeout is a failure.
+11. **D5 Packaging, generations, reproducibility.**
+    - Owns `buildsys/{package,generations,reproduce}.py`, `tests/controller/test_package*.py`.
+    - Prereq: D1.
+    - Work:
+      - **Archive.** Deterministic `tar.xz`: sorted entries, uid/gid 0, names empty, mode normalized, `mtime=SOURCE_DATE_EPOCH` (the CMake source release time), and fixed xz settings.
+      - **`artifact.json`.** Contains every field from the source brief §9: source version and digest; repository commit and patch-set identity; LLVM toolchain release, digest, and compiler identity; target architecture and CPU baseline; effective compiler and linker flags; build-time dependency closure; build mode and isolation evidence; file inventory with hashes; ELF audit results; complete qualification summary; archive size and unpacked size.
+      - **Generations and selection.** Immutable generations following python-build `buildsys/generations.py`, with active selection by atomic rename.
+      - **Qualification of the packaged bytes.** `qualify` extracts the exact archive into a fresh directory whose name contains spaces and reruns the `basic`, `parity`, and `network` suites on those bytes.
+      - **Reproducibility.** `reproduce` runs two clean builds in separate roots and compares file types, modes, symlink targets, content, archive bytes, and embedded paths.
+    - Accept: `python3 build.py controller-test -k package` must show all of these: a failed or interrupted qualification never activates a generation; a previously accepted generation survives a failed candidate; and a tampered archive fails `qualify`. Then `python3 build.py reproduce --target x86_64-unknown-linux-musl` reports identical output, or lists each defect. Reproducibility is claimed only when identical.
+    - **M2:** `qualify` (all suites) on x86_64, then record P12 budgets.
+12. **D6 Native CI.**
+    - Owns `.github/workflows/`, `docs/ci-and-releases.md`.
+    - Prereq: D5.
+    - Work: P13. Push, then dispatch `qualify.yml` for both targets.
+    - Accept: `gh run watch <id> --exit-status` green for both jobs at the pushed SHA, and the aarch64 artifacts pass the same audit and suites natively. If the ARM64 runner is unavailable, aarch64 stays `unqualified` and moves to **Needs environment**.
+
+### Phase E: optimization (budgets gate from here)
+
+13. **E1 Benchmark harness.**
+    - Owns `buildsys/benchmark.py`, `docs/performance.md`.
+    - Prereq: M2.
+    - Work: compare against the P9 Kitware binary on the same machine and the same projects, with interleaved runs (≥ 10) and median plus spread. Measure: clean and incremental CMake build wall time and peak RSS; configure/generate time for P10 small, medium, and large; no-op reconfigure; reconfigure after a relevant edit; `cmake --version` and `cmake -P` latency; peak configure RSS; executable size; resource size; archive size. Label cold-cache and warm-cache runs (drop caches only via a fresh container plus `vmtouch -e` when available; otherwise mark cold `not measured`). Use `perf-gate-ready` per the Charter.
+    - Accept: `python3 build.py benchmark --target x86_64-unknown-linux-musl` writes `docs/performance.md` tables from a fresh run.
+14. **E2 Flag and linkage study.**
+    - Owns `buildsys/cmake.py` (flags only), `release-budgets.json`.
+    - Prereq: E1.
+    - Work: apply the Delegated flag bound and the P8 linkage comparison, measuring each candidate on its own before combining any.
+    - Accept: `python3 build.py qualify --target x86_64-unknown-linux-musl` green, with the adopted set's gains in `docs/performance.md`.
+15. **E3 Target trimming.**
+    - Owns `patches/`, `buildsys/cmake.py`.
+    - Prereq: E2.
+    - Work: drop any still-built target not needed by `cmake` or by qualification `ctest`, using upstream options first.
+    - Accept: same as E2, plus the D1 audit.
+    - **M3:** `qualify` and `reproduce` on x86_64, and a CI rerun for both targets.
+
+### Phase F: docs and close
+
+16. **F1 Documentation and Laputa handoff.**
+    - Owns `README.md`, `AGENTS.md`, `docs/*.md`, `NOTICE`/`licenses/`.
+    - Prereq: M3.
+    - Work: write the topics from source brief §12: product and target contracts; bootstrap and toolchain architecture; source and dependency provenance; exact build commands; offline build isolation; native dependency and ELF purity policies; qualification matrix and evidence; packaging, relocation, and reproducibility; performance measurements and optimization decisions; integration instructions for Laputa; outstanding limitations and follow-up work. The README stays short. Licenses cover CMake, every bundled library, rustls-ffi and its crates (from `cargo metadata`), and the LLVM runtime libraries linked in (compiler-rt, libc++, libc++abi, libunwind: Apache-2.0 WITH LLVM-exception) and musl (MIT). `docs/laputa-integration.md` covers: the package layout (`usr/bin/cmake`, `usr/share/cmake-4.4/`); that there are no runtime deps beyond the musl loader when dynamic, and none when static PIE; proof with the `dc0d9b9` toolchain plus samurai; no D-Bus, systemd, glibc, GCC runtime, or host CMake resources; and the stale `2f0b039` pin.
+    - Accept: `mdtool check --untracked docs README.md AGENTS.md` clean, and every command in the docs ran during this campaign.
+17. **F2 Close.**
+    - Prereq: F1.
+    - Work: run `dead-code-archaeology` over `buildsys/` and delete what is unreachable from `build.py`. Run the full upstream `ctest` once (report before starting). Run `ultrareview` and fix P1/P2 findings. Write the final report: commit SHA, implemented scope, tests executed, per-architecture verdicts, sizes, performance, and blockers.
+    - Accept: `qualify` for both targets green in CI at the final SHA, and `controller-test` green locally.
+
+## Acceptance
+
+Each deliverable is met only when its command passes on the integrated `main`.
+
+| # | Deliverable | Proof | Fails when |
+| --- | --- | --- | --- |
+| A1 | Locked, repeatable build for both targets | `build.py qualify --target <t>` locally (x86_64) and `qualify.yml` (both) | any input unverified, any lock entry missing, or any phase reused across changed inputs |
+| A2 | Real functional and compatibility behavior | suites `basic`, `parity`, `network`, `projects`, `upstream` | any test red versus the P9 unmodified build, zero tests run, a missing report, or a timeout |
+| A3 | Binary purity | D1 audit on every packaged ELF plus contaminated fixtures rejected | any rule in D1 is violated, or the contaminated fixture passes |
+| A4 | OpenSSL-free verified HTTPS | D3 suite plus `nm`/`DT_NEEDED` OpenSSL absence | an untrusted, expired, or mismatched certificate succeeds; trusted fails; OpenSSL is present; the lane is `dev-candidate` |
+| A5 | Relocatable | packaged-byte qualification in a spaced fresh directory | anything resolves outside the prefix or into the build tree |
+| A6 | Atomic, qualification-bound publication | D5 `controller-test -k package`; `release.yml` SHA and evidence checks | a partial or failed candidate activates, or a release proceeds without same-SHA qualification |
+| A7 | Native CI for both architectures | D6 green runs | any emulation, or aarch64 qualified off-runner |
+| A8 | Measured performance and size versus official CMake | E1 report plus `release-budgets.json` | a claim without a fresh interleaved measurement, or native-versus-emulated comparison |
+| A9 | Accurate docs | F1 | a doc states something not executed |
+| A10 | Reproducible | `build.py reproduce` | any difference; it is then reported as a defect and reproducibility is not claimed |
+
+## Needs environment
+
+- **Release publication:** the owner runs `gh workflow run release.yml -f tag=v4.4.5-<rev> -f sha=<qualified sha>` after both `qualify.yml` jobs are green at that SHA.
+- **aarch64 qualification**, only if GitHub's `ubuntu-24.04-arm` runner is unavailable to the repo: the owner runs `gh workflow run qualify.yml -f target=aarch64-unknown-linux-musl` when it becomes available. Until then aarch64 is `unqualified`.
+- **aarch64 performance numbers:** only from the native runner. If it can't produce stable timings, they stay `not measured`.
+
+## Execution boundary and non-goals
+
+- **Authorized:** everything in the Charter's execution grant.
+- **Forbidden:**
+  - the release dispatch or creating tags;
+  - changes to other repositories, including the Laputa recipe pins;
+  - QEMU or binfmt emulation;
+  - shipping `ccmake`, `cmake-gui`, `cpack`, `ctest`, docs generators, tests, debug info, or caches;
+  - shipping a frozen Mozilla root store;
+  - importing Alpine shared libraries into the product;
+  - disabling TLS verification by default;
+  - weakening a test or budget to pass.
+- **Non-goals, each with its reason:**
+  - glibc, Windows, and macOS targets: out of contract;
+  - `_FORTIFY_SOURCE`: musl lacks it (P8);
+  - PGO and BOLT as release prerequisites: optional research only;
+  - replacing curl with h12tiny: owner decision O2;
+  - a shared framework with python-build: forbidden by the brief;
+  - Laputa repository edits: handoff only.
+- **Contract changes for the owner:**
+  - `cmCurl.cxx` trust selection now uses the system platform verifier when no CA file is found. Upstream instead silently ran with whatever curl's build-time default was, and with Rustls that fails closed (P5).
+  - The product omits `ctest`/`cpack` even though their modules ship.
+  - Any patch added under P7.
+
+## Reference
+
+- **Toolchain `dc0d9b9`:**
+  - x86_64: `clang+llvm-23.1.5-x86_64-linux-musl.tar.xz`, sha256 `c43f18f143cc17f49814b6c5dda8a1122d17b6bcdff9848b6f77e97b33026dfe`, 100671508 B.
+  - aarch64: sha256 `fe0a382993c36a04a505157b59503a7294db97e2ac9923e5630f8b393b78f118`, 93784384 B.
+  - Release target commit `dc0d9b96ab4c5ddb11e308303e0129a559f2235d`. The release is not marked immutable, so the sha256 is the identity.
+  - `bin/clang++.cfg` selects lld, compiler-rt, libunwind, and `lib/musl` first.
+- **Kitware binaries (P9):**
+  - x86_64 sha256 `ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0`;
+  - aarch64 sha256 `301d5063ab259577c1b57ce5490b1aab9ea5c56dc4c822f73499553dab94925f`.
+- **CMake source map (4.4.5):**
+  - curl options are set in `Utilities/cmcurl/CMakeLists.txt:12-110`: FTP, FILE, HTTP, proxy, and netrc are on; dict, gopher, imap, ldap, and the like are off.
+  - The Rustls option is at `:929`, and the 0.15 floor check at `:1158`.
+  - CA resolution is in `Source/cmCurl.cxx:128-185`.
+  - The Rustls verifier choice is in `Utilities/cmcurl/lib/vtls/rustls.c:1039-1060`.
+  - System-library toggles are in `CMakeLists.txt:98-122`.
+  - Dialog and debugger options are in `Source/CMakeLists.txt:899,1425-1431`.
+- **Patterns to read, not copy:**
+  - python-build: `buildsys/{inputs,elf,generations,reproduce,sandbox,bootstrap}.py`, `build/relock_linux.py`, `backend/build-no-openssl.py:914-960`, `docs/{build-system,qualification-and-packaging,ci-and-releases}.md`, `.github/workflows/build.yml`;
+  - llvm-prebuilt-musl: `scripts/check-purity.sh`, `README.md`;
+  - chromium-build: `docs/linux.md` (cache isolation, staged-runtime tests);
+  - Laputa: `packages/cmake/` (4.4.4 recipe and musl patches), `packages/llvm-toolchain/PKGBUILD.xsh`.
