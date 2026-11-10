@@ -5,9 +5,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `58a0c6e`.
-- **Accepted:** G1, G2, G4. **Red:** none. **In progress:** G3 on `park/G3` at `cf7e76f`: native configure and its unchanged repeat pass, including a native `try_run` check and phase reuse. The required full-build timing comparisons remain outstanding.
-- **Next slice:** G3. Run the remaining P6 comparisons with the owner's performance gate waiver. Record host load and variation. The branch records five interleaved no-op samples per executor and their limits. Alpine CMake, upstream bootstrap, and both executors built CMake 4.4.5 in sealed containers. Use separate build trees for the executor comparison: Ninja rejects Samurai's build log.
+- **Last accepted revision:** `12dd34a`.
+- **Accepted:** G1, G2, G3, G4. **Red:** none. **Parked:** none.
+- **Next slice:** C1. Build the patched CMake with Rustls in the sealed builder, then record the patch and dependency inventories.
 
 ## Charter
 
