@@ -46,7 +46,7 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **O4 Crypto provider.** Use Graviola through a small rustls-ffi provider patch (P5). This matches python-build and h12tiny.
 
-- **O5 Performance gate.** The owner waived the performance gate on 2026-11-10. Measurements remain required and report observed load and variation.
+- **O5 Performance gate.** The owner waived the performance gate on 2026-11-10. Measurements remain required and report observed load and variation. Five interleaved repetitions are sufficient.
 
 - **O6 OpenSSL identifiers.** The owner allows version-recognition text and `openssl-probe` identifiers that locate system certificates. The audit still rejects OpenSSL libraries, API symbols, and other OpenSSL text.
 
@@ -133,7 +133,7 @@ Each decision gives its reason and, where one exists, the condition that would r
   - Bound: at most 20 minutes on 8 cores. Add tests to the subset freely. Remove one only by recording an upstream-failing reason.
   - A test is red when it fails on our build and passes on the P9 unmodified build. A failure shared with the P9 build is listed in `docs/qualification.md`, not hidden.
   - The full upstream `ctest` runs once at close. It is expensive, so report its start before running it.
-- **P12 Release budgets.** `release-budgets.json` holds the budgets measured at milestone M2: executable size, unpacked size, compressed size, `cmake --version` latency, and the small-project configure time. The regression threshold for each metric is the larger of 3% and 2× the observed spread over at least 10 interleaved runs. Before phase E, budgets are logged and not gating. From E onward, `qualify` fails on a regression beyond the threshold.
+- **P12 Release budgets.** `release-budgets.json` holds the budgets measured at milestone M2: executable size, unpacked size, compressed size, `cmake --version` latency, and the small-project configure time. The regression threshold for each metric is the larger of 3% and 2× the observed spread over at least five interleaved runs. Timing gates are waived; size gates remain binding.
 - **P13 CI shape.** Mirror python-build `.github/workflows/build.yml`:
   - `controller.yml` runs `controller-test` on push and PR.
   - `qualify.yml` uses `workflow_dispatch` only, with native jobs on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs `python3 build.py qualify --target <triple>` in the P2 container and uploads its archive, `artifact.json`, and qualification report.
@@ -248,7 +248,7 @@ Slices D2, D3, and D4 own disjoint test directories. Any two of them may run in 
 13. **E1 Benchmark harness.**
     - Owns `buildsys/benchmark.py`, `docs/performance.md`.
     - Prereq: M2.
-    - Work: compare against the P9 Kitware binary on the same machine and the same projects, with interleaved runs (≥ 10) and median plus spread. Measure: clean and incremental CMake build wall time and peak RSS; configure/generate time for P10 small, medium, and large; no-op reconfigure; reconfigure after a relevant edit; `cmake --version` and `cmake -P` latency; peak configure RSS; executable size; resource size; archive size. Label cold-cache and warm-cache runs (drop caches only via a fresh container plus `vmtouch -e` when available; otherwise mark cold `not measured`). Use `perf-gate-ready` per the Charter.
+    - Work: compare against the P9 Kitware binary on the same machine and the same projects, with interleaved runs (≥ 5) and median plus spread. Measure: clean and incremental CMake build wall time and peak RSS; configure/generate time for P10 small, medium, and large; no-op reconfigure; reconfigure after a relevant edit; `cmake --version` and `cmake -P` latency; peak configure RSS; executable size; resource size; archive size. Label cold-cache and warm-cache runs (drop caches only via a fresh container plus `vmtouch -e` when available; otherwise mark cold `not measured`). Use `perf-gate-ready` per the Charter.
     - Accept: `python3 build.py benchmark --target x86_64-unknown-linux-musl` writes `docs/performance.md` tables from a fresh run.
 14. **E2 Flag and linkage study.**
     - Owns `buildsys/cmake.py` (flags only), `release-budgets.json`.
