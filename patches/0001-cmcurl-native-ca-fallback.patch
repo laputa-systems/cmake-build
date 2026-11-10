@@ -1,0 +1,77 @@
+diff --git a/Source/cmCurl.cxx b/Source/cmCurl.cxx
+index 06bb7d5..3bd2607 100644
+--- a/Source/cmCurl.cxx
++++ b/Source/cmCurl.cxx
+@@ -137,15 +137,13 @@ std::string cmCurlSetCAInfo(::CURL* curl, std::string const& cafile)
+     ::CURLcode res = ::curl_easy_setopt(curl, CURLOPT_CAINFO, cafile.c_str());
+     check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
+   }
+-  /* Honor the user-configurable OpenSSL environment variables. */
+-  else if (cmSystemTools::GetEnv("SSL_CERT_FILE", env_ca) &&
+-           cmSystemTools::FileExists(env_ca, true)) {
++  else if (cmSystemTools::GetEnv("SSL_CERT_FILE", env_ca)) {
+     ::CURLcode res = ::curl_easy_setopt(curl, CURLOPT_CAINFO, env_ca.c_str());
+     check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
+-  } else if (cmSystemTools::GetEnv("SSL_CERT_DIR", env_ca) &&
+-             cmSystemTools::FileIsDirectory(env_ca)) {
+-    ::CURLcode res = ::curl_easy_setopt(curl, CURLOPT_CAPATH, env_ca.c_str());
+-    check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
++  } else if (cmSystemTools::GetEnv("SSL_CERT_DIR", env_ca)) {
++    ::CURLcode res =
++      ::curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
++    check_curl_result(res, "Unable to set TLS/SSL native CA: ");
+   }
+ #ifdef CMAKE_FIND_CAFILE
+ #  define CMAKE_CAFILE_FEDORA "/etc/pki/tls/certs/ca-bundle.crt"
+@@ -155,41 +153,19 @@ std::string cmCurlSetCAInfo(::CURL* curl, std::string const& cafile)
+     check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
+   }
+ #  undef CMAKE_CAFILE_FEDORA
+-  else {
+ #  define CMAKE_CAFILE_COMMON "/etc/ssl/certs/ca-certificates.crt"
+-    if (cmSystemTools::FileExists(CMAKE_CAFILE_COMMON, true)) {
+-      ::CURLcode res =
+-        ::curl_easy_setopt(curl, CURLOPT_CAINFO, CMAKE_CAFILE_COMMON);
+-      check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
+-    }
+-#  undef CMAKE_CAFILE_COMMON
+-#  define CMAKE_CAPATH_COMMON "/etc/ssl/certs"
+-    if (cmSystemTools::FileIsDirectory(CMAKE_CAPATH_COMMON)) {
+-      ::CURLcode res =
+-        ::curl_easy_setopt(curl, CURLOPT_CAPATH, CMAKE_CAPATH_COMMON);
+-      check_curl_result(res, "Unable to set TLS/SSL Verify CAPATH: ");
+-    }
+-#  undef CMAKE_CAPATH_COMMON
+-#  ifdef _AIX
+-#    define CMAKE_CAPATH_AIX "/var/ssl/certs"
+-    if (cmSystemTools::FileIsDirectory(CMAKE_CAPATH_AIX)) {
+-      ::CURLcode res =
+-        ::curl_easy_setopt(curl, CURLOPT_CAPATH, CMAKE_CAPATH_AIX);
+-      check_curl_result(res, "Unable to set TLS/SSL Verify CAPATH: ");
+-    }
+-#    undef CMAKE_CAPATH_AIX
+-#  endif
+-#  ifdef __sun
+-#    define CMAKE_CAPATH_SUNOS_CSW "/etc/opt/csw/ssl/certs"
+-    if (cmSystemTools::FileIsDirectory(CMAKE_CAPATH_SUNOS_CSW)) {
+-      ::CURLcode res =
+-        ::curl_easy_setopt(curl, CURLOPT_CAPATH, CMAKE_CAPATH_SUNOS_CSW);
+-      check_curl_result(res, "Unable to set TLS/SSL Verify CAPATH: ");
+-    }
+-#    undef CMAKE_CAPATH_SUNOS_CSW
+-#  endif
++  else if (cmSystemTools::FileExists(CMAKE_CAFILE_COMMON, true)) {
++    ::CURLcode res =
++      ::curl_easy_setopt(curl, CURLOPT_CAINFO, CMAKE_CAFILE_COMMON);
++    check_curl_result(res, "Unable to set TLS/SSL Verify CAINFO: ");
+   }
++#  undef CMAKE_CAFILE_COMMON
+ #endif
++  else {
++    ::CURLcode res =
++      ::curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
++    check_curl_result(res, "Unable to set TLS/SSL native CA: ");
++  }
+   return e;
+ }
+ 
