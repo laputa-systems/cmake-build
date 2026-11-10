@@ -73,8 +73,9 @@ compiler cache. Rust continues to use its existing wrapper.
 A native x86_64 build completed the ELF audit with caching enabled. A repeated
 compile of a CMake source was a local cache hit, ran no compiler, and restored
 the original object bytes. A header-change probe produced a fresh object.
-These checks establish cache behavior; they do not measure a speedup. CI cache
-restoration remains to be implemented with the native qualification workflow.
+These checks establish cache behavior; they do not measure a speedup. Native CI
+caches verified inputs, Rust phases, and qualification build phases. Those caches
+do not enable the C and C++ compiler cache in qualification builds.
 
 ## Debug information
 

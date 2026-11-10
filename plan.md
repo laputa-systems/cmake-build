@@ -5,18 +5,18 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `12cce1a` (D4).
-- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4; M1 basic qualification passed. D4 reports one upstream failure shared with the unmodified static-musl baseline.
-- **Parked:** none. The fmt project suite passes with its missing-locale detection corrected; locale-specific assertions remain untested without locale data.
-- **In progress:** D5 packaging and qualification. Deterministic archive and atomic generation primitives have passed their controller tests; command integration remains.
-- **Next:** Complete D5, including packaged-byte qualification and reproducibility; add local and CI cache reuse without using a C/C++ compiler cache for qualification or release builds.
+- **Last accepted revision:** `6c62b0b` for the license-bearing, reproducible x86_64 package; native ARM qualification passed at that revision.
+- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5. The x86_64 and aarch64 native qualification jobs passed at `66669c2`; those earlier archives did not include third-party notices and are not release candidates. The later license-bearing archive reproduced byte for byte on x86_64.
+- **Parked:** the fmt locale-specific assertions need locale data. The upstream subset has one failure shared with the unmodified static-musl baseline.
+- **In progress:** native qualification and clean reproducibility of the debug-stripped package at `58313ac`; full upstream CTest; performance measurements and closeout.
+- **Next:** publish the authorized prerelease only after both native jobs succeed for its exact commit, and complete the remaining measurements and closeout checks.
 
 ## Charter
 
 - **Decide and keep going.** Make judgment calls inside **Decisions**. Record a decision in this doc only when a later slice depends on it. Otherwise the commit body carries it.
 - **Execution grant.** You may write anything in this repository and commit to `main`. You may push verified commits to `origin main`. You may run `gh workflow run` for the qualification workflows, and `gh run watch`/`gh run view` for their results. You may download the locked inputs listed in **Decisions** and the crates their lockfiles name. You may pull and build Docker images. A plan does not grant more than this. Park any item that needs more.
 - **Hard stops.** Each one parks the item with its cause:
-  - dispatching the release workflow or creating a GitHub release or tag;
+  - dispatching a stable release or creating a stable release tag;
   - writing to any other repository (`laputa`, `python-build`, `llvm-prebuilt-musl`, `chromium-build`, `h12tiny`, upstream);
   - force-pushing or rewriting pushed history;
   - deleting anything outside `.work/` and this repo's build outputs;
