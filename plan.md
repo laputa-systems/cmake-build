@@ -6,10 +6,11 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last prerelease:** `58313ac`, qualified natively on both architectures and reproduced on x86_64. GitHub does not mark the prerelease immutable; consumers must pin and verify its archive digest.
-- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
-- **Parked:** none. Locale-specific fmt assertions need locale data. CPU sampling needs a `perf` executable; ARM memory budgets have not been measured.
-- **In progress:** verify the exact-archive project and upstream checks and size budgets in native CI. The x86_64 executable measurements and syscall profiles are recorded; CMake's own clean and incremental build costs and Laputa consumer proof remain unmeasured. Memory comparisons run in the benchmark and are not yet a qualification prerequisite.
-- **Next:** run native CI at the resulting commit and investigate narrowly scoped optimizations against the measured baseline.
+- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. Exact-archive checks passed both native CI jobs at `9608087`. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
+- **Measured:** five-run ARM memory and performance baselines and the x86_64 Rustls release-profile study. The latter reduced executable and archive size, passed x86_64 qualification, and showed no clear runtime change against the previous product.
+- **Parked:** locale-specific fmt assertions need locale data, and CPU sampling needs a `perf` executable. CMake's own clean and incremental build costs and the Laputa consumer proof remain unmeasured.
+- **In progress:** qualify the integrated release-profile candidate and its memory budgets on both native architectures, then reproduce its exact release commit on x86_64.
+- **Next:** review native results and reproduction before dispatching a new prerelease.
 
 ## Charter
 
