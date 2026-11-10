@@ -33,7 +33,7 @@ release candidate.
 The table lists median and observed range in seconds, plus the invalid legacy
 RSS figures in KiB. `product` is the release-profile experiment; `musl` is the previous
 qualified product, not the separate unmodified musl reference used in the
-[original x86-64 report](performance.md). The [raw measurements and syscall
+[original x86-64 report](performance-legacy-x86_64.md). The [raw measurements and syscall
 profiles](performance-rust-release.json) contain all five samples and the
 sample-boundary loads. The untimed LLVM traces recorded the same 614,737
 file/process calls for each executable, including child processes; tracing

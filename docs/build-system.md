@@ -127,3 +127,9 @@ container RSS.
 The clean package and unchanged build are different commands at different
 commits, so these observations are not a paired speedup. They measure the
 cost of producing CMake, not Laputa provisioning or downstream project builds.
+
+Two clean x86-64 builds at release commit `5932be3` produced the same file
+tree and archive bytes. Their archive SHA-256 was
+`cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c`,
+which also matches the native CI and published x86-64 archive. A separate
+ARM64 clean-build reproduction was not run.

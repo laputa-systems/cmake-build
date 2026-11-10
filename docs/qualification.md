@@ -101,6 +101,31 @@ The selected upstream run executed 85 tests with no skips. Eighty-four passed. `
        },
        {
          "name": "CMAKE_VERBOSE_MAKEFILE",
+@@ -1709,11 +1698,11 @@
+             "dependencies": [
+               {
+                 "backtrace": 2,
++                "id": "base::@6890427a1f51a3e7e1df"
++              },
++              {
++                "backtrace": 2,
+                 "id": "wrapper::@6890427a1f51a3e7e1df"
+-              },
+-              {
+-                "backtrace": 2,
+-                "id": "base::@6890427a1f51a3e7e1df"
+               }
+             ],
+             "id": "graph::@6890427a1f51a3e7e1df",
+@@ -1937,7 +1926,7 @@
+           {
+             "directoryIndex": 0,
+             "id": "graph::@6890427a1f51a3e7e1df",
+-            "jsonFile": "target-graph-Release-94aad6a7ba7a6c8b9c09.json",
++            "jsonFile": "target-graph-Release-84dc3cf0c9f923a1abb5.json",
+             "name": "graph",
+             "projectIndex": 0
+           },
 ```
 
 ### make-file-api.json
@@ -157,7 +182,7 @@ The selected upstream run executed 85 tests with no skips. Eighty-four passed. `
 
 ## Latest upstream subset: x86_64-unknown-linux-musl
 
-Executable SHA-256: `e53436f3696c32eb40a3389ce15937d24dfb8cfef63e5afbb8b53f9e2b895121`.
+Executable SHA-256: `f53bd11fb5beb68320766184ef5705986bd9ad89ee5f5177b5cfa6042160d7fa`.
 
 Executed 85 tests. 84 passed.
 
@@ -182,3 +207,179 @@ occurred in the unmodified static-musl baseline under the same conditions:
 The `curl` test requires access to `open.cdash.org`, which the sealed builder
 cannot reach. The `BootstrapTest` failure occurred when its default configuration required
 OpenSSL, which the builder does not provide.
+
+## Latest upstream subset: aarch64-unknown-linux-musl
+
+Executable SHA-256: `331eba4794afa2685a49f1be4b06889d8125a4421df9616b463ade96542e22e5`.
+
+Executed 85 tests. 84 passed.
+
+The following failures also occurred in the unmodified static-PIE baseline:
+
+- `kwsys.testDynamicLoader`
+
+## Latest automated parity differences: aarch64-unknown-linux-musl
+
+### ninja build/build.ninja
+
+```diff
+--- reference/ninja build/build.ninja
++++ candidate/ninja build/build.ninja
+@@ -168,9 +168,8 @@
+ # Utility command for edit_cache
+
+ build CMakeFiles/edit_cache.util: CUSTOM_COMMAND
+-  COMMAND = cd "/qualification/graph suite/ninja build" && "/qualification/relocated cmake/bin/ccmake" -S"/qualification/graph suite/source" -B"/qualification/graph suite/ninja build"
+-  DESC = Running CMake cache editor...
+-  pool = console
++  COMMAND = cd "/qualification/graph suite/ninja build" && "/qualification/relocated cmake/bin/cmake" -E echo No\ interactive\ CMake\ dialog\ available.
++  DESC = No interactive CMake dialog available...
+   restat = 1
+
+ build edit_cache: phony CMakeFiles/edit_cache.util
+```
+
+### ninja-file-api.json
+
+```diff
+--- reference/ninja-file-api.json
++++ candidate/ninja-file-api.json
+@@ -371,17 +371,6 @@
+         "value": "CMAKE_DLLTOOL-NOTFOUND"
+       },
+       {
+-        "name": "CMAKE_EDIT_COMMAND",
+-        "properties": [
+-          {
+-            "name": "HELPSTRING",
+-            "value": "Path to cache edit program executable."
+-          }
+-        ],
+-        "type": "INTERNAL",
+-        "value": "/qualification/relocated cmake/bin/ccmake"
+-      },
+-      {
+         "name": "CMAKE_ERROR_DEPRECATED",
+         "properties": [
+           {
+@@ -830,7 +819,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "1"
++        "value": "0"
+       },
+       {
+         "name": "CMAKE_INSTALL_SYSCONFDIR",
+@@ -1262,7 +1251,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "/usr/bin/uname"
++        "value": "/bin/uname"
+       },
+       {
+         "name": "CMAKE_VERBOSE_MAKEFILE",
+@@ -1709,11 +1698,11 @@
+             "dependencies": [
+               {
+                 "backtrace": 2,
++                "id": "base::@6890427a1f51a3e7e1df"
++              },
++              {
++                "backtrace": 2,
+                 "id": "wrapper::@6890427a1f51a3e7e1df"
+-              },
+-              {
+-                "backtrace": 2,
+-                "id": "base::@6890427a1f51a3e7e1df"
+               }
+             ],
+             "id": "graph::@6890427a1f51a3e7e1df",
+@@ -1937,7 +1926,7 @@
+           {
+             "directoryIndex": 0,
+             "id": "graph::@6890427a1f51a3e7e1df",
+-            "jsonFile": "target-graph-Release-104da5bad9bb53ceb62f.json",
++            "jsonFile": "target-graph-Release-ecf77af74e06a4e27eee.json",
+             "name": "graph",
+             "projectIndex": 0
+           },
+```
+
+### make-file-api.json
+
+```diff
+--- reference/make-file-api.json
++++ candidate/make-file-api.json
+@@ -386,17 +386,6 @@
+         "value": "CMAKE_DLLTOOL-NOTFOUND"
+       },
+       {
+-        "name": "CMAKE_EDIT_COMMAND",
+-        "properties": [
+-          {
+-            "name": "HELPSTRING",
+-            "value": "Path to cache edit program executable."
+-          }
+-        ],
+-        "type": "INTERNAL",
+-        "value": "/qualification/relocated cmake/bin/ccmake"
+-      },
+-      {
+         "name": "CMAKE_ERROR_DEPRECATED",
+         "properties": [
+           {
+@@ -830,7 +819,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "1"
++        "value": "0"
+       },
+       {
+         "name": "CMAKE_INSTALL_SYSCONFDIR",
+@@ -871,7 +860,7 @@
+           }
+         ],
+         "type": "FILEPATH",
+-        "value": "/usr/bin/make"
++        "value": "/usr/bin/gmake"
+       },
+       {
+         "name": "CMAKE_MODULE_LINKER_FLAGS",
+@@ -1266,7 +1255,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "/usr/bin/uname"
++        "value": "/bin/uname"
+       },
+       {
+         "name": "CMAKE_VERBOSE_MAKEFILE",
+@@ -1713,11 +1702,11 @@
+             "dependencies": [
+               {
+                 "backtrace": 2,
++                "id": "base::@6890427a1f51a3e7e1df"
++              },
++              {
++                "backtrace": 2,
+                 "id": "wrapper::@6890427a1f51a3e7e1df"
+-              },
+-              {
+-                "backtrace": 2,
+-                "id": "base::@6890427a1f51a3e7e1df"
+               }
+             ],
+             "id": "graph::@6890427a1f51a3e7e1df",
+@@ -1941,7 +1930,7 @@
+           {
+             "directoryIndex": 0,
+             "id": "graph::@6890427a1f51a3e7e1df",
+-            "jsonFile": "target-graph-Release-104da5bad9bb53ceb62f.json",
++            "jsonFile": "target-graph-Release-ecf77af74e06a4e27eee.json",
+             "name": "graph",
+             "projectIndex": 0
+           },
+```

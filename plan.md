@@ -4,13 +4,12 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 ## Status
 
-- **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last prerelease:** `58313ac`, qualified natively on both architectures and reproduced on x86_64. GitHub does not mark the prerelease immutable; consumers must pin and verify its archive digest.
-- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. Exact-archive checks passed both native CI jobs at `9608087`. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
-- **Measured:** five-run performance baselines, the x86_64 Rustls release-profile study, clean and unchanged build costs, and a main-thread CPU sample. The release-profile candidate reduced executable and archive size, passed x86_64 qualification, and showed no clear runtime change against the previous product. The earlier RSS values are invalid because `wait4` can include the launcher's high-water mark.
-- **Parked:** locale-specific fmt assertions need locale data, and CPU call-stack sampling needs a suitable profiling tool. The specified Laputa consumer proof has not been run.
-- **In progress:** both CMake-image memory baselines passed five native runs. The section-garbage-collection candidate passed the x86_64 ELF, basic, TLS, and parity checks; full native qualification remains. Two clean x86_64 builds at `91983ee` produced identical archives before this linker change.
-- **Next:** qualify the current candidate on both native architectures and reproduce its exact x86_64 archive before dispatching a new prerelease.
+- **Goal:** ship the qualified CMake 4.4.5 archives for x86-64 and ARM64 musl.
+- **Prerelease:** commit `5932be3`, qualified on both native architectures in run `42900481859` and published in run `42907504620`. The x86-64 archive matched two clean builds. GitHub does not mark the prerelease immutable; pin its digest.
+- **Accepted:** the controller suite, ELF and TLS audits, relocation, real projects, upstream subset, native memory and size gates, and exact-archive qualification. Each final native upstream subset ran 85 tests, with one failure shared by the unmodified baseline. The earlier full x86-64 upstream run executed 674 tests; its seven failures were also shared with that baseline.
+- **Measured:** five-run native reports compare the released executables with the pinned Kitware binary and unmodified static-musl baseline. The x86-64 section-garbage-collection study reduced executable size without a demonstrated runtime change. Historical `wait4` RSS values are invalid and are labeled accordingly.
+- **Parked:** locale-specific fmt assertions need locale data. CPU call-stack sampling needs a suitable profiling tool. The specified Laputa consumer proof has not been run, and the CMake-only distribution does not replace Laputa's complete `cmake`, `ctest`, and `cpack` package.
+- **Next:** use the integration handoff for a separately authorized Laputa consumer proof. Keep the existing full-tools package where its outputs are required.
 
 ## Charter
 

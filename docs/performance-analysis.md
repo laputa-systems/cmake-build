@@ -1,7 +1,7 @@
 # Initial CMake performance analysis
 
 This analysis describes the x86-64 prerelease at commit `58313ac`. The
-[measurements and raw samples](performance.md) use ten interleaved repetitions
+[measurements and raw samples](performance-legacy-x86_64.md) use ten interleaved repetitions
 because that run was already in progress when the owner set the future minimum
 to five. The four-CPU run shared the host with other work. The one-minute host
 load at sample boundaries ranged from 1.91 to 5.11 on eight logical CPUs.

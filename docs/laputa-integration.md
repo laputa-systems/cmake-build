@@ -26,6 +26,14 @@ Three integration choices remain:
 
 ## Consuming a qualified archive
 
+The [qualified prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-5932be3ecbc4-run42907504620-1)
+contains these archives:
+
+| Target | Archive SHA-256 |
+| --- | --- |
+| `x86_64-unknown-linux-musl` | `cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c` |
+| `aarch64-unknown-linux-musl` | `66ec96c09705c67adfa83494bf512dc4b7eb5f6cb0f9d706d8499bb460a1c3a8` |
+
 Select the `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` archive
 for the package target. Pin its SHA-256 per architecture in the recipe's
 `upstream_sources` and verify it through Laputa's source cache. Require detached
