@@ -21,7 +21,7 @@ The selected system-information fields matched. The Ninja build files differed i
 
 The Ninja codemodel listed the `base` and `wrapper` dependencies in the opposite order, and the target reply filename differed. Both generated executables and the downstream executable ran successfully. The effect of the dependency ordering on other consumers has not been established.
 
-These runs cover the fixtures above, not the complete parity, networking, project, or upstream suites.
+The registered parity suite covers the fixtures above.
 
 ## x86-64 networking
 
@@ -29,11 +29,15 @@ The staged CMake passed local HTTPS downloads, redirects, expected hash checks, 
 
 A separate networked container used `FetchContent` to download the locked CMake source archive and verify its SHA-256. The local tests ran with only loopback networking. The registered network qualification command passed.
 
-## Preliminary real-project results
+## x86-64 real-project results
 
-fmt 12.2.1 configured and built with the staged CMake and pinned LLVM/musl toolchain. Its test run passed 18 of 21 CTest cases. `chrono-test`, `unicode-test`, and `xchar-test` failed locale assertions. A separate build with the official CMake binary and the same toolchain reproduced all three failures. The failures remain reported by the project fixture.
+fmt 12.2.1 initially passed 18 of 21 CTest cases. `chrono-test`, `unicode-test`, and `xchar-test` failed locale assertions. An official CMake build with the same toolchain reproduced all three failures. Musl accepts a locale name even when locale data is absent, but fmt's test helper interpreted the accepted name as evidence that data existed. A test-only helper correction uses fmt's existing missing-locale path when `MUSL_LOCPATH` is unset. With that correction, all 21 CTest cases passed. Locale-specific assertions were not exercised.
 
-zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. libjpeg-turbo 3.2.1 built with SIMD disabled, and `tjunittest-static` exited successfully after exercising its checks. LLVM 23.1.5 configured with Clang enabled. The complete project suite remains red because of the fmt failures.
+zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. libjpeg-turbo 3.2.1 built with SIMD disabled, and `tjunittest-static` exited successfully after exercising its checks. LLVM 23.1.5 configured with Clang enabled.
+
+## x86-64 upstream subset
+
+The selected upstream run executed 85 tests with no skips. Eighty-four passed. `kwsys.testDynamicLoader` failed because the static musl executable cannot load a shared object. An unmodified CMake build with the same pinned toolchain and static-PIE configuration failed the same test with the same message. Musl's static `dlopen` implementation reports that dynamic loading is unsupported. The registered upstream suite passed after confirming the same failure on the baseline.
 
 ## Latest automated parity differences: x86_64-unknown-linux-musl
 
@@ -175,3 +179,11 @@ zstd 1.5.7 configured and built, and its command-line program passed a compressi
        {
          "name": "CMAKE_VERBOSE_MAKEFILE",
 ```
+
+## Latest upstream subset: x86_64-unknown-linux-musl
+
+Executed 85 tests. 84 passed.
+
+The following failures also occurred in the unmodified static-PIE baseline:
+
+- `kwsys.testDynamicLoader`

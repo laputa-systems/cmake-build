@@ -13,6 +13,7 @@ python3 build.py fetch --target x86_64-unknown-linux-musl
 python3 build.py test --target x86_64-unknown-linux-musl --suite basic
 python3 build.py test --target x86_64-unknown-linux-musl --suite parity
 python3 build.py test --target x86_64-unknown-linux-musl --suite network
+python3 build.py test --target x86_64-unknown-linux-musl --suite projects,upstream
 ```
 
 Run `fetch` for the native target before `controller-test`; the TLS dependency

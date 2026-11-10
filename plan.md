@@ -5,11 +5,11 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `dbdbb95` (D1).
-- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3; M1 basic qualification passed. **Red:** D4's last full run.
-- **Parked:** none. D4's retry condition changed: a targeted correction to fmt's missing-locale detection passed the three previously failing tests. Locale-specific assertions remain untested without locale data.
-- **In progress:** D4 is retrying on `park/d4`. The corrected real-project run passed; the upstream subset has one failure shared with the unmodified static-PIE baseline.
-- **Next:** Complete the registered D4 project and upstream suites.
+- **Last accepted revision:** `12cce1a` (D4).
+- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4; M1 basic qualification passed. D4 reports one upstream failure shared with the unmodified static-musl baseline.
+- **Parked:** none. The fmt project suite passes with its missing-locale detection corrected; locale-specific assertions remain untested without locale data.
+- **In progress:** D5 packaging and qualification. Deterministic archive and atomic generation primitives have passed their controller tests; command integration remains.
+- **Next:** Complete D5, including packaged-byte qualification and reproducibility; add local and CI cache reuse without using a C/C++ compiler cache for qualification or release builds.
 
 ## Charter
 
