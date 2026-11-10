@@ -106,6 +106,7 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
             "TMPDIR": str(scratch),
             "CARGO_HOME": str(root / "cargo"),
             "RUSTC_WRAPPER": "",
+            "RUSTC": str(tools.directory / "bin/rustc"),
             "PATH": f"{tools.directory / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
         }
         _run(["patch", "--batch", "-p1", "-i", str(patch)], cwd=project, env=env)
@@ -172,6 +173,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
             "XDG_CACHE_HOME": str(scratch / "kache-cache"),
             "XDG_CONFIG_HOME": str(scratch / "kache-config"),
             "RUSTC_WRAPPER": str(kache),
+            "RUSTC": str(tools / "bin/rustc"),
             "LIBRARY_PATH": str(host_libs),
             "PATH": f"{tools / 'bin'}{os.pathsep}{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
             f"CARGO_TARGET_{target.triple.upper().replace('-', '_')}_LINKER": str(tc / "bin/clang"),

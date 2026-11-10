@@ -7,7 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .rust import RustError, _run
+from .rust import RustError, _run, _rust_environment
 
 
 class TlsError(Exception):
@@ -49,6 +49,7 @@ def check_vendored(vendored: Path, tools: Path, target: str, scratch: Path) -> N
             '[source.crates-io]\nreplace-with = "vendored-sources"\n'
             '[source.vendored-sources]\ndirectory = ' + json.dumps(str(vendored / "vendor")) + '\n'
         )
-        env = {**os.environ, "CARGO_HOME": str(cargo_home), "TMPDIR": str(scratch),
-               "RUSTC_WRAPPER": "", "PATH": f"{tools}{os.pathsep}{os.environ.get('PATH', '')}"}
+        env = {**_rust_environment(), "CARGO_HOME": str(cargo_home), "TMPDIR": str(scratch),
+               "RUSTC": str(tools / "rustc"), "RUSTC_WRAPPER": "",
+               "PATH": f"{tools}{os.pathsep}{os.environ.get('PATH', '')}"}
         check_dependencies(tools / "cargo", projects[0] / "Cargo.toml", target, env)
