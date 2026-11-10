@@ -489,7 +489,7 @@ def _build_inside(description, mode: cmake.BuildMode) -> int:
     return 0
 
 
-def test_command(args: argparse.Namespace) -> int:
+def test_command(args: argparse.Namespace, *, prepare_only: bool = False) -> int:
     description = _target(args.target)
     suites = {"basic": qualify.basic, "parity": qualify.parity, "network": qualify.network,
               "projects": qualify.projects, "upstream": qualify.upstream}
@@ -541,14 +541,15 @@ def test_command(args: argparse.Namespace) -> int:
     print(result.stdout, end="")
     if result.returncode:
         _fail(f"staging failed inside the sealed container ({result.returncode}):\n{result.stderr}")
-    for name in selected:
-        suites[name](root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
+    if not prepare_only:
+        for name in selected:
+            suites[name](root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
     return 0
 
 
 def _source_commit() -> str:
     status = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all", "--", "build.py", "buildsys", "docker", "patches", "tests", "licenses", "NOTICE", "sources.lock.json", "bootstrap.lock.json"],
+        ["git", "status", "--porcelain", "--untracked-files=all", "--", "build.py", "buildsys", "docker", "patches", "tests", "licenses", "NOTICE", "sources.lock.json", "bootstrap.lock.json", "release-budgets.json"],
         cwd=ROOT, capture_output=True, text=True, check=True,
     )
     if status.stdout:
@@ -695,10 +696,15 @@ def qualify_command(args: argparse.Namespace) -> int:
         _fail("candidate record does not match the archive or repository commit")
     if package.digest(archive) != candidate["sha256"]:
         _fail("candidate archive has been modified")
-    test_command(argparse.Namespace(target=description.triple, suite="projects,upstream", in_container=False))
+    size_budgets = budgets.load(ROOT / "release-budgets.json")
+    test_command(argparse.Namespace(target=description.triple, suite="upstream", in_container=False), prepare_only=True)
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     image = sandbox.image_tag(lock, description, DOCKERFILE)
     def run(tree: Path) -> dict:
+        sizes = budgets.check_size(size_budgets, description.triple, tree, tree.parent / "artifact.tar.xz")
+        print(f"size budgets passed: {sizes}")
+        qualify.projects(root=ROOT, phase=tree / "usr", image=image, target=description)
+        qualify.upstream(root=ROOT, phase=tree / "usr", image=image, target=description)
         for name, suite in (("basic", qualify.basic), ("parity", qualify.parity), ("network", qualify.network)):
             suite(root=ROOT, phase=tree / "usr", image=image, target=description)
         report = (ROOT / "docs/qualification.md").read_text()
@@ -706,7 +712,8 @@ def qualify_command(args: argparse.Namespace) -> int:
         section = report.partition(marker)[2].partition("\n## ")[0].strip()
         if not section:
             _fail("upstream qualification report is missing")
-        return {"basic": "passed", "parity": "passed", "network": "passed", "projects": "passed", "upstream": section}
+        return {"basic": "passed", "parity": "passed", "network": "passed", "projects": "passed", "upstream": section,
+                "sizes": sizes}
     generation = generations.qualify(WORK / "generations" / description.triple, archive, candidate["sha256"], run)
     print(f"qualified generation: {generation}")
     return 0

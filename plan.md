@@ -8,8 +8,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **Last prerelease:** `58313ac`, qualified natively on both architectures and reproduced on x86_64. GitHub does not mark the prerelease immutable; consumers must pin and verify its archive digest.
 - **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
 - **Parked:** none. Locale-specific fmt assertions need locale data. CPU sampling needs a `perf` executable; ARM memory budgets have not been measured.
-- **In progress:** bind the project and upstream suites to the extracted archive, enforce size budgets, and finish E1 analysis. The x86_64 executable measurements and syscall profiles are recorded; CMake's own clean and incremental build costs and Laputa consumer proof remain unmeasured.
-- **Next:** verify the exact-archive qualification changes, run native CI at the resulting commit, and investigate narrowly scoped optimizations against the measured baseline.
+- **In progress:** verify the exact-archive project and upstream checks and size budgets in native CI. The x86_64 executable measurements and syscall profiles are recorded; CMake's own clean and incremental build costs and Laputa consumer proof remain unmeasured. Memory comparisons run in the benchmark and are not yet a qualification prerequisite.
+- **Next:** run native CI at the resulting commit and investigate narrowly scoped optimizations against the measured baseline.
 
 ## Charter
 

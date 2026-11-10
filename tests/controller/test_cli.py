@@ -15,6 +15,15 @@ from helpers import ROOT, workspace
 
 
 class CliTests(unittest.TestCase):
+    def test_preparing_upstream_does_not_run_it_before_archive_extraction(self) -> None:
+        args = SimpleNamespace(target='x86_64-unknown-linux-musl', suite='upstream', in_container=False)
+        with patch.object(build, 'build_command'), patch.object(build, 'load_bootstrap'), \
+                patch.object(build.sandbox, 'image_tag', return_value='image'), \
+                patch.object(build.sandbox, 'run_sealed', return_value=SimpleNamespace(returncode=0, stdout='', stderr='')), \
+                patch.object(build.qualify, 'upstream') as upstream, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(build.test_command(args, prepare_only=True), 0)
+            upstream.assert_not_called()
+
     def test_test_command_dispatches_the_selected_suite(self) -> None:
         for name in ("basic", "parity", "network", "projects,upstream"):
             with self.subTest(suite=name), patch.object(build, "build_command") as compile_build, \

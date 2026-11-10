@@ -178,6 +178,7 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
     scratch = root / '.work/tmp'
     scratch.mkdir(parents=True, exist_ok=True)
     phases = root / '.work/build' / target.triple / 'phases'
+    executable_digest = digest_bytes(phase / 'bin/cmake')[0]
     with tempfile.TemporaryDirectory(prefix='upstream-qualification-', dir=scratch) as temporary:
         directory = Path(temporary)
         base = Path('/src/.work/build') / target.triple / 'phases/prepare'
@@ -190,6 +191,10 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
         def run_phase(name: str, selection: Path) -> dict[str, str]:
             copied = directory / f'{name}-phase'
             shutil.copytree(phases / name, copied, symlinks=True)
+            if name == 'cmake':
+                shutil.copy2(phase / 'bin/cmake', copied / 'build/bin/cmake')
+                if digest_bytes(copied / 'build/bin/cmake')[0] != executable_digest:
+                    raise QualificationError('upstream test executable differs from the candidate')
             results = directory / f'{name}-results'
             results.mkdir()
             (results / 'tmp').mkdir()
@@ -218,7 +223,8 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
             baseline = run_phase('reference', selection)
             _check_baseline_failures(failures, baseline)
         marker = f'## Latest upstream subset: {target.triple}'
-        summary = [f'Executed {len(candidate)} tests. {len(candidate) - len(failures)} passed.']
+        summary = [f'Executable SHA-256: `{executable_digest}`.',
+                   f'Executed {len(candidate)} tests. {len(candidate) - len(failures)} passed.']
         if failures:
             summary.append('The following failures also occurred in the unmodified static-PIE baseline:')
             summary.extend(f'- `{name}`' for name in sorted(failures))

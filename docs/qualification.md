@@ -157,6 +157,8 @@ The selected upstream run executed 85 tests with no skips. Eighty-four passed. `
 
 ## Latest upstream subset: x86_64-unknown-linux-musl
 
+Executable SHA-256: `e53436f3696c32eb40a3389ce15937d24dfb8cfef63e5afbb8b53f9e2b895121`.
+
 Executed 85 tests. 84 passed.
 
 The following failures also occurred in the unmodified static-PIE baseline:

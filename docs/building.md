@@ -33,6 +33,21 @@ the extracted bytes before atomically selecting the qualified generation.
 `reproduce` creates two separate clean build roots and compares their file
 trees and archive bytes.
 
+Qualification checks executable, unpacked, and archive sizes against the
+target's committed budget before activation. It runs the project suite against
+the extracted archive. The upstream subset uses the extracted executable in
+an isolated copy of the build tree, with the upstream test resources.
+
+`python3 build.py benchmark --target x86_64-unknown-linux-musl` runs five
+interleaved repetitions on a native Linux host with `strace` installed. It
+requires an active qualified generation and the unmodified musl baseline from
+the upstream suite. The command writes [performance results](performance.md)
+and compares size and peak-memory measurements with `release-budgets.json`.
+Existing limits are retained. When a target's memory baseline is unmeasured,
+the recorded baseline archive can establish it for review and commit.
+Qualification itself enforces size limits; the memory comparison runs in the
+benchmark and is not currently a qualification prerequisite.
+
 The archive contains build metadata, file hashes, and third-party notices.
 Qualification results, archive size and SHA-256 are detached because they are
 known only after the archive bytes exist. See [qualification](qualification.md)
