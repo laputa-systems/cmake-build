@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import tempfile
 from pathlib import Path
 
-from . import dependencies, patches, toolchain
+from . import dependencies, elf, patches, toolchain
 from .rust import _run
 from .targets import Target
 
@@ -54,6 +55,7 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
         '    message(FATAL_ERROR "cmake target is missing")\n'
         "  endif()\n"
         '  target_link_options(cmake PRIVATE "LINKER:-Map,${CMAKE_BINARY_DIR}/cmake.map" "LINKER:--why-extract=${CMAKE_BINARY_DIR}/cmake.extract")\n'
+        f'  set_property(TARGET cmake PROPERTY RULE_LAUNCH_LINK "python3 -m buildsys.elf {shlex.quote(str(tc / "bin"))}")\n'
         "endfunction()\n"
         "if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)\n"
         "  cmake_language(DEFER CALL cmake_build_link_evidence)\n"
@@ -83,6 +85,7 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
     if not version_output.splitlines() or version_output.splitlines()[0] != f"cmake version {cmake_version}":
         raise CMakeBuildError(f"built CMake does not report version {cmake_version}")
     check_capabilities(_run([str(executable), "-E", "capabilities"], cwd=directory, env=env), cmake_version)
+    elf.audit(executable, target, tc / "bin")
     link_map = build_tree / "cmake.map"
     extract = build_tree / "cmake.extract"
     if not extract.is_file() or not extract.read_text().startswith("reference\textracted\tsymbol\n"):

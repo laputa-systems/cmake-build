@@ -189,7 +189,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
             "LIBRARY_PATH": str(host_libs),
             "PATH": f"{tools / 'bin'}{os.pathsep}{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
             f"CARGO_TARGET_{target.triple.upper().replace('-', '_')}_LINKER": str(tc / "bin/clang"),
-            "RUSTFLAGS": f"-C link-arg=--sysroot={sysroot} -C link-arg=-fuse-ld=lld -L native={tc / 'lib'}",
+            "RUSTFLAGS": f"--remap-path-prefix=/proc/self/cwd=/workspace -C link-arg=--sysroot={sysroot} -C link-arg=-fuse-ld=lld -L native={tc / 'lib'}",
         }
         _run([
             str(tools / "bin/cargo"), "build", "--offline", "--frozen", "--target", target.triple,

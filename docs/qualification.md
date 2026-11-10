@@ -1,5 +1,11 @@
 # Qualification
 
+## x86-64 ELF audit
+
+The production build is a static PIE with a non-executable stack, RELRO, and immediate binding. The audit checks the target machine, runtime dependencies, symbol versions, compiler markers, host paths, and OpenSSL library and API references. A probe link identifies archive members before the final link. The audit checks those members and rejects the final output if its selected members differ.
+
+The audit allows CMake and libarchive version-recognition identifiers and `openssl-probe` certificate-discovery identifiers. It rejects other OpenSSL text. The binary contains no OpenSSL library or API symbols under these checks.
+
 ## Preliminary x86-64 parity
 
 The graph and archive fixtures passed on the staged CMake 4.4.5 binary and Kitware's official 4.4.5 binary. The candidate ran in the locked Alpine builder. The reference ran in Debian trixie-slim at image index `sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2`. Both used the pinned LLVM toolchain on the same native x86-64 host.

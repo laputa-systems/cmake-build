@@ -30,7 +30,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, patches, qualify, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, elf, patches, qualify, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -498,6 +498,8 @@ def test_command(args: argparse.Namespace) -> int:
         if _NATIVE != description:
             _fail(f"{description.triple} does not match the running machine; no emulation is used")
         _build_inside(description)
+        rust_phases = WORK / "rust" / description.triple / "phases"
+        tls.check_vendored(rust_phases / "vendor", rust_phases / "tools/bin", description.triple, WORK / "tmp")
         phases = PhaseCache(_target_root(description) / "phases")
         cmake_phase = phases.directory("cmake")
         record = json.loads((cmake_phase / "phase.json").read_text())
@@ -635,7 +637,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.handler(args)
     except (InputError, PhaseError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
-            patches.PatchError, qualify.QualificationError, rust.RustError, sandbox.SandboxError, stage.StageError) as error:
+            elf.AuditError, patches.PatchError, qualify.QualificationError, rust.RustError, sandbox.SandboxError,
+            stage.StageError, tls.TlsError) as error:
         _fail(str(error))
 
 
