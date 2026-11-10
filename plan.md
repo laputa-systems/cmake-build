@@ -6,8 +6,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `58a0c6e`.
-- **Accepted:** G1, G2, G4. **Red:** none. **Parked:** G3 on `park/G3`: a root-run diagnostic left scratch that the build user could not remove; that scratch is now removed. Retry after correcting the generated native toolchain file and verifying configure and reuse. Timing comparisons remain outstanding.
-- **Next slice:** G3. For measurements, `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
+- **Accepted:** G1, G2, G4. **Red:** none. **Parked:** G3 on `park/G3` at `1a4f54b`: native configure and its unchanged repeat pass, including a native `try_run` check and phase reuse. The required timing comparisons remain outstanding; the host readiness gate reports busy.
+- **Next slice:** G3. Resolve and lock the signed Alpine CMake package closure and latest Ninja, then run the P6 comparisons when the host is ready. `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing. The Alpine x86_64 CMake 4.3.4-r0 package and its dependency closure were fetched through the signed repository index into disposable scratch.
 
 ## Charter
 
