@@ -4,6 +4,7 @@ Relocatable CMake 4.4.5 for native x86-64 and aarch64 Linux systems using musl.
 The distribution uses the pinned LLVM/musl toolchain and Rustls with system
 certificate trust. It contains `usr/bin/cmake` and its resources under
 `usr/share/cmake-4.4/`.
+It does not include `ctest` or `cpack`.
 
 ```sh
 python3 build.py fetch --target x86_64-unknown-linux-musl
