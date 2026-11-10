@@ -78,19 +78,6 @@ class Input:
         if self.target != ALL_TARGETS and self.target not in TARGETS:
             raise InputError(f"{self.name}: unknown target {self.target!r}")
 
-    def identity(self) -> str:
-        material = canonical_json(
-            {
-                "name": self.name,
-                "version": self.version,
-                "url": self.url,
-                "sha256": self.sha256,
-                "role": self.role,
-                "target": self.target,
-                "size": self.size,
-            }
-        )
-        return identity(material.encode())
 
 
 def _read_json(path: Path, schema_version: int = SCHEMA_VERSION) -> dict:

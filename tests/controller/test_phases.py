@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import json
 
 from buildsys.phases import PhaseCache, PhaseError
 from helpers import workspace
@@ -66,7 +67,8 @@ class PhaseTests(unittest.TestCase):
 
             with self.assertRaises(RuntimeError):
                 cache.run("build", {"source": DIGEST_A}, fail)
-            self.assertEqual(cache.status("build"), "interrupted")
+            state = json.loads((directory / "phases" / "build" / "state.json").read_text())
+            self.assertEqual(state["status"], "interrupted")
             self.assertFalse((directory / "phases" / "build" / "phase.json").exists())
 
             def success(path):
@@ -74,7 +76,7 @@ class PhaseTests(unittest.TestCase):
 
             result = cache.run("build", {"source": DIGEST_A}, success)
             self.assertFalse(result.reused)
-            self.assertEqual(cache.status("build"), "complete")
+            self.assertTrue((directory / "phases" / "build" / "phase.json").is_file())
             self.assertFalse((directory / "phases" / "build" / "partial").exists())
 
     def test_phase_requires_content_digests(self) -> None:

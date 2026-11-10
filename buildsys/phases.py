@@ -22,9 +22,7 @@ class PhaseError(Exception):
 
 @dataclass(frozen=True)
 class PhaseResult:
-    name: str
     fingerprint: str
-    status: str
     reused: bool
     directory: Path
 
@@ -67,15 +65,6 @@ class PhaseCache:
             return None
         return document
 
-    def status(self, name: str) -> str:
-        directory = self.directory(name)
-        if not directory.exists():
-            return "absent"
-        if self._read(directory / STATE) is not None:
-            return "interrupted"
-        record = self._read(self._record_path(name))
-        return "complete" if record is not None else "incomplete"
-
     def run(
         self,
         name: str,
@@ -91,7 +80,7 @@ class PhaseCache:
             and record.get("inputs") == dict(sorted(inputs.items()))
             and record.get("output_digest") == tree_digest(directory, exclude={RECORD, STATE})
         ):
-            return PhaseResult(name, fingerprint, "complete", True, directory)
+            return PhaseResult(fingerprint, True, directory)
 
         shutil.rmtree(directory, ignore_errors=True)
         directory.mkdir(parents=True)
@@ -129,7 +118,7 @@ class PhaseCache:
             },
         )
         (directory / STATE).unlink(missing_ok=True)
-        return PhaseResult(name, fingerprint, "complete", False, directory)
+        return PhaseResult(fingerprint, False, directory)
 
 
 def _write_json(path: Path, document: dict) -> None:
