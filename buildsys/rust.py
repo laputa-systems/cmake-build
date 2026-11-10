@@ -65,7 +65,7 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> str:
     return stdout
 
 
-def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, root: Path, scratch: Path) -> Path:
+def install_tools(cache: Cache, components: list[Input], root: Path, scratch: Path) -> Path:
     selected = [item for item in components if item.name in {"rustc", "cargo", "rust-std", "rust-src"}]
     names = {item.name: item for item in selected}
     if len(selected) != 4 or set(names) != {"rustc", "cargo", "rust-std", "rust-src"}:
@@ -86,8 +86,13 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
                     raise RustError(f"{name}: expected one component directory")
                 _run([str(entries[0] / "install.sh"), f"--prefix={directory}", "--disable-ldconfig"], cwd=entries[0], env=env)
 
-    tools = phases.run("tools", inputs, install)
-    tool_record = json.loads((tools.directory / "phase.json").read_text())
+    return phases.run("tools", inputs, install).directory
+
+
+def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, root: Path, scratch: Path) -> Path:
+    tools = install_tools(cache, components, root, scratch)
+    phases = PhaseCache(root / "phases")
+    tool_record = json.loads((tools / "phase.json").read_text())
     vendor_inputs = {
         "tools": tool_record["output_digest"],
         "source": source.sha256,
@@ -106,13 +111,13 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
             "TMPDIR": str(scratch),
             "CARGO_HOME": str(root / "cargo"),
             "RUSTC_WRAPPER": "",
-            "RUSTC": str(tools.directory / "bin/rustc"),
-            "PATH": f"{tools.directory / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+            "RUSTC": str(tools / "bin/rustc"),
+            "PATH": f"{tools / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
         }
         _run(["patch", "--batch", "-p1", "-i", str(patch)], cwd=project, env=env)
         _run([
-            str(tools.directory / "bin/cargo"), "vendor", "--locked", "--sync",
-            str(tools.directory / "lib/rustlib/src/rust/library/Cargo.toml"),
+            str(tools / "bin/cargo"), "vendor", "--locked", "--sync",
+            str(tools / "lib/rustlib/src/rust/library/Cargo.toml"),
             str(directory / "vendor"),
         ], cwd=project, env=env)
 

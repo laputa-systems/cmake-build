@@ -12,6 +12,11 @@ from helpers import ROOT, workspace
 
 
 class CliTests(unittest.TestCase):
+    def test_internal_vendoring_rejects_host_execution(self) -> None:
+        with patch.object(build.sandbox, "in_container", return_value=False), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                build.main(["fetch", "--target", "x86_64-unknown-linux-musl", "--vendor-in-container"])
+
     def test_every_command_is_registered(self) -> None:
         parser = build._parser()
         with self.assertRaises(SystemExit):

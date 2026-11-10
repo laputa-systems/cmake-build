@@ -97,6 +97,20 @@ def pull_image(lock: BootstrapLock, platform: str) -> None:
     )
 
 
+def run_fetch(image: str, target: Target, root: Path, requested: str) -> None:
+    result = _docker(
+        "run", "--rm", "--network", "bridge", "--platform", target.docker_platform,
+        "--user", f"{os.getuid()}:{os.getgid()}", "--workdir", "/src",
+        "--volume", f"{root}:/src:rw", "--env", "TMPDIR=/src/.work/tmp",
+        "--env", "PYTHONPATH=/src", image,
+        "python3", "build.py", "fetch", "--target", requested, "--vendor-in-container",
+        timeout=1800,
+    )
+    if result.returncode:
+        raise SandboxError(f"Rust vendoring failed ({result.returncode}):\n{result.stdout}\n{result.stderr}")
+    print(result.stdout, end="")
+
+
 def _lock_packages(lock: BootstrapLock, triple: str) -> list[Input]:
     from .inputs import bootstrap_inputs
 

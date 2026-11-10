@@ -117,6 +117,22 @@ def doctor(args: argparse.Namespace) -> int:
 
 def fetch(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if args.vendor_in_container:
+        if not sandbox.in_container() or _NATIVE is None:
+            _fail("Rust vendoring requires a native builder container")
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+        source = next((item for item in load_sources(SOURCES_LOCK) if item.name == "rustls-ffi-source"), None)
+        if source is None:
+            _fail("source lock lacks rustls-ffi-source")
+        rust_root = WORK / "rust" / _NATIVE.triple
+        try:
+            vendored = rust.vendor(Cache(CACHE, offline=True), bootstrap_inputs(lock, _NATIVE.triple), source,
+                                   ROOT / "patches/rustls-ffi/0001-graviola-provider.patch", rust_root, WORK / "tmp")
+            tls.check_vendored(vendored, rust_root / "phases/tools/bin", description.triple, WORK / "tmp")
+        except (rust.RustError, tls.TlsError, InputError, PhaseError) as error:
+            _fail(str(error))
+        print(f"TLS dependency gate passed for {description.triple}")
+        return 0
     try:
         sources = load_sources(SOURCES_LOCK)
         bootstrap = load_bootstrap(BOOTSTRAP_LOCK)
@@ -148,22 +164,19 @@ def fetch(args: argparse.Namespace) -> int:
     if rust_source is None:
         _fail("source lock lacks rustls-ffi-source")
     try:
-        native_components = [item for item in bootstrap_inputs(bootstrap, _NATIVE.triple)
-                             if item.name in {"rustc", "cargo", "rust-std", "rust-src"}]
-        for item in native_components:
+        native_inputs = bootstrap_inputs(bootstrap, _NATIVE.triple)
+        for item in native_inputs:
             try:
                 cache.require(item)
             except InputError:
                 cache.fetch(item)
         rust_root = WORK / "rust" / _NATIVE.triple
-        vendored = rust.vendor(
-            cache, native_components, rust_source,
-            ROOT / "patches/rustls-ffi/0001-graviola-provider.patch",
-            rust_root, WORK / "tmp",
-        )
-        tls.check_vendored(vendored, rust_root / "phases/tools/bin", description.triple, WORK / "tmp")
-        print(f"TLS dependency gate passed for {description.triple}")
-    except (rust.RustError, tls.TlsError, InputError, PhaseError) as error:
+        rust.install_tools(cache, native_inputs, rust_root, WORK / "tmp")
+        if _NATIVE != description:
+            sandbox.pull_image(bootstrap, _NATIVE.docker_platform)
+        tag = sandbox.build_image(bootstrap, _NATIVE, DOCKERFILE, cache, WORK / "tmp/image")
+        sandbox.run_fetch(tag, _NATIVE, ROOT, description.triple)
+    except (rust.RustError, sandbox.SandboxError, InputError, PhaseError) as error:
         _fail(str(error))
     return 0
 
@@ -425,6 +438,7 @@ def _parser() -> argparse.ArgumentParser:
         if command == "doctor":
             child.set_defaults(handler=doctor)
         elif command == "fetch":
+            child.add_argument("--vendor-in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=fetch)
         elif command == "prepare":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
