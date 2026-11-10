@@ -37,7 +37,7 @@ jobs:
           mkdir -p "$generation"
           cp "$archive" "$generation/artifact.tar.xz"
           cp "$results" "$generation/results.json"
-          python3 -c 'from pathlib import Path; from buildsys.inputs import safe_extract; from buildsys.package import inspect; import sys; p = Path(sys.argv[1]); metadata = inspect(p / "artifact.tar.xz"); assert metadata["source"]["commit"] == "58313acce6f94f216eeeaf4ff2d9ec274b201485" and metadata["target"]["triple"] == "aarch64-unknown-linux-musl" and metadata["build"]["mode"] == "qualification"; safe_extract(p / "artifact.tar.xz", p / "tree")' "$generation"
+          python3 -c 'from pathlib import Path; from buildsys.inputs import safe_extract; from buildsys.package import inspect; import sys; p = Path(sys.argv[1]); metadata = inspect(p / "artifact.tar.xz"); (metadata["source"]["commit"] == "58313acce6f94f216eeeaf4ff2d9ec274b201485" and metadata["target"]["triple"] == "aarch64-unknown-linux-musl" and metadata["build"]["mode"] == "qualification") or sys.exit("baseline metadata does not match"); safe_extract(p / "artifact.tar.xz", p / "tree")' "$generation"
           ln -s "$sha/tree" .work/generations/aarch64-unknown-linux-musl/active
       - name: Build the unmodified reference and measure five repetitions
         run: |
