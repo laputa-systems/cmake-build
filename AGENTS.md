@@ -50,6 +50,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 - [Earlier ARM performance results](docs/performance-legacy-aarch64.md)
 - [Rustls release-profile study](docs/performance-rust-release.md)
 - [Optimization level study](docs/performance-o2.md)
+- [Size-oriented optimization study](docs/performance-oz.md)
 - [Section garbage collection study](docs/performance-gc.md)
 - [LLVM reconfiguration CPU profile](docs/profiles/llvm-reconfigure.md)
 - [Initial performance analysis](docs/performance-analysis.md)
