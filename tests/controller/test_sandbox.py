@@ -54,6 +54,15 @@ class ReferenceImageTests(unittest.TestCase):
             with self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
                 sandbox.run_networked("image", ["test"], target=X86, mounts=[])
 
+    def test_reference_runtime_copy_failure_removes_container(self) -> None:
+        created = subprocess.CompletedProcess([], 0, "container-id\n", "")
+        failed = subprocess.CompletedProcess([], 1, "", "copy failed")
+        removed = subprocess.CompletedProcess([], 0, "", "")
+        with workspace() as directory, patch.object(sandbox, "_docker", side_effect=[created, failed, removed]) as docker:
+            with self.assertRaisesRegex(sandbox.SandboxError, "copy failed"):
+                sandbox.copy_reference_runtime("image", X86, directory / "runtime")
+        self.assertEqual(docker.call_args_list[-1].args, ("rm", "--force", "container-id"))
+
 
 def fake_toolchain(directory: Path, *, clang_version: str = CLANG_VERSION, lld: str = LLD_VERSION) -> Path:
     binary = directory / "bin"

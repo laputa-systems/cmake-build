@@ -15,6 +15,17 @@ from helpers import ROOT, workspace
 
 
 class CliTests(unittest.TestCase):
+    def test_test_command_dispatches_the_selected_suite(self) -> None:
+        for name in ("basic", "parity", "network"):
+            with self.subTest(suite=name), patch.object(build, "build_command"), \
+                    patch.object(build, "load_bootstrap"), patch.object(build.sandbox, "image_tag", return_value="image"), \
+                    patch.object(build.sandbox, "run_sealed", return_value=SimpleNamespace(returncode=0, stdout="", stderr="")), \
+                    patch.object(build.qualify, "basic") as basic, patch.object(build.qualify, "parity") as parity, \
+                    patch.object(build.qualify, "network") as network, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(build.main(["test", "--target", "x86_64-unknown-linux-musl", "--suite", name]), 0)
+                for candidate, mock in (("basic", basic), ("parity", parity), ("network", network)):
+                    self.assertEqual(mock.call_count, int(candidate == name))
+
     def test_configure_rebuilds_when_builder_image_changes(self) -> None:
         target = build.describe_target("x86_64-unknown-linux-musl")
         sources = [SimpleNamespace(name=name, target="all", sha256=digest * 64) for name, digest in (

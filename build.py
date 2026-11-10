@@ -489,8 +489,9 @@ def _build_inside(description) -> int:
 
 def test_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
-    if args.suite != "basic":
-        _fail(f"unsupported test suite {args.suite!r}; available: basic")
+    suites = {"basic": qualify.basic, "parity": qualify.parity, "network": qualify.network}
+    if args.suite not in suites:
+        _fail(f"unsupported test suite {args.suite!r}; available: {', '.join(suites)}")
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
             _fail("test staging requires a sealed container with only loopback networking")
@@ -516,7 +517,7 @@ def test_command(args: argparse.Namespace) -> int:
     print(result.stdout, end="")
     if result.returncode:
         _fail(f"staging failed inside the sealed container ({result.returncode}):\n{result.stderr}")
-    qualify.basic(root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
+    suites[args.suite](root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
     return 0
 
 

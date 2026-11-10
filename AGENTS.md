@@ -10,12 +10,15 @@ python3 build.py controller-test            # controller suite, exit 0 or 1
 python3 build.py controller-test -k tls     # module-name filter
 python3 build.py doctor --target x86_64-unknown-linux-musl
 python3 build.py fetch --target x86_64-unknown-linux-musl
+python3 build.py test --target x86_64-unknown-linux-musl --suite basic
+python3 build.py test --target x86_64-unknown-linux-musl --suite parity
+python3 build.py test --target x86_64-unknown-linux-musl --suite network
 ```
 
 Run `fetch` for the native target before `controller-test`; the TLS dependency
 gate checks the locked, vendored Cargo graph offline without Docker.
-`prepare` is available. `configure`, `build`, `test`, `package`, `qualify`,
-`reproduce`, and `benchmark` fail until their slices land.
+`qualify` currently runs the basic suite. `package`, `reproduce`, and
+`benchmark` fail until their slices land.
 
 ## Layout
 
