@@ -21,14 +21,16 @@ from buildsys.inputs import (
     Cache,
     InputError,
     bootstrap_inputs,
+    canonical_json,
     digest_bytes,
+    identity,
     load_bootstrap,
     load_sources,
     tree_digest,
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, patches, rust, sandbox, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, patches, rust, sandbox, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -182,7 +184,6 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 _NOT_IMPLEMENTED = {
-    "build": "C1 builds CMake",
     "test": "C2 runs acceptance suites",
     "package": "D5 stages and publishes the archive",
     "qualify": "D5 qualifies packaged bytes",
@@ -424,6 +425,68 @@ def _configure_inside(description) -> int:
     return 0
 
 
+def build_command(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if args.in_container:
+        if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+            _fail("build requires a sealed container with only loopback networking")
+        if _NATIVE != description:
+            _fail(f"{description.triple} does not match the running machine; no emulation is used")
+        return _build_inside(description)
+    configure(argparse.Namespace(target=description.triple, in_container=False))
+    scratch = WORK / "tmp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    path = f"{os.environ.get('PATH', '')}{os.pathsep}{Path.home() / '.cargo/bin'}"
+    wrapper = shutil.which("kache", path=path)
+    if not wrapper:
+        _fail("kache is required for Rust builds")
+    shutil.copy2(wrapper, scratch / "build-kache")
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    tag = sandbox.image_tag(lock, description, DOCKERFILE)
+    result = sandbox.run_sealed(
+        tag, ["python3", "build.py", "build", "--target", description.triple, "--in-container"],
+        target=description, mounts=[(ROOT, "/src")],
+        env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"}, timeout=7200,
+    )
+    print(result.stdout, end="")
+    if result.returncode:
+        print(result.stderr, file=sys.stderr)
+        _fail(f"build failed inside the sealed container ({result.returncode})")
+    return 0
+
+
+def _build_inside(description) -> int:
+    _configure_inside(description)
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    sources = {item.name: item for item in load_sources(SOURCES_LOCK) if item.target in ("all", description.triple)}
+    if "cmake-source" not in sources or "rustls-ffi-source" not in sources:
+        _fail("source lock lacks CMake or Rustls")
+    inventory = patches.verify_inventory(ROOT / "patches")
+    prepared = _target_root(description) / "phases/prepare"
+    bootstrap_directory = _target_root(description) / "phases/bootstrap"
+    archive = rust.build_static(WORK / "rust" / description.triple, prepared, description,
+                                WORK / "tmp/build-kache", WORK / "tmp")
+    bootstrap_record = json.loads((bootstrap_directory / "phase.json").read_text())
+    rust_record = json.loads((archive.parents[3] / "phase.json").read_text())
+    prepare_record = json.loads((prepared / "phase.json").read_text())
+    inputs = {
+        "prepare": prepare_record["output_digest"],
+        "bootstrap": bootstrap_record["output_digest"],
+        "rustls": rust_record["output_digest"],
+        "patches": identity(canonical_json([(item.name, item.sha256) for item in inventory]).encode()),
+        "image": sandbox.image_fingerprint(lock, description, DOCKERFILE),
+        "controller": _controller_digest(),
+    }
+    phases = PhaseCache(_target_root(description) / "phases")
+    result = phases.run("cmake", inputs, lambda directory: cmake.build(
+        bootstrap=bootstrap_directory, prepared=prepared, archive=archive, inventory=inventory,
+        directory=directory, target=description, cmake_version=sources["cmake-source"].version,
+        rustls_version=sources["rustls-ffi-source"].version,
+    ))
+    print(f"cmake {'reused' if result.reused else 'built'} at {result.directory} ({result.fingerprint[:16]})")
+    return 0
+
+
 def _not_implemented(args: argparse.Namespace) -> int:
     _fail(f"{args.command} is not implemented yet: {_NOT_IMPLEMENTED[args.command]}")
 
@@ -511,6 +574,9 @@ def _parser() -> argparse.ArgumentParser:
         elif command == "configure":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=configure)
+        elif command == "build":
+            child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.set_defaults(handler=build_command)
         else:
             child.set_defaults(handler=_not_implemented)
     controller = subparsers.add_parser("controller-test")
@@ -524,7 +590,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError, bootstrap.BootstrapError, patches.PatchError, rust.RustError) as error:
+    except (InputError, PhaseError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
+            patches.PatchError, rust.RustError) as error:
         _fail(str(error))
 
 
