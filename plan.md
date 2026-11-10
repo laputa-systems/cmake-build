@@ -42,6 +42,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **O2 HTTP stack.** Keep CMake's bundled curl (`Utilities/cmcurl`, curl 8.20.0) with the Rustls backend. h12tiny was considered and rejected for now: its blocking client has no proxy, redirect, or FTP support, so replacing curl would mean a shim with more friction.
 - **O3 Push and CI.** The executor may push verified commits to `origin main` and dispatch the native x86_64 and aarch64 qualification workflows. Release dispatch stays with the owner (see **Needs environment**).
 
+- **O4 Crypto provider.** Use Graviola through a small rustls-ffi provider patch (P5). This matches python-build and h12tiny.
+
 ### Prescribed
 
 Each decision gives its reason and, where one exists, the condition that would reverse it.
@@ -70,9 +72,17 @@ Each decision gives its reason and, where one exists, the condition that would r
 
   Use a CMake toolchain file generated per target under the build root. Before every phase, compiler identity is checked against the lock: `clang --version` must equal `clang version 23.1.5` with the locked LLVM commit, `ld.lld --version` must equal `LLD 23.1.5`, and every tool must resolve inside `<tc>`. A tool resolving outside `<tc>`, or a different version string, is a hard failure.
 - **P5 TLS.** Configure curl with `CMAKE_USE_OPENSSL=OFF`, `CURL_USE_RUSTLS=ON`, `CURL_CA_BUNDLE=none`, and `CURL_CA_PATH=none`, so no build-host path is baked in.
-  - **Library.** rustls-ffi `v0.15.7`. curl 8.20 requires 0.15 or newer, checked at `Utilities/cmcurl/CMakeLists.txt:1158`. Build it as a staticlib with `--no-default-features --features ring`. ring's C and asm are compiled by the pinned clang through `CC`/`AR`, and the audit covers them.
-    - Reverse to `aws-lc-rs` only if ring fails the purity audit or the build.
-    - Graviola (used by python-build and h12tiny) would need a rustls-ffi patch. It is not adopted unless the owner overrules.
+  - **Library.** rustls-ffi `v0.15.7`. curl 8.20 requires 0.15 or newer, checked at `Utilities/cmcurl/CMakeLists.txt:1158`. The crypto provider is **Graviola** (owner decision O4). Build it as a staticlib with `--no-default-features --features graviola`.
+  - **Provider patch.** Upstream rustls-ffi offers only ring and aws-lc-rs, so `patches/rustls-ffi/0001-graviola-provider.patch` does three things:
+    - adds a `graviola` feature to `librustls/Cargo.toml`, depending on `rustls-graviola` 0.4 (h12tiny's version; `default-features = false`);
+    - adds a `#[cfg(all(feature = "graviola", not(feature = "ring"), not(feature = "aws-lc-rs")))]` branch returning `rustls_graviola::default_provider()` in `provider_from_crate_features` (`librustls/src/crypto_provider.rs:611`), and gates the matching ring/aws-lc-rs-only code the same way;
+    - carries the resulting `Cargo.lock`.
+
+    The pattern is python-build's `backend/rtls-graviola.patch`. The platform verifier must receive the same Graviola provider.
+  - **Graviola floor.** Graviola has no C, only Rust and asm, so no C compiler touches the TLS stack. Its crypto entry asserts CPU support (`graviola/src/low/x86_64/cpu.rs:228`): x86_64 needs adx, aes, avx, avx2, bmi1, bmi2, and pclmulqdq (Broadwell, 2014 and later); aarch64 needs aes, sha2, pmull, and neon.
+    - The product keeps the P8 generic CPU baseline, so `cmake` runs everywhere and HTTPS alone carries this floor.
+    - Under `panic_unwind`, rustls-ffi's panic boundary turns that assert into an error result, so curl reports a TLS failure and `cmake` does not abort. This host's CPU meets the floor, so the unsupported-CPU path is on **Needs environment**. Add no test-only seam to fake it. `docs/tls.md` and the Laputa handoff state the floor.
+  - **Dependency gate.** `cargo tree -e normal --target <triple>` for the patched librustls must contain `graviola` and none of `ring`, `aws-lc-rs`, `aws-lc-sys`, `openssl`, `openssl-sys`, or `native-tls`. This runs in `controller-test` and in `qualify`.
   - **Rust toolchain.** Pin `nightly-2026-09-15` with the component sha256s from python-build `backend/linux-bootstrap-x86_64.json` and `linux-bootstrap.lock.json` (aarch64). Build with `-Zbuild-std=std,panic_unwind -Zbuild-std-features=panic-unwind,backtrace,llvm-libunwind`, linking the toolchain's `lib/libunwind.a`. python-build `backend/build-no-openssl.py:914-960` found that the prebuilt musl `libstd` carries GCC-compiled compiler-rt and libunwind objects.
   - **Crate sources.** Vendor them with `cargo vendor --locked` in `fetch`. Cargo verifies the `Cargo.lock` checksums. `build` runs `cargo --offline --frozen`. Do not change the nightly pin.
   - **Trust patch.** curl's rustls backend ignores `CURLOPT_CAPATH` (no CAPATH handling in `lib/vtls/rustls.c`). With no CA it fails closed, because no verifier is set (`rustls.c:1039-1060`). Patch `Source/cmCurl.cxx` `cmCurlSetCAInfo` (`:128-185`):
@@ -162,10 +172,10 @@ The `ID` names the slice. Each slice lists the files it owns, its prerequisites,
    - Work: apply P6. Measure cold bootstrap+build wall time and peak RSS for (a) upstream bootstrap and (b) the Alpine `cmake` apk, and for samurai versus Ninja (full build and no-op), each over 3 interleaved runs.
    - Accept: `python3 build.py configure --target x86_64-unknown-linux-musl`, then rerun it and show the phase is reused with no work. Record the measurements in `docs/build-system.md`.
 4. **G4 OpenSSL-free HTTPS viability.**
-   - Owns `buildsys/rust.py`, `buildsys/tls.py`, `patches/0001-cmcurl-native-ca-fallback.patch`, `patches/README.md`, `tests/tls/`.
+   - Owns `buildsys/rust.py`, `buildsys/tls.py`, `patches/0001-cmcurl-native-ca-fallback.patch`, `patches/rustls-ffi/0001-graviola-provider.patch`, `patches/README.md`, `tests/tls/`.
    - Prereq: G2. G3 and G4 may run as parallel lanes: their files are disjoint, and the only shared file, `bootstrap.lock.json`, is edited by the coordinator only.
    - Work: build rustls-ffi per P5 and link a minimal C program against it plus cmcurl in isolation. The program runs against a local TLS server whose CA and certificates are generated at test time by the `openssl` CLI in the test container. That CLI is test-only and never in the product.
-   - Accept: `python3 build.py controller-test -k tls` and `tests/tls/run.sh`, proving: a trusted CA via `CAINFO` succeeds; `SSL_CERT_DIR`-only succeeds through `NATIVE_CA`; an untrusted CA fails; a hostname mismatch fails; an expired certificate fails; and `nm` on the archive shows no `SSL_`/`OPENSSL_` symbols. If this cannot pass, mark the HTTPS lane `dev-candidate`, record the blocker in `docs/tls.md`, and continue. A dev candidate is never promoted (Acceptance A4).
+   - Accept: `python3 build.py controller-test -k tls` and `tests/tls/run.sh`, proving: a trusted CA via `CAINFO` succeeds; `SSL_CERT_DIR`-only succeeds through `NATIVE_CA`; an untrusted CA fails; a hostname mismatch fails; an expired certificate fails; a TLS 1.3 and a TLS 1.2-only server both handshake; `nm` on the archive shows no `SSL_`/`OPENSSL_` symbols; and the P5 dependency gate passes. If this cannot pass, mark the HTTPS lane `dev-candidate`, record the blocker in `docs/tls.md`, and continue. A dev candidate is never promoted (Acceptance A4).
 
 ### Phase C: minimum complete product
 
@@ -188,7 +198,7 @@ Slices D2, D3, and D4 own disjoint test directories. Any two of them may run in 
 7. **D1 Independent ELF audit.**
    - Owns `buildsys/elf.py`, `tests/audit/`, including a contaminated fixture.
    - Prereq: C1.
-   - Work: audit every packaged ELF with `llvm-readelf`/`llvm-objdump`/`llvm-nm` against python-build `buildsys/elf.py` and llvm-prebuilt-musl `scripts/check-purity.sh`. Checks: exact `e_machine`; static PIE, or the approved musl interpreter plus `DT_NEEDED` ⊆ {`libc.musl-<arch>.so.1`}; no `GLIBC_*`, libgcc, libgcc_s, libstdc++, or OpenSSL (symbols, strings, `DT_NEEDED`); `.comment` free of `GCC:`; no `.gnu.version_r` beyond musl's; `PT_GNU_STACK` not executable; `PT_GNU_RELRO` plus `BIND_NOW`; ET_DYN PIE; no RPATH or RUNPATH; no build-host paths (`/home/`, the build root, `.work`) in strings. Before the final link, also audit every archive member the link actually extracts (`-Wl,--why-extract=`), including `librustls.a`, for `.comment` provenance.
+   - Work: audit every packaged ELF with `llvm-readelf`/`llvm-objdump`/`llvm-nm` against python-build `buildsys/elf.py` and llvm-prebuilt-musl `scripts/check-purity.sh`. Checks: exact `e_machine`; static PIE, or the approved musl interpreter plus `DT_NEEDED` ⊆ {`libc.musl-<arch>.so.1`}; no `GLIBC_*`, libgcc, libgcc_s, libstdc++, or OpenSSL (symbols, strings, `DT_NEEDED`); `.comment` free of `GCC:`; no `.gnu.version_r` beyond musl's; `PT_GNU_STACK` not executable; `PT_GNU_RELRO` plus `BIND_NOW`; ET_DYN PIE; no RPATH or RUNPATH; no build-host paths (`/home/`, the build root, `.work`) in strings. Before the final link, also audit every archive member the link actually extracts (`-Wl,--why-extract=`), including `librustls.a`, for `.comment` provenance. Also rerun the P5 cargo dependency gate.
    - Accept: `python3 build.py controller-test -k audit` passes on the real `cmake`. It must reject fixtures with each of these: GCC-built objects, a `libstdc++` `DT_NEEDED`, an exec stack, a host RPATH, and a wrong machine.
 8. **D2 Functional parity suite.**
    - Owns `tests/acceptance/{graph,features,packages,incremental,presets_fileapi,archive}/`.
@@ -274,6 +284,7 @@ Each deliverable is met only when its command passes on the integrated `main`.
 
 - **Release publication:** the owner runs `gh workflow run release.yml -f tag=v4.4.5-<rev> -f sha=<qualified sha>` after both `qualify.yml` jobs are green at that SHA.
 - **aarch64 qualification**, only if GitHub's `ubuntu-24.04-arm` runner is unavailable to the repo: the owner runs `gh workflow run qualify.yml -f target=aarch64-unknown-linux-musl` when it becomes available. Until then aarch64 is `unqualified`.
+- **HTTPS on a CPU below Graviola's floor** (pre-Broadwell x86_64, or a Raspberry Pi 4): the owner runs `cmake -P tests/acceptance/network/https-download.cmake` from the extracted archive. Expected result: a TLS error and exit status 1, not a crash. Until then this is `not executed`.
 - **aarch64 performance numbers:** only from the native runner. If it can't produce stable timings, they stay `not measured`.
 
 ## Execution boundary and non-goals
@@ -298,6 +309,8 @@ Each deliverable is met only when its command passes on the integrated `main`.
 - **Contract changes for the owner:**
   - `cmCurl.cxx` trust selection now uses the system platform verifier when no CA file is found. Upstream instead silently ran with whatever curl's build-time default was, and with Rustls that fails closed (P5).
   - The product omits `ctest`/`cpack` even though their modules ship.
+  - HTTPS requires Graviola's CPU floor (P5). Below it, `file(DOWNLOAD)` and other HTTPS operations fail with a TLS error, while the rest of `cmake` works.
+  - rustls-ffi carries a local provider patch.
   - Any patch added under P7.
 
 ## Reference
@@ -317,8 +330,9 @@ Each deliverable is met only when its command passes on the integrated `main`.
   - The Rustls verifier choice is in `Utilities/cmcurl/lib/vtls/rustls.c:1039-1060`.
   - System-library toggles are in `CMakeLists.txt:98-122`.
   - Dialog and debugger options are in `Source/CMakeLists.txt:899,1425-1431`.
+- **rustls-ffi `v0.15.7`:** the provider is chosen in `librustls/src/crypto_provider.rs:596-630` (`get_default_or_install_from_crate_features`, `provider_from_crate_features`). The default features are `aws-lc-rs` and `prefer-post-quantum`, and both must stay off.
 - **Patterns to read, not copy:**
-  - python-build: `buildsys/{inputs,elf,generations,reproduce,sandbox,bootstrap}.py`, `build/relock_linux.py`, `backend/build-no-openssl.py:914-960`, `docs/{build-system,qualification-and-packaging,ci-and-releases}.md`, `.github/workflows/build.yml`;
+  - python-build: `buildsys/{inputs,elf,generations,reproduce,sandbox,bootstrap}.py`, `backend/rtls-graviola.patch`, `build/relock_linux.py`, `backend/build-no-openssl.py:914-960`, `docs/{build-system,qualification-and-packaging,ci-and-releases}.md`, `.github/workflows/build.yml`;
   - llvm-prebuilt-musl: `scripts/check-purity.sh`, `README.md`;
   - chromium-build: `docs/linux.md` (cache isolation, staged-runtime tests);
   - Laputa: `packages/cmake/` (4.4.4 recipe and musl patches), `packages/llvm-toolchain/PKGBUILD.xsh`.
