@@ -45,6 +45,8 @@ requires an active qualified generation and the unmodified musl baseline from
 the upstream suite. The command writes [performance results](performance.md)
 and compares size and peak-memory measurements with `release-budgets.json`.
 The [ARM baseline report](performance-aarch64.md) records its native run.
+The [Rustls profile study](performance-rust-release.md) compares the smaller
+candidate with the previous x86-64 release.
 Existing limits are retained. When a target's memory baseline is unmeasured,
 the recorded baseline archive can establish it for review and commit.
 The local `qualify` command enforces size limits. The native qualification

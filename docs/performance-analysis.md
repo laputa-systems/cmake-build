@@ -37,5 +37,5 @@ allocation, compiler discovery, executor work, and filesystem effects are not
 separately ranked by these results. Do not infer a CMake runtime speedup from
 the debug-stripping size reduction. The current data support keeping the
 simpler compiler flags until an isolated candidate demonstrates a gain beyond
-observed variation. A Rustls release-profile build is a size hypothesis, not an
-accepted optimization.
+observed variation. The subsequent [Rustls release-profile study](performance-rust-release.md)
+measured a smaller executable without a clear runtime change.
