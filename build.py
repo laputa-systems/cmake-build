@@ -31,7 +31,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import benchmark, bootstrap, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -184,11 +184,6 @@ def fetch(args: argparse.Namespace) -> int:
     except (rust.RustError, sandbox.SandboxError, InputError, PhaseError) as error:
         _fail(str(error))
     return 0
-
-
-_NOT_IMPLEMENTED = {
-    "benchmark": "E1 measures against the Kitware reference",
-}
 
 
 def _target_root(description) -> Path:
@@ -731,8 +726,13 @@ def reproduce_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def _not_implemented(args: argparse.Namespace) -> int:
-    _fail(f"{args.command} is not implemented yet: {_NOT_IMPLEMENTED[args.command]}")
+def benchmark_command(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if description != _NATIVE:
+        _fail(f"{description.triple} does not match the running machine; no emulation is used")
+    benchmark.run(ROOT, description)
+    print("benchmark report: docs/performance.md")
+    return 0
 
 
 def _controller_test(args: argparse.Namespace) -> int:
@@ -834,7 +834,7 @@ def _parser() -> argparse.ArgumentParser:
         elif command == "reproduce":
             child.set_defaults(handler=reproduce_command)
         else:
-            child.set_defaults(handler=_not_implemented)
+            child.set_defaults(handler=benchmark_command)
     controller = subparsers.add_parser("controller-test")
     controller.add_argument("-k", dest="filter", default=None)
     controller.set_defaults(handler=_controller_test)
@@ -846,7 +846,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
+    except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
             elf.AuditError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
             sandbox.SandboxError, stage.StageError, tls.TlsError) as error:
         _fail(str(error))

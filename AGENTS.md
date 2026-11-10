@@ -17,13 +17,15 @@ python3 build.py test --target x86_64-unknown-linux-musl --suite projects,upstre
 python3 build.py package --target x86_64-unknown-linux-musl
 python3 build.py qualify --target x86_64-unknown-linux-musl
 python3 build.py reproduce --target x86_64-unknown-linux-musl
+python3 build.py benchmark --target x86_64-unknown-linux-musl
 ```
 
 Run `fetch` for the native target before `controller-test`; the TLS dependency
 gate checks the locked, vendored Cargo graph offline without Docker.
 `package` creates a candidate archive; `qualify` runs the project and upstream
-suites and qualifies the extracted archive before activation. `benchmark` fails
-until its slice lands.
+suites and qualifies the extracted archive before activation. `benchmark`
+requires a qualified generation, an unmodified musl baseline, and host `strace`.
+It writes the measured report and budgets after the full run.
 
 ## Layout
 
