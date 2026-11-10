@@ -28,7 +28,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import sandbox, sysroot, toolchain
+from buildsys import rust, sandbox, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -142,6 +142,29 @@ def fetch(args: argparse.Namespace) -> int:
     except SandboxError as error:
         _fail(str(error))
     print(f"builder base {sandbox.image_reference(bootstrap)} for {description.docker_platform}")
+    if _NATIVE is None:
+        _fail("Rust vendoring requires a supported native machine")
+    rust_source = next((item for item in sources if item.name == "rustls-ffi-source"), None)
+    if rust_source is None:
+        _fail("source lock lacks rustls-ffi-source")
+    try:
+        native_components = [item for item in bootstrap_inputs(bootstrap, _NATIVE.triple)
+                             if item.name in {"rustc", "cargo", "rust-std", "rust-src"}]
+        for item in native_components:
+            try:
+                cache.require(item)
+            except InputError:
+                cache.fetch(item)
+        rust_root = WORK / "rust" / _NATIVE.triple
+        vendored = rust.vendor(
+            cache, native_components, rust_source,
+            ROOT / "patches/rustls-ffi/0001-graviola-provider.patch",
+            rust_root, WORK / "tmp",
+        )
+        tls.check_vendored(vendored, rust_root / "phases/tools/bin", description.triple, WORK / "tmp")
+        print(f"TLS dependency gate passed for {description.triple}")
+    except (rust.RustError, tls.TlsError, InputError, PhaseError) as error:
+        _fail(str(error))
     return 0
 
 
