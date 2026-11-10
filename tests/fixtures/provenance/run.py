@@ -215,7 +215,7 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
             str(work / "tree-traced"),
         ],
         work=work,
-    ).stderr
+    ).stdout
     check_link_trace(static_trace, toolchain, sysroot, work, target)
     for required in ("libc++.a", "libunwind.a", "libc.a"):
         if required not in static_trace:
@@ -225,7 +225,7 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
     dynamic_trace = _run(
         [str(clang), *flags, "-Wl,--trace", "hello.c", "-o", str(work / "hello-traced")],
         work=work,
-    ).stderr
+    ).stdout
     check_link_trace(dynamic_trace, toolchain, sysroot, work, target)
     checks.append("dynamic link trace resolves the loader through the sysroot")
 
