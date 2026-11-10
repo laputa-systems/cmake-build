@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import struct
 import subprocess
 import unittest
@@ -156,6 +158,11 @@ class OfflineTests(unittest.TestCase):
 
 
 class NetworkBoundaryTests(unittest.TestCase):
+    def test_prepare_rejects_networked_container(self) -> None:
+        with patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                build.main(["prepare", "--target", X86.triple, "--in-container"])
+
     def test_host_control_connects_and_container_connections_are_denied(self) -> None:
         probe = sandbox._probe
 

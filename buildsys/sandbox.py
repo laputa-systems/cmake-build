@@ -205,6 +205,8 @@ def run_sealed(
         inspection = json.loads(
             _checked(_docker("inspect", container_id), "inspect sealed container").stdout
         )[0]
+        if inspection.get("HostConfig", {}).get("NetworkMode") != "none":
+            raise SandboxError("container network mode is not none")
         started = _docker("start", "--attach", container_id, timeout=timeout)
     finally:
         _docker("rm", "--force", container_id)

@@ -186,7 +186,9 @@ def _controller_digest() -> str:
 
 def prepare(args: argparse.Namespace) -> int:
     description = _target(args.target)
-    if sandbox.in_container():
+    if args.in_container:
+        if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+            _fail("prepare requires a sealed container with only loopback networking")
         return _prepare_inside(description)
     if platform.machine() != description.machine:
         _fail(
