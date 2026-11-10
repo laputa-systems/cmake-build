@@ -227,6 +227,7 @@ def prepare(args: argparse.Namespace) -> int:
         print(result.stdout)
         print(result.stderr, file=sys.stderr)
         _fail(f"prepare failed inside the sealed container ({result.returncode})")
+    print(result.stdout, end="")
     evidence = {
         "image": tag,
         "image_fingerprint": sandbox.image_fingerprint(lock, description, DOCKERFILE),

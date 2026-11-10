@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from buildsys.sysroot import check_link_trace, check_machine, elf_machine
+from buildsys.sysroot import check_link_trace, check_machine, elf_machine, trace_paths
 from buildsys.targets import target as describe_target
 
 DYNAMIC_C = """
@@ -36,8 +36,14 @@ struct Guard {
     ~Guard() { std::puts("dtor"); }
 };
 
+volatile __int128 numerator = 42;
+volatile __int128 denominator = 2;
+
 int main() {
     Guard guard;
+    if (numerator / denominator != 21) {
+        return 3;
+    }
     std::filesystem::path root("/");
     if (!root.is_absolute()) {
         return 2;
@@ -132,6 +138,24 @@ def _check_comment(toolchain: Path, binary: Path) -> list[str]:
     return comments
 
 
+def _check_static_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target) -> None:
+    check_link_trace(trace, toolchain, sysroot, work, target)
+    root = toolchain.resolve()
+    names = {Path(path).name for path in trace_paths(trace) if root in Path(path).resolve().parents}
+    for required in ("libc++.a", "libunwind.a", "libc.a"):
+        if required not in names:
+            raise ProvenanceError(f"static link trace lacks {required}")
+    if not any(name.startswith("libclang_rt.builtins-") and name.endswith(".a") for name in names):
+        raise ProvenanceError("static link trace lacks compiler-rt builtins")
+
+
+def _check_dynamic_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target) -> None:
+    check_link_trace(trace, toolchain, sysroot, work, target)
+    loader = (sysroot / target.musl_loader.lstrip("/")).resolve()
+    if loader not in {Path(path).resolve() for path in trace_paths(trace)}:
+        raise ProvenanceError("dynamic link trace lacks the sysroot loader")
+
+
 def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: Path) -> dict:
     target = describe_target(target_triple)
     toolchain = Path(toolchain).resolve()
@@ -193,6 +217,8 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
     result = _run([str(tree_static)], work=work)
     if "dtor" not in result.stdout or "caught" not in result.stdout:
         raise ProvenanceError(f"C++ output missing destructor or catch: {result.stdout!r}")
+    if _interpreter(toolchain, tree_static) is not None or _needed(toolchain, tree_static):
+        raise ProvenanceError("static C++ binary has a dynamic dependency")
     _check_comment(toolchain, tree_static)
     checks.append("C++ exceptions, destructors, std::filesystem static PIE")
 
@@ -202,6 +228,8 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
     _run([str(tree_dynamic)], work=work)
     if _needed(toolchain, tree_dynamic) != [expected]:
         raise ProvenanceError(f"C++ dynamic NEEDED {_needed(toolchain, tree_dynamic)}")
+    if _interpreter(toolchain, tree_dynamic) != target.musl_loader:
+        raise ProvenanceError("dynamic C++ binary has the wrong interpreter")
     checks.append("C++ exceptions, destructors, std::filesystem dynamic musl link")
 
     static_trace = _run(
@@ -216,17 +244,14 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
         ],
         work=work,
     ).stdout
-    check_link_trace(static_trace, toolchain, sysroot, work, target)
-    for required in ("libc++.a", "libunwind.a", "libc.a"):
-        if required not in static_trace:
-            raise ProvenanceError(f"static link trace lacks {required}")
+    _check_static_trace(static_trace, toolchain, sysroot, work, target)
     checks.append("link inputs resolve from the toolchain, sysroot loader only")
 
     dynamic_trace = _run(
         [str(clang), *flags, "-Wl,--trace", "hello.c", "-o", str(work / "hello-traced")],
         work=work,
     ).stdout
-    check_link_trace(dynamic_trace, toolchain, sysroot, work, target)
+    _check_dynamic_trace(dynamic_trace, toolchain, sysroot, work, target)
     checks.append("dynamic link trace resolves the loader through the sysroot")
 
     _run([str(clang), *flags, "-flto=thin", "-c", "one.c", "-o", "one.o"], work=work)
@@ -247,6 +272,8 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
     )
     check_machine(lto, target)
     _run([str(lto)], work=work)
+    if _interpreter(toolchain, lto) != target.musl_loader or _needed(toolchain, lto) != [expected]:
+        raise ProvenanceError("ThinLTO binary has an unexpected dynamic closure")
     _check_comment(toolchain, lto)
     checks.append("ThinLTO compile, llvm-ar archive, link, run")
 

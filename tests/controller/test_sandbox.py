@@ -4,9 +4,11 @@ import struct
 import subprocess
 import unittest
 import runpy
+import os
 from pathlib import Path
 from unittest.mock import patch
 
+import build
 from buildsys.inputs import Cache, Input, InputError
 from buildsys import sandbox
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
@@ -45,6 +47,20 @@ def elf_header(machine: int, *, order: int = 1) -> bytes:
 
 
 class ToolchainTests(unittest.TestCase):
+    def test_doctor_rejects_shadowed_or_wrong_version_clang(self) -> None:
+        with workspace() as directory:
+            tc = fake_toolchain(directory / "tc")
+            shadow = directory / "shadow"
+            shadow.mkdir()
+            clang = shadow / "clang"
+            clang.write_text("#!/bin/sh\nexit 0\n")
+            clang.chmod(0o755)
+            with patch.object(build, "_toolchain_directory", return_value=tc), patch.dict(os.environ, {"PATH": str(shadow)}), patch("sys.stdout"):
+                self.assertEqual(build.main(["doctor", "--target", X86.triple]), 1)
+            (tc / "bin/clang").write_text("#!/bin/sh\necho 'clang version 22.0.0'\n")
+            with patch.object(build, "_toolchain_directory", return_value=tc), patch.dict(os.environ, {"PATH": str(tc / "bin")}), patch("sys.stdout"):
+                self.assertEqual(build.main(["doctor", "--target", X86.triple]), 1)
+
     def test_accepts_pinned_identity(self) -> None:
         with workspace() as directory:
             toolchain = fake_toolchain(directory / "tc")
@@ -154,6 +170,17 @@ class NetworkBoundaryTests(unittest.TestCase):
 
 
 class ProvenanceTests(unittest.TestCase):
+    def test_dynamic_trace_requires_sysroot_loader(self) -> None:
+        fixture = runpy.run_path(str(Path(__file__).resolve().parents[1] / "fixtures/provenance/run.py"))
+        with self.assertRaisesRegex(fixture["ProvenanceError"], "loader"):
+            fixture["_check_dynamic_trace"]("/tc/lib/musl/Scrt1.o\n", Path("/tc"), Path("/sysroot"), Path("/work"), X86)
+
+    def test_static_trace_requires_compiler_runtime(self) -> None:
+        fixture = runpy.run_path(str(Path(__file__).resolve().parents[1] / "fixtures/provenance/run.py"))
+        trace = "/tc/lib/libc++.a(a.o)\n/tc/lib/libunwind.a(a.o)\n/tc/lib/musl/libc.a(a.o)\n"
+        with self.assertRaisesRegex(fixture["ProvenanceError"], "compiler-rt"):
+            fixture["_check_static_trace"](trace, Path("/tc"), Path("/sysroot"), Path("/work"), X86)
+
     def test_interpreter_extracts_llvm_readelf_path(self) -> None:
         fixture = runpy.run_path(str(Path(__file__).resolve().parents[1] / "fixtures/provenance/run.py"))
         with workspace() as directory:
