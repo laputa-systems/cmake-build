@@ -24,7 +24,7 @@ gate checks the locked, vendored Cargo graph offline without Docker.
 - `buildsys/inputs.py` — lock schemas, content-addressed cache, safe extraction.
 - `buildsys/phases.py` — input-fingerprinted phase records.
 - `sources.lock.json` — upstream sources, toolchains, and reference binaries.
-- `bootstrap.lock.json` — pinned Alpine image, apks, and Rust components.
+- `bootstrap.lock.json` — pinned Alpine and Debian image indexes, apks, and Rust components.
 - `tests/controller/` — controller suite.
 
 ## Build rules

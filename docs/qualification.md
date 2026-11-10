@@ -22,3 +22,9 @@ These runs cover the fixtures above, not the complete parity, networking, projec
 The staged CMake passed local HTTPS downloads, redirects, expected hash checks, certificate-file and certificate-directory trust, hostname rejection, verification settings, and an HTTP CONNECT proxy. The negative cases returned the expected TLS status or hash mismatch.
 
 A separate networked container used `FetchContent` to download the locked CMake source archive and verify its SHA-256. The local tests ran with only loopback networking. These runs do not yet constitute the registered network qualification suite.
+
+## Preliminary real-project results
+
+fmt 12.2.1 configured and built with the staged CMake and pinned LLVM/musl toolchain. Its test run passed 18 of 21 CTest cases. `chrono-test`, `unicode-test`, and `xchar-test` failed locale assertions. A separate build with the official CMake binary and the same toolchain reproduced all three failures. The failures remain reported by the project fixture.
+
+zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. The libjpeg-turbo and LLVM runs are still in progress.
