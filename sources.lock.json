@@ -56,6 +56,17 @@
       "purpose": "Pinned LLVM/musl toolchain"
     },
     {
+      "name": "rustls-ffi-source",
+      "version": "0.15.7",
+      "url": "https://static.crates.io/crates/rustls-ffi/rustls-ffi-0.15.7.crate",
+      "sha256": "5caaf00113ba0819fba5a07cb6d68dee02c836f55a99789500939239c9953e5d",
+      "size": 140827,
+      "role": "source",
+      "target": "all",
+      "license": "Apache-2.0 OR ISC OR MIT",
+      "purpose": "rustls-ffi source for the Rustls curl backend"
+    },
+    {
       "name": "samurai-source",
       "version": "1.3",
       "url": "https://github.com/michaelforney/samurai/releases/download/1.3/samurai-1.3.tar.gz",
