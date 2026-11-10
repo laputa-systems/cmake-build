@@ -13,8 +13,9 @@ listed below.
 | x86-64 musl | 8,125,188 | `cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c` | [x86-64 results](https://github.com/laputa-systems/cmake-build/releases/download/cmake-4.4.5-5932be3ecbc4-run42907504620-1/results-x86_64-unknown-linux-musl.json) |
 | ARM64 musl | 7,571,476 | `66ec96c09705c67adfa83494bf512dc4b7eb5f6cb0f9d706d8499bb460a1c3a8` | [ARM64 results](https://github.com/laputa-systems/cmake-build/releases/download/cmake-4.4.5-5932be3ecbc4-run42907504620-1/results-aarch64-unknown-linux-musl.json) |
 
-The x86-64 archive matched two independent clean builds. ARM64 clean-build
-reproduction was not run.
+Both archives matched two independent clean builds on their native
+architectures. The [ARM64 reproduction run](https://github.com/laputa-systems/cmake-build/actions/runs/42912387088)
+compared its outputs with the published archive bytes.
 
 ## x86-64 ELF audit
 

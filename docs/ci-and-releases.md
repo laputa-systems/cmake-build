@@ -26,7 +26,9 @@ The [qualification run for `5932be3`](https://github.com/laputa-systems/cmake-bu
 passed both native jobs and their corrected memory gates. The
 [prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-5932be3ecbc4-run42907504620-1)
 contains those exact archives, detached results, memory evidence, and reports.
-The x86-64 archive also matched two independent clean builds.
+Both archives also matched two independent clean builds on their native
+architectures. The [ARM64 reproduction workflow](https://github.com/laputa-systems/cmake-build/actions/runs/42912387088)
+checks the qualification record, published bytes, and both rebuilt archives.
 
 The [qualification run for `58313ac`](https://github.com/laputa-systems/cmake-build/actions/runs/42828105487)
 passed both native jobs. The [prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-58313acce6f9-run42833257470-1)
