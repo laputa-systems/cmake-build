@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(Downstream LANGUAGES C CXX)
+find_package(Graph CONFIG REQUIRED)
+add_executable(downstream ../main.cxx)
+target_link_libraries(downstream PRIVATE Graph::wrapper)
