@@ -75,3 +75,16 @@ compile of a CMake source was a local cache hit, ran no compiler, and restored
 the original object bytes. A header-change probe produced a fresh object.
 These checks establish cache behavior; they do not measure a speedup. CI cache
 restoration remains to be implemented with the native qualification workflow.
+
+## Debug information
+
+On the x86-64 candidate, LLVM's debug-only stripping reduced the executable
+from 67,381,800 to 41,805,976 bytes. With the same staged resources, notices,
+archive settings, and test metadata, the compressed archive changed from
+14,366,104 to 10,168,980 bytes. These are exact sizes for the tested bytes;
+the release archive also contains its own build metadata.
+
+The debug-stripped candidate passed the ELF audit and the basic, network, and
+parity suites. Stripping all symbols was rejected because it removed compiler
+provenance needed by the audit. The staging change retains symbols and reruns
+the audit on the stripped executable.

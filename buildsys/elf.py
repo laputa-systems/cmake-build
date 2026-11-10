@@ -87,6 +87,17 @@ def audit(binary: Path, target: Target, tools: Path) -> None:
         raise AuditError('ELF contains a build-host path')
 
 
+def strip_debug(binary: Path, destination: Path, target: Target, tools: Path) -> None:
+    if binary.resolve() == destination.resolve():
+        raise AuditError('stripping requires a separate destination')
+    try:
+        _tool(tools / 'llvm-strip', '--strip-debug', '-o', destination, binary)
+        audit(destination, target, tools)
+    except (AuditError, OSError):
+        destination.unlink(missing_ok=True)
+        raise
+
+
 def _selected_members(extract: Path) -> set[str]:
     lines = extract.read_text().splitlines()
     if not lines or lines[0] != 'reference\textracted\tsymbol':

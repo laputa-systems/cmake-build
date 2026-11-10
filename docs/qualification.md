@@ -19,7 +19,7 @@ The selected system-information fields matched. The Ninja build files differed i
 - The Makefiles generator selected `/usr/bin/make` in Debian and `/usr/bin/gmake` in Alpine.
 - The detected `uname` path was `/usr/bin/uname` in Debian and `/bin/uname` in Alpine.
 
-The Ninja codemodel listed the `base` and `wrapper` dependencies in the opposite order, and the target reply filename differed. Both generated executables and the downstream executable ran successfully. The effect of the dependency ordering on other consumers has not been established.
+The Ninja codemodel listed the `base` and `wrapper` dependencies in the opposite order, and the target reply filename differed. A later run matched that ordering, so it varies between runs. Both generated executables and the downstream executable ran successfully. The effect of the dependency ordering on other consumers has not been established.
 
 The registered parity suite covers the fixtures above.
 
@@ -101,31 +101,6 @@ The selected upstream run executed 85 tests with no skips. Eighty-four passed. `
        },
        {
          "name": "CMAKE_VERBOSE_MAKEFILE",
-@@ -1709,11 +1698,11 @@
-             "dependencies": [
-               {
-                 "backtrace": 2,
-+                "id": "base::@6890427a1f51a3e7e1df"
-+              },
-+              {
-+                "backtrace": 2,
-                 "id": "wrapper::@6890427a1f51a3e7e1df"
--              },
--              {
--                "backtrace": 2,
--                "id": "base::@6890427a1f51a3e7e1df"
-               }
-             ],
-             "id": "graph::@6890427a1f51a3e7e1df",
-@@ -1937,7 +1926,7 @@
-           {
-             "directoryIndex": 0,
-             "id": "graph::@6890427a1f51a3e7e1df",
--            "jsonFile": "target-graph-Release-94aad6a7ba7a6c8b9c09.json",
-+            "jsonFile": "target-graph-Release-84dc3cf0c9f923a1abb5.json",
-             "name": "graph",
-             "projectIndex": 0
-           },
 ```
 
 ### make-file-api.json

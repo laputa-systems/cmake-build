@@ -528,9 +528,11 @@ def test_command(args: argparse.Namespace) -> int:
         source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
         license_inputs = {"cmake": record["output_digest"], "controller": _controller_digest(),
                           "licenses": tree_digest(ROOT / "licenses"), "notice": digest_bytes(ROOT / "NOTICE")[0]}
-        result = phases.run("stage", license_inputs,
-                            lambda directory: stage.stage(cmake_phase, directory, description.triple, source.version,
-                                                          ROOT / "licenses", ROOT / "NOTICE"))
+        def stage_distribution(directory: Path) -> None:
+            stage.stage(cmake_phase, directory, description.triple, source.version, ROOT / "licenses", ROOT / "NOTICE")
+            elf.strip_debug(cmake_phase / "build/bin/cmake", directory / "bin/cmake", description,
+                            phases.directory("prepare") / "toolchain/bin")
+        result = phases.run("stage", license_inputs, stage_distribution)
         print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
         return 0
     build_command(argparse.Namespace(target=description.triple, in_container=False, qualification_build=True))
