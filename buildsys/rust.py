@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .inputs import Cache, Input, digest_bytes, safe_extract, tree_digest
+from .inputs import Cache, Input, canonical_json, digest_bytes, identity, safe_extract, tree_digest
 from .phases import PhaseCache
 from .targets import Target
 from . import sandbox, toolchain
@@ -18,6 +18,30 @@ from . import sandbox, toolchain
 
 class RustError(Exception):
     pass
+
+
+def install_wrapper(source: Path, scratch: Path) -> Path:
+    scratch.mkdir(parents=True, exist_ok=True)
+    wrapper = scratch / "build-kache"
+    engine = scratch / "kache-engine"
+    try:
+        shutil.copy2(source, wrapper)
+        companion = source.resolve().with_name("kache-engine")
+        if companion.is_file():
+            shutil.copy2(companion, engine)
+        else:
+            engine.unlink(missing_ok=True)
+    except OSError as error:
+        raise RustError(f"cannot install kache wrapper: {error}") from error
+    return wrapper
+
+
+def wrapper_identity(wrapper: Path) -> str:
+    parts = {"client": digest_bytes(wrapper)[0]}
+    engine = wrapper.with_name("kache-engine")
+    if engine.is_file():
+        parts["engine"] = digest_bytes(engine)[0]
+    return identity(canonical_json(parts).encode())
 
 
 class _Interrupted(BaseException):
@@ -157,7 +181,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
         "vendor": _phase_digest(vendored),
         "prepare": _phase_digest(prepared),
         "image": sandbox._locked_image_fingerprint(target),
-        "kache": digest_bytes(kache)[0],
+        "kache": wrapper_identity(kache),
         "implementation": digest_bytes(Path(__file__))[0],
     }
     phases = PhaseCache(root / "phases")

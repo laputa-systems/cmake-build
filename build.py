@@ -442,7 +442,7 @@ def build_command(args: argparse.Namespace) -> int:
     wrapper = shutil.which("kache", path=path)
     if not wrapper:
         _fail("kache is required for Rust builds")
-    shutil.copy2(wrapper, scratch / "build-kache")
+    rust.install_wrapper(Path(wrapper), scratch)
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     tag = sandbox.image_tag(lock, description, DOCKERFILE)
     command = ["python3", "build.py", "build", "--target", description.triple, "--in-container"]
@@ -484,7 +484,7 @@ def _build_inside(description, mode: cmake.BuildMode) -> int:
         "mode": identity(mode.value.encode()),
     }
     if mode is cmake.BuildMode.DEVELOPMENT:
-        inputs["compiler_cache"] = digest_bytes(WORK / "tmp/build-kache")[0]
+        inputs["compiler_cache"] = rust.wrapper_identity(WORK / "tmp/build-kache")
     phases = PhaseCache(_target_root(description) / "phases")
     result = phases.run("cmake", inputs, lambda directory: cmake.build(
         bootstrap=bootstrap_directory, prepared=prepared, archive=archive, inventory=inventory,
@@ -615,6 +615,10 @@ def _package_inside(description, commit: str) -> Path:
               if item.target in ("all", description.triple) and item.role in ("source", "build-source")]
     locked.extend(bootstrap_inputs(load_bootstrap(BOOTSTRAP_LOCK), description.triple))
     build_inputs = [{"name": item.name, "version": item.version, "sha256": item.sha256} for item in locked]
+    wrapper = WORK / "tmp/build-kache"
+    engine = wrapper.with_name("kache-engine")
+    wrapper_info = {"client_sha256": digest_bytes(wrapper)[0],
+                    "engine_sha256": digest_bytes(engine)[0] if engine.is_file() else None}
     metadata = {
         "schema_version": 1,
         "source": {"version": source.version, "sha256": source.sha256, "commit": commit, "patch_set": patch_identity},
@@ -624,7 +628,7 @@ def _package_inside(description, commit: str) -> Path:
         "dependencies": {"native": (cmake_phase / "dependencies.md").read_text(),
                          "rustls": rust_closure.splitlines(), "rust_std_locked": std_packages,
                          "build_inputs": build_inputs},
-        "build": {"mode": "qualification", "image": isolation["image_fingerprint"], "network": "none", "network_probe": "passed"},
+        "build": {"mode": "qualification", "image": isolation["image_fingerprint"], "network": "none", "network_probe": "passed", "rust_wrapper": wrapper_info},
         "elf_audit": "passed",
     }
     destination = WORK / "artifacts" / description.triple / f"cmake-{source.version}-{description.triple}.tar.xz"
