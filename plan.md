@@ -7,7 +7,7 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `58a0c6e`.
 - **Accepted:** G1, G2, G4. **Red:** none. **Parked:** G3 on `park/G3` at `dbe69cd`: native configure and its unchanged repeat pass, including a native `try_run` check and phase reuse. The required timing comparisons remain outstanding; the host readiness gate reports busy.
-- **Next slice:** G3. Run the P6 comparisons when the host is ready. Ninja 1.13.2 builds with P4, and the locked Alpine CMake 4.3.4-r0 and runtime closure configure the CMake source in a sealed container. A clean comparison build was stopped and discarded after it overlapped another workload and the host became busy. `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
+- **Next slice:** G3. Run the P6 comparisons when the host is ready. Ninja 1.13.2 builds with P4, and Alpine CMake 4.3.4-r0 built CMake 4.4.5 in a sealed container; the timing was discarded because the post-run gate reported busy. Use separate build trees for the executor comparison: Ninja rejects Samurai's build log. Dry runs on separately configured trees both show 1,194 build steps. `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
 
 ## Charter
 
