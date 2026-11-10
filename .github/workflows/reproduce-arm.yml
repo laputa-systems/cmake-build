@@ -1,0 +1,80 @@
+name: Qualify ARM reproduction
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA of the qualified archive
+        required: true
+        type: string
+      run_id:
+        description: Successful native qualification run ID
+        required: true
+        type: string
+      tag:
+        description: Published prerelease tag
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/native-setup
+        with:
+          target: aarch64-unknown-linux-musl
+          jaq: jaq-aarch64
+          kache: kache-aarch64-unknown-linux-musl
+      - name: Verify the qualified archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.sha }}
+          RUN_ID: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion,jobs > .work/tmp/qualification-run.json
+          jaq -e --arg sha "$SOURCE_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success")' .work/tmp/qualification-run.json > /dev/null
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name cmake-prerelease-aarch64-unknown-linux-musl --dir .work/tmp/qualified
+          archive=.work/tmp/qualified/cmake-4.4.5-aarch64-unknown-linux-musl.tar.xz
+          metadata=.work/tmp/qualified/artifact-aarch64-unknown-linux-musl.json
+          results=.work/tmp/qualified/results-aarch64-unknown-linux-musl.json
+          memory=.work/tmp/qualified/memory-aarch64-unknown-linux-musl.json
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > .work/tmp/release-tag.json
+          jaq -e --arg sha "$SOURCE_SHA" '.object.type == "commit" and .object.sha == $sha' .work/tmp/release-tag.json > /dev/null
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern cmake-4.4.5-aarch64-unknown-linux-musl.tar.xz --dir .work/tmp/published
+          cmp "$archive" .work/tmp/published/cmake-4.4.5-aarch64-unknown-linux-musl.tar.xz
+          sha=$(sha256sum "$archive" | cut -d' ' -f1)
+          size=$(stat -c '%s' "$archive")
+          budget=$(sha256sum release-budgets.json | cut -d' ' -f1)
+          scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
+          jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.network == "passed" and .qualification.parity == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" > /dev/null
+          jaq -e --arg sha "$sha" --arg budget "$budget" --arg scope "$scope" --argjson size "$size" '.target == "aarch64-unknown-linux-musl" and .archive_sha256 == $sha and .archive_size == $size and .budget_sha256 == $budget and .rss_scope == $scope and .repetitions >= 5 and .result == "passed"' "$memory" > /dev/null
+          jaq -e --arg sha "$SOURCE_SHA" '.source.commit == $sha and .target.triple == "aarch64-unknown-linux-musl" and .build.mode == "qualification" and .build.network == "none" and .elf_audit == "passed"' "$metadata" > /dev/null
+          tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > .work/tmp/embedded.json
+          cmp "$metadata" .work/tmp/embedded.json
+          python3 -c 'from pathlib import Path; from buildsys.package import inspect; import sys; inspect(Path(sys.argv[1]))' "$archive"
+          printf '%s\n' "$sha" > .work/tmp/qualified-sha256
+      - name: Reproduce the exact archive twice
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          python3 build.py reproduce --target aarch64-unknown-linux-musl | tee .work/tmp/reproduce.log
+          python3 -c 'from pathlib import Path; import re; log=Path(".work/tmp/reproduce.log").read_text(); expected=Path(".work/tmp/qualified-sha256").read_text().strip(); found=re.findall(r"^package: .* \(([0-9a-f]{64})\)$", log, re.MULTILINE); (found == [expected, expected] and "reproducibility: file trees and archive bytes are identical" in log) or (_ for _ in ()).throw(SystemExit("clean builds did not reproduce the qualified archive"))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-reproduction-evidence
+          path: |
+            .work/tmp/qualified-sha256
+            .work/tmp/reproduce.log
+          if-no-files-found: error
