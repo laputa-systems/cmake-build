@@ -50,6 +50,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **O6 OpenSSL identifiers.** The owner allows version-recognition text and `openssl-probe` identifiers that locate system certificates. The audit still rejects OpenSSL libraries, API symbols, and other OpenSSL text.
 
+- **O7 Package evidence.** The archive contains `artifact.json` with build metadata and hashes for the other packaged files. A separate results record binds the final archive hash, size, and qualification results to the exact archive bytes.
+
 ### Prescribed
 
 Each decision gives its reason and, where one exists, the condition that would reverse it.
