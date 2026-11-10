@@ -216,11 +216,11 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
             "RUSTFLAGS": f"--remap-path-prefix=/proc/self/cwd=/workspace -C link-arg=--sysroot={sysroot} -C link-arg=-fuse-ld=lld -L native={tc / 'lib'}",
         }
         _run([
-            str(tools / "bin/cargo"), "build", "--offline", "--frozen", "--target", target.triple,
+            str(tools / "bin/cargo"), "build", "--release", "--offline", "--frozen", "--target", target.triple,
             "-Zbuild-std=std,panic_unwind", "-Zbuild-std-features=panic-unwind,backtrace,llvm-libunwind",
             "--no-default-features", "--features", "graviola",
         ], cwd=project, env=env)
-        archive = directory / "target" / target.triple / "debug/librustls_ffi.a"
+        archive = directory / "target" / target.triple / "release/librustls_ffi.a"
         if not archive.is_file():
             raise RustError("Rustls static archive was not produced")
         symbols = _run([str(tc / "bin/llvm-nm"), "-g", str(archive)], cwd=directory, env=env)
@@ -229,4 +229,4 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
 
     result = phases.run("staticlib", inputs, action)
     print(f"Rustls static library {'reused' if result.reused else 'built'} at {result.directory}")
-    return result.directory / "target" / target.triple / "debug/librustls_ffi.a"
+    return result.directory / "target" / target.triple / "release/librustls_ffi.a"
