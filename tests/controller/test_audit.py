@@ -43,14 +43,20 @@ class ElfAuditTests(unittest.TestCase):
         elf.audit(self.phase / 'cmake/build/bin/cmake', self.target, self.tools)
 
     def test_debug_stripping_preserves_the_audited_executable(self) -> None:
-        original = self.phase / 'cmake/build/bin/cmake'
-        stripped = self.root / 'cmake-stripped'
+        self.link('with-debug', '-g', '-static-pie')
+        original = self.root / 'with-debug'
+        stripped = self.root / 'debug-stripped'
         elf.strip_debug(original, stripped, self.target, self.tools)
         before = subprocess.check_output([str(self.tools / 'llvm-readelf'), '-S', str(original)], text=True)
         after = subprocess.check_output([str(self.tools / 'llvm-readelf'), '-S', str(stripped)], text=True)
         self.assertIn('.debug_info', before)
         self.assertNotIn('.debug_info', after)
         self.assertLess(stripped.stat().st_size, original.stat().st_size)
+        subprocess.run([str(stripped)], check=True)
+        executable = self.phase / 'cmake/build/bin/cmake'
+        stripped_cmake = self.root / 'cmake-stripped'
+        elf.strip_debug(executable, stripped_cmake, self.target, self.tools)
+        self.assertLessEqual(stripped_cmake.stat().st_size, executable.stat().st_size)
 
     def test_rejects_gcc_object_selected_from_archive(self) -> None:
         archive = self.root / 'fixture.a'
