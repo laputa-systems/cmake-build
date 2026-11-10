@@ -5,9 +5,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `12dd34a`.
-- **Accepted:** G1, G2, G3, G4. **Red:** none. **Parked:** none.
-- **Next slice:** C1. Build the patched CMake with Rustls in the sealed builder, then record the patch and dependency inventories.
+- **Last accepted revision:** `b095b3a`.
+- **Accepted:** G1, G2, G3, G4, C1. **Red:** none. **Parked:** none.
+- **Next slice:** C2. Stage and qualify the relocated CMake distribution.
 
 ## Charter
 
