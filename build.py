@@ -9,6 +9,8 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
+import tomllib
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +32,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, elf, patches, qualify, reference, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, elf, generations, package, patches, qualify, reference, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -186,7 +188,6 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 _NOT_IMPLEMENTED = {
-    "package": "D5 stages and publishes the archive",
     "reproduce": "D5 reproduces two clean builds",
     "benchmark": "E1 measures against the Kitware reference",
 }
@@ -547,8 +548,159 @@ def test_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _source_commit() -> str:
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all", "--", "build.py", "buildsys", "docker", "patches", "tests", "sources.lock.json", "bootstrap.lock.json"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    if status.stdout:
+        _fail("packaging requires committed build and qualification inputs")
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True)
+    commit = result.stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        _fail("repository commit identity is invalid")
+    return commit
+
+
+def _package_inside(description, commit: str) -> Path:
+    import tarfile
+
+    source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+    toolchain_input = next(item for item in load_sources(SOURCES_LOCK) if item.name == f"llvm-toolchain-{description.machine}")
+    source_archive = Cache(CACHE, offline=True).require(source)
+    with tarfile.open(source_archive, "r:gz") as archive:
+        epoch = archive.next().mtime
+    phases = _target_root(description) / "phases"
+    cmake_phase = phases / "cmake"
+    cmake_record = json.loads((cmake_phase / "phase.json").read_text())
+    stage_phase = phases / "stage"
+    stage_record = json.loads((stage_phase / "phase.json").read_text())
+    if cmake_record["inputs"].get("mode") != identity(cmake.BuildMode.QUALIFICATION.value.encode()):
+        _fail("packaging requires an uncached qualification build")
+    if (cmake_phase / "state.json").exists() or tree_digest(cmake_phase, exclude={"phase.json", "state.json"}) != cmake_record["output_digest"]:
+        _fail("built CMake no longer matches its phase record")
+    if (stage_phase / "state.json").exists() or stage_record["inputs"].get("cmake") != cmake_record["output_digest"] or tree_digest(stage_phase, exclude={"phase.json", "state.json"}) != stage_record["output_digest"]:
+        _fail("staged CMake no longer matches its phase record")
+    isolation = json.loads((_target_root(description) / "isolation.json").read_text())
+    if isolation.get("network_mode") != "none" or isolation.get("probe", {}).get("ok") is not True:
+        _fail("packaging requires successful network isolation evidence")
+    inventory = patches.verify_inventory(ROOT / "patches")
+    patch_identity = identity(canonical_json([(item.name, item.sha256) for item in inventory]).encode())
+    cache = (cmake_phase / "build/CMakeCache.txt").read_text().splitlines()
+    flag_names = {"CMAKE_C_FLAGS", "CMAKE_C_FLAGS_RELEASE", "CMAKE_CXX_FLAGS", "CMAKE_CXX_FLAGS_RELEASE", "CMAKE_EXE_LINKER_FLAGS", "CMAKE_C_STANDARD_LIBRARIES", "CMAKE_CXX_STANDARD_LIBRARIES"}
+    flags = {line.split(":", 1)[0]: line.split("=", 1)[1] for line in cache if ":" in line and "=" in line and line.split(":", 1)[0] in flag_names}
+    if set(flags) != flag_names:
+        _fail("built CMake cache lacks effective compiler or linker flags")
+    toolchain_report = json.loads((phases / "prepare/toolchain.json").read_text())
+    rust_root = WORK / "rust" / description.triple / "phases"
+    projects = list((rust_root / "vendor/source").iterdir())
+    if len(projects) != 1 or not projects[0].is_dir():
+        _fail("vendored Rustls source has an invalid layout")
+    tools = rust_root / "tools/bin"
+    with tempfile.TemporaryDirectory(prefix="package-cargo-", dir=WORK / "tmp") as temporary:
+        cargo_home = Path(temporary)
+        rust._cargo_config(cargo_home, rust_root / "vendor")
+        env = {**rust._rust_environment(), "CARGO_HOME": str(cargo_home), "TMPDIR": str(WORK / "tmp"),
+               "RUSTC": str(tools / "rustc"), "RUSTC_WRAPPER": "",
+               "PATH": f"{tools}{os.pathsep}{os.environ.get('PATH', '')}"}
+        rust_closure = rust._run([
+            str(tools / "cargo"), "tree", "--manifest-path", str(projects[0] / "Cargo.toml"), "--locked", "--offline",
+            "--no-default-features", "--features", "graviola", "--target", description.triple,
+            "-e", "normal,build", "--prefix", "none", "--format", "{p}",
+        ], cwd=projects[0], env=env)
+    std_lock = tomllib.loads((rust_root / "tools/lib/rustlib/src/rust/library/Cargo.lock").read_text())
+    std_packages = [{key: item[key] for key in ("name", "version", "source", "checksum") if key in item}
+                    for item in std_lock["package"]]
+    locked = [item for item in load_sources(SOURCES_LOCK)
+              if item.target in ("all", description.triple) and item.role in ("source", "build-source")]
+    locked.extend(bootstrap_inputs(load_bootstrap(BOOTSTRAP_LOCK), description.triple))
+    build_inputs = [{"name": item.name, "version": item.version, "sha256": item.sha256} for item in locked]
+    metadata = {
+        "schema_version": 1,
+        "source": {"version": source.version, "sha256": source.sha256, "commit": commit, "patch_set": patch_identity},
+        "toolchain": {"version": toolchain_input.version, "sha256": toolchain_input.sha256, "compiler": toolchain_report["clang"]},
+        "target": {"triple": description.triple, "cpu_baseline": description.cpu_baseline},
+        "flags": flags,
+        "dependencies": {"native": (cmake_phase / "dependencies.md").read_text(),
+                         "rustls": rust_closure.splitlines(), "rust_std_locked": std_packages,
+                         "build_inputs": build_inputs},
+        "build": {"mode": "qualification", "image": isolation["image_fingerprint"], "network": "none", "network_probe": "passed"},
+        "elf_audit": "passed",
+    }
+    destination = WORK / "artifacts" / description.triple / f"cmake-{source.version}-{description.triple}.tar.xz"
+    package.create(stage_phase, destination, metadata, epoch)
+    package.inspect(destination)
+    sha256 = package.digest(destination)
+    candidate = {"archive": destination.name, "sha256": sha256, "size": destination.stat().st_size, "commit": commit}
+    temporary = destination.with_name("candidate.json.tmp")
+    temporary.write_text(json.dumps(candidate, sort_keys=True, indent=2) + "\n")
+    temporary.replace(destination.with_name("candidate.json"))
+    print(f"package: {destination} ({sha256})")
+    return destination
+
+
+def package_command(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if args.in_container:
+        if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+            _fail("packaging requires a sealed container with only loopback networking")
+        if _NATIVE != description:
+            _fail(f"{description.triple} does not match the running machine; no emulation is used")
+        commit = os.environ.get("CMAKE_BUILD_COMMIT", "")
+        if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+            _fail("packaging requires a repository commit identity")
+        _package_inside(description, commit)
+        return 0
+    commit = _source_commit()
+    test_command(argparse.Namespace(target=description.triple, suite="basic", in_container=False))
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    image = sandbox.image_tag(lock, description, DOCKERFILE)
+    result = sandbox.run_sealed(
+        image, ["python3", "build.py", "package", "--target", description.triple, "--in-container"],
+        target=description, mounts=[(ROOT, "/src")],
+        env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src", "CMAKE_BUILD_COMMIT": commit}, timeout=1800,
+    )
+    print(result.stdout, end="")
+    if result.returncode:
+        _fail(f"packaging failed inside the sealed container ({result.returncode}):\n{result.stderr}")
+    return 0
+
+
 def qualify_command(args: argparse.Namespace) -> int:
-    return test_command(argparse.Namespace(target=args.target, suite="basic", in_container=False))
+    description = _target(args.target)
+    source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+    directory = WORK / "artifacts" / description.triple
+    archive = directory / f"cmake-{source.version}-{description.triple}.tar.xz"
+    candidate_path = directory / "candidate.json"
+    if not archive.exists() and not candidate_path.exists():
+        package_command(argparse.Namespace(target=description.triple, in_container=False))
+    try:
+        candidate = json.loads(candidate_path.read_text())
+    except (OSError, ValueError) as error:
+        _fail(f"candidate record is missing or invalid: {error}")
+    if (not isinstance(candidate, dict) or not archive.is_file()
+            or candidate.get("archive") != archive.name or candidate.get("commit") != _source_commit()
+            or not isinstance(candidate.get("sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", candidate["sha256"]) is None
+            or candidate.get("size") != archive.stat().st_size):
+        _fail("candidate record does not match the archive or repository commit")
+    if package.digest(archive) != candidate["sha256"]:
+        _fail("candidate archive has been modified")
+    test_command(argparse.Namespace(target=description.triple, suite="projects,upstream", in_container=False))
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    image = sandbox.image_tag(lock, description, DOCKERFILE)
+    def run(tree: Path) -> dict:
+        for name, suite in (("basic", qualify.basic), ("parity", qualify.parity), ("network", qualify.network)):
+            suite(root=ROOT, phase=tree / "usr", image=image, target=description)
+        report = (ROOT / "docs/qualification.md").read_text()
+        marker = f"## Latest upstream subset: {description.triple}"
+        section = report.partition(marker)[2].partition("\n## ")[0].strip()
+        if not section:
+            _fail("upstream qualification report is missing")
+        return {"basic": "passed", "parity": "passed", "network": "passed", "projects": "passed", "upstream": section}
+    generation = generations.qualify(WORK / "generations" / description.triple, archive, candidate["sha256"], run)
+    print(f"qualified generation: {generation}")
+    return 0
 
 
 def _not_implemented(args: argparse.Namespace) -> int:
@@ -646,6 +798,9 @@ def _parser() -> argparse.ArgumentParser:
             child.add_argument("--suite", required=True)
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=test_command)
+        elif command == "package":
+            child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.set_defaults(handler=package_command)
         elif command == "qualify":
             child.set_defaults(handler=qualify_command)
         else:
