@@ -89,3 +89,40 @@ The debug-stripped candidate passed the ELF audit and the basic, network, and
 parity suites. Stripping all symbols was rejected because it removed compiler
 provenance needed by the audit. The staging change retains symbols and reruns
 the audit on the stripped executable.
+
+## Clean packages and unchanged qualification builds
+
+Two clean x86-64 package builds for commit `91983ee` ran as part of the
+reproduction check. They used separate worktrees and no developer C/C++ cache;
+the builder image, downloaded inputs and Rust vendor/tool phases were already
+available, and filesystem caches were warm. The package command includes
+bootstrap, compilation, the basic acceptance suite and archive creation. It
+finished in approximately 12 minutes 2 seconds and 11 minutes 5 seconds,
+respectively; the milestone observer polled every five seconds. Both archives
+had SHA-256
+`25c2db75db95c35cea449f458a9da6f0123402e9cee6a4e2cc576f332af77b9b`.
+From 17:50:32 UTC onward, the one-minute host load ranged from 2.76 to 11.25
+on eight logical CPUs. The beginning of the first build was not observed for
+load. These are two warm-filesystem observations, not cold-start measurements.
+
+A separate warm test ran `build.py build --qualification-build` five times in
+the completed experimental worktree at commit `46103c8`. The executable in
+that tree matched the first clean `91983ee` build byte-for-byte. Each command
+reported that the Rust static library and CMake phase were reused; it did not
+use the developer C/C++ compiler cache. The median wall time was 25.916 s,
+with a range of 25.458–32.031 s. Host load at the sample boundaries ranged
+from 1.82 to 2.12. The command includes controller, integrity and container
+work; this run did not separately time those components or measure aggregate
+container RSS.
+
+| Run | Wall seconds | Load before | Load after |
+| --- | ---: | ---: | ---: |
+| 1 | 32.031 | 1.82 | 1.88 |
+| 2 | 25.458 | 1.88 | 2.12 |
+| 3 | 26.017 | 2.12 | 2.07 |
+| 4 | 25.677 | 2.07 | 2.10 |
+| 5 | 25.916 | 2.10 | 2.06 |
+
+The clean package and unchanged build are different commands at different
+commits, so these observations are not a paired speedup. They measure the
+cost of producing CMake, not Laputa provisioning or downstream project builds.

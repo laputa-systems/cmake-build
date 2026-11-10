@@ -32,9 +32,11 @@ filesystem metadata and subprocess activity to investigate. Aggregate tracing
 includes child processes, adds overhead, and cannot attribute those calls to
 CMake itself or establish their share of normal wall time.
 
-The host has no `perf` executable, so CPU sampling was not performed. Parsing,
-allocation, compiler discovery, executor work, and filesystem effects are not
-separately ranked by these results. Do not infer a CMake runtime speedup from
+The host has no `perf` executable, so this initial run did not include CPU
+sampling. A later [main-thread CPU profile](profiles/llvm-reconfigure.md) used
+the kernel perf-event interface directly. Parsing, allocation, compiler
+discovery, executor work, and filesystem effects are not separately ranked by
+the initial results. Do not infer a CMake runtime speedup from
 the debug-stripping size reduction. The current data support keeping the
 simpler compiler flags until an isolated candidate demonstrates a gain beyond
 observed variation. The subsequent [Rustls release-profile study](performance-rust-release.md)
