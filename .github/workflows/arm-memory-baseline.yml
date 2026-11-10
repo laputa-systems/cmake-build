@@ -1,0 +1,55 @@
+name: ARM memory baseline
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/native-setup
+        with:
+          target: aarch64-unknown-linux-musl
+          jaq: jaq-aarch64
+          kache: kache-aarch64-unknown-linux-musl
+      - name: Restore the qualified baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          command -v strace
+          gh run view 42828105487 --json headSha,conclusion > .work/run.json
+          jaq -e '.headSha == "58313acce6f94f216eeeaf4ff2d9ec274b201485" and .conclusion == "success"' .work/run.json > /dev/null
+          gh run download 42828105487 --name cmake-prerelease-aarch64-unknown-linux-musl --dir .work/tmp/baseline
+          archive=.work/tmp/baseline/cmake-4.4.5-aarch64-unknown-linux-musl.tar.xz
+          results=.work/tmp/baseline/results-aarch64-unknown-linux-musl.json
+          sha=$(jaq -r '.targets["aarch64-unknown-linux-musl"].archive_sha256' release-budgets.json)
+          size=$(jaq -r '.targets["aarch64-unknown-linux-musl"].metrics.archive_bytes.value' release-budgets.json)
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$sha"
+          test "$(stat -c '%s' "$archive")" = "$size"
+          jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" > /dev/null
+          generation=".work/generations/aarch64-unknown-linux-musl/$sha"
+          mkdir -p "$generation"
+          cp "$archive" "$generation/artifact.tar.xz"
+          cp "$results" "$generation/results.json"
+          python3 -c 'from pathlib import Path; from buildsys.inputs import safe_extract; from buildsys.package import inspect; import sys; p = Path(sys.argv[1]); metadata = inspect(p / "artifact.tar.xz"); assert metadata["source"]["commit"] == "58313acce6f94f216eeeaf4ff2d9ec274b201485" and metadata["target"]["triple"] == "aarch64-unknown-linux-musl" and metadata["build"]["mode"] == "qualification"; safe_extract(p / "artifact.tar.xz", p / "tree")' "$generation"
+          ln -s "$sha/tree" .work/generations/aarch64-unknown-linux-musl/active
+      - name: Build the unmodified reference and measure five repetitions
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          python3 build.py test --target aarch64-unknown-linux-musl --suite upstream
+          python3 build.py benchmark --target aarch64-unknown-linux-musl
+          jaq -e '.targets["aarch64-unknown-linux-musl"].memory_status == "measured"' release-budgets.json > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-memory-baseline
+          path: |
+            release-budgets.json
+            docs/performance.md
+          if-no-files-found: error
