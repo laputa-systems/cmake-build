@@ -39,7 +39,9 @@ def qualify(store: Path, archive: Path, expected_digest: str, run: Callable[[Pat
                 raise GenerationError('qualification produced no results')
             if tree_digest(tree) != before or package.digest(copied) != expected_digest:
                 raise GenerationError('qualification changed the candidate')
-            (candidate / 'results.json').write_text(json.dumps({'archive_sha256': expected_digest, 'archive_size': copied.stat().st_size, 'qualification': results}, sort_keys=True, indent=2) + '\n')
+            unpacked_size = sum(path.stat().st_size for path in tree.rglob('*') if path.is_file() and not path.is_symlink())
+            (candidate / 'results.json').write_text(json.dumps({'archive_sha256': expected_digest, 'archive_size': copied.stat().st_size,
+                                                               'unpacked_size': unpacked_size, 'qualification': results}, sort_keys=True, indent=2) + '\n')
             final = store / expected_digest
             if final.exists():
                 if package.digest(final / 'artifact.tar.xz') != expected_digest or tree_digest(final / 'tree') != before:

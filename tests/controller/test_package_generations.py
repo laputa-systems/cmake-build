@@ -1,4 +1,5 @@
 import unittest
+import json
 
 from buildsys import generations
 from buildsys import package
@@ -19,7 +20,11 @@ class GenerationTest(unittest.TestCase):
 
     def test_failed_and_interrupted_qualification_preserve_active_generation(self):
         first_digest = package.digest(self.archive)
-        generations.qualify(self.store, self.archive, first_digest, lambda tree: {'basic': 'passed'})
+        generation = generations.qualify(self.store, self.archive, first_digest, lambda tree: {'basic': 'passed'})
+        results = json.loads((generation / 'results.json').read_text())
+        self.assertEqual(results['archive_size'], self.archive.stat().st_size)
+        unpacked = sum(path.stat().st_size for path in (generation / 'tree').rglob('*') if path.is_file() and not path.is_symlink())
+        self.assertEqual(results['unpacked_size'], unpacked)
         self.assertEqual((self.store / 'active/usr/bin/cmake').read_bytes(), b'first')
         (self.stage / 'bin/cmake').write_bytes(b'second')
         package.create(self.stage, self.archive, {'target': 'example'}, 1)
