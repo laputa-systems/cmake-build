@@ -113,8 +113,8 @@ def _needed(toolchain: Path, binary: Path) -> list[str]:
 def _interpreter(toolchain: Path, binary: Path) -> str | None:
     output = _readelf(toolchain, "-l", str(binary))
     for line in output.splitlines():
-        if "interpreter" in line and "[" in line:
-            return line.rsplit("[", 1)[1].rstrip("]")
+        if "[Requesting program interpreter: " in line:
+            return line.split("[Requesting program interpreter: ", 1)[1].rstrip("]")
     return None
 
 

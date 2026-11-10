@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 import subprocess
 import unittest
+import runpy
 from pathlib import Path
 from unittest.mock import patch
 
@@ -150,6 +151,18 @@ class NetworkBoundaryTests(unittest.TestCase):
         with workspace() as directory, patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"), patch.object(sandbox, "docker_path", return_value="docker"), patch.object(sandbox, "_probe", side_effect=run):
             result = sandbox.network_boundary_selftest("image", X86, directory)
         self.assertTrue(result["ok"], result)
+
+
+class ProvenanceTests(unittest.TestCase):
+    def test_interpreter_extracts_llvm_readelf_path(self) -> None:
+        fixture = runpy.run_path(str(Path(__file__).resolve().parents[1] / "fixtures/provenance/run.py"))
+        with workspace() as directory:
+            binary = directory / "bin"
+            binary.mkdir()
+            readelf = binary / "llvm-readelf"
+            readelf.write_text("#!/bin/sh\necho '      [Requesting program interpreter: /lib/ld-musl-x86_64.so.1]'\n")
+            readelf.chmod(0o755)
+            self.assertEqual(fixture["_interpreter"](directory, directory / "elf"), X86.musl_loader)
 
 
 if __name__ == "__main__":
