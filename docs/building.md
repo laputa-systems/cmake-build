@@ -37,3 +37,24 @@ The archive contains build metadata, file hashes, and third-party notices.
 Qualification results, archive size and SHA-256 are detached because they are
 known only after the archive bytes exist. See [qualification](qualification.md)
 for the native test results and known differences from the reference.
+
+## Trace a dependency fix
+
+For a Rustls source update, pin and verify the new `rustls-ffi-source` digest in
+`sources.lock.json`. The digest is an input to the Rust vendor phase. Its output
+digest is an input to the Rust static-library phase, whose output digest is an
+input to the CMake build phase. A changed output invalidates its dependent
+phase; an identical output can be reused. The archive's `artifact.json` lists
+the locked build inputs, and the detached results bind qualification to the
+archive SHA-256.
+
+For the x86-64 prerelease at commit `58313ac`, the recorded Rustls lock digest
+matches the vendor input and the archive metadata. The local phase records
+also connect the vendor output to the static library and the static library to
+CMake. A synthetic change to the source digest changed the vendor fingerprint;
+no dependency fix or replacement artifact was built in this exercise.
+
+After a real fix, build a new candidate, run the network and other qualification
+suites on its exact archive, and require native qualification for both targets.
+Run clean-build reproduction before publishing the replacement. Check each new
+archive digest against its detached qualification results.
