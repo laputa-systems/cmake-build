@@ -35,6 +35,15 @@ until its slice lands.
 - `bootstrap.lock.json` — pinned Alpine and Debian image indexes, apks, and Rust components.
 - `tests/controller/` — controller suite.
 
+## Documentation
+
+- [Building and qualification](docs/building.md)
+- [Build measurements](docs/build-system.md)
+- [Dependency inventory](docs/dependencies.md)
+- [Qualification results](docs/qualification.md)
+- [CI and prereleases](docs/ci-and-releases.md)
+- [Laputa integration](docs/laputa-integration.md)
+
 ## Build rules
 
 - Every downloaded byte is pinned by sha256 and size and is verified on both
