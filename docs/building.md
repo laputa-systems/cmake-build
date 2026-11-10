@@ -44,10 +44,12 @@ interleaved repetitions on a native Linux host with `strace` installed. It
 requires an active qualified generation and the unmodified musl baseline from
 the upstream suite. The command writes [performance results](performance.md)
 and compares size and peak-memory measurements with `release-budgets.json`.
+The [ARM baseline report](performance-aarch64.md) records its native run.
 Existing limits are retained. When a target's memory baseline is unmeasured,
 the recorded baseline archive can establish it for review and commit.
-Qualification itself enforces size limits; the memory comparison runs in the
-benchmark and is not currently a qualification prerequisite.
+The local `qualify` command enforces size limits. The native qualification
+workflow also requires a measured memory baseline and a passing benchmark;
+its memory results are bound to the archive and budget hashes.
 Memory limits compare the median initial-configuration peak RSS against the
 baseline, allowing for the baseline's observed range and the candidate's
 interquartile range. A rejected measurement is written to
