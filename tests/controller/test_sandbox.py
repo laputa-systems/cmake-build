@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import struct
+import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from buildsys.inputs import Cache, Input, InputError
+from buildsys import sandbox
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
 from buildsys.targets import target
 from buildsys.toolchain import (
@@ -133,6 +136,20 @@ class OfflineTests(unittest.TestCase):
             cache = Cache(directory / "cache", offline=True)
             with self.assertRaisesRegex(InputError, "offline phase cannot fetch"):
                 cache.fetch(item)
+
+
+class NetworkBoundaryTests(unittest.TestCase):
+    def test_host_control_connects_and_container_connections_are_denied(self) -> None:
+        probe = sandbox._probe
+
+        def run(command, cwd, timeout):
+            if command[0] == "docker":
+                return subprocess.CompletedProcess(command, 0, "DENIED:101\n", "")
+            return probe(command, cwd, timeout)
+
+        with workspace() as directory, patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"), patch.object(sandbox, "docker_path", return_value="docker"), patch.object(sandbox, "_probe", side_effect=run):
+            result = sandbox.network_boundary_selftest("image", X86, directory)
+        self.assertTrue(result["ok"], result)
 
 
 if __name__ == "__main__":

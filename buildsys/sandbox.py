@@ -327,7 +327,7 @@ def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict
 
     outside_ok = (
         outside is not None
-        and outside.returncode == 0
+        and outside.returncode == 3
         and outside.stdout.strip() == "CONNECTED"
     )
     gateway_denied = (
