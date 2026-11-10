@@ -43,6 +43,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 - [Building and qualification](docs/building.md)
 - [Build measurements](docs/build-system.md)
 - [CMake executable performance](docs/performance.md)
+- [x86-64 memory baseline](docs/performance-baseline-x86_64.md)
 - [ARM executable performance](docs/performance-aarch64.md)
 - [ARM memory baseline](docs/performance-baseline-aarch64.md)
 - [Rustls release-profile study](docs/performance-rust-release.md)

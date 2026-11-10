@@ -5,7 +5,7 @@
       "archive_sha256": "b53ca751fd8c1f0c3b3918c7c9aed7f5a30a79b2bbf4f9289ec567ede5a0cc3e",
       "memory_archive_bytes": 10171144,
       "repetitions": 10,
-      "memory_status": "unmeasured",
+      "memory_status": "measured",
       "metrics": {
         "archive_bytes": {
           "allowed_regression": 243755.04,
@@ -31,8 +31,34 @@
           "allowed_regression": 0.008492710185237229,
           "spread": 0.0042463550926186144,
           "value": 0.004559908498777077
+        },
+        "fmt_initial_rss_kib": {
+          "allowed_regression": 501.12,
+          "central_spread": 16.0,
+          "spread": 20,
+          "value": 16704
+        },
+        "libjpeg-turbo_initial_rss_kib": {
+          "allowed_regression": 546.36,
+          "central_spread": 12.0,
+          "spread": 148,
+          "value": 18212
+        },
+        "llvm-clang_initial_rss_kib": {
+          "allowed_regression": 14738.16,
+          "central_spread": 68.0,
+          "spread": 292,
+          "value": 491272
+        },
+        "zstd_initial_rss_kib": {
+          "allowed_regression": 680,
+          "central_spread": 128.0,
+          "spread": 340,
+          "value": 18920
         }
-      }
+      },
+      "rss_scope": "cmake-image-v1",
+      "memory_repetitions": 5
     },
     "aarch64-unknown-linux-musl": {
       "archive_sha256": "61f116c8638f56e2ec7173137ba33dac16dc43bacf54f58c496649761bbfe343",
