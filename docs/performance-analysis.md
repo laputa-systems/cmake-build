@@ -37,8 +37,8 @@ sampling. A later [main-thread CPU profile](profiles/llvm-reconfigure.md) used
 the kernel perf-event interface directly. Parsing, allocation, compiler
 discovery, executor work, and filesystem effects are not separately ranked by
 the initial results. Do not infer a CMake runtime speedup from
-the debug-stripping size reduction. The current data support keeping the
-simpler compiler flags until an isolated candidate demonstrates a gain beyond
+the debug-stripping size reduction. Those data supported keeping the
+simpler compiler flags until an isolated candidate demonstrated a gain beyond
 observed variation. The subsequent [Rustls release-profile study](performance-rust-release.md)
 measured a smaller executable without a clear runtime change.
 
@@ -51,4 +51,4 @@ the shipped CMake link map and CPack is not packaged. Removing that build-only
 target would not by itself improve the shipped executable. O2, size-oriented
 optimization, ThinLTO, identical-code folding, and section garbage collection
 were not measured in this study; the available profile does not establish a
-specific safe change among them.
+specific safe change among them. A later [section-garbage-collection study](performance-gc.md) measured a smaller executable.

@@ -192,7 +192,9 @@ The following failures also occurred in the unmodified static-PIE baseline:
 
 ## Full upstream CTest: x86_64-unknown-linux-musl
 
-The full upstream suite ran in a copied build tree inside the network-isolated
+The full upstream suite ran on an earlier x86-64 executable, before the Rustls
+release-profile and section-garbage-collection changes. It was not rerun on the
+published archive. The run used a copied build tree inside the network-isolated
 builder. It executed 674 tests: 667 passed and seven failed. All seven failures also
 occurred in the unmodified static-musl baseline under the same conditions:
 
