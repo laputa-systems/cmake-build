@@ -17,11 +17,11 @@ The Ninja codemodel listed the `base` and `wrapper` dependencies in the opposite
 
 These runs cover the fixtures above, not the complete parity, networking, project, or upstream suites.
 
-## Preliminary x86-64 networking
+## x86-64 networking
 
 The staged CMake passed local HTTPS downloads, redirects, expected hash checks, certificate-file and certificate-directory trust, hostname rejection, verification settings, and an HTTP CONNECT proxy. The negative cases returned the expected TLS status or hash mismatch.
 
-A separate networked container used `FetchContent` to download the locked CMake source archive and verify its SHA-256. The local tests ran with only loopback networking. These runs do not yet constitute the registered network qualification suite.
+A separate networked container used `FetchContent` to download the locked CMake source archive and verify its SHA-256. The local tests ran with only loopback networking. The registered network qualification command passed.
 
 ## Preliminary real-project results
 
