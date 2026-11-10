@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tarfile
 import unittest
+from pathlib import Path
 
 from buildsys.inputs import (
     Cache,
     Input,
     InputError,
     load_sources,
+    load_bootstrap,
     safe_extract,
 )
 from helpers import archive, workspace, write_lock
@@ -44,6 +47,16 @@ def source(sha: str = GOOD_SHA, size: int | None = 4, name: str = "source") -> I
 
 
 class LockTests(unittest.TestCase):
+    def test_bootstrap_rust_component_requires_size(self) -> None:
+        with workspace() as directory:
+            root = Path(__file__).resolve().parents[2]
+            lock = json.loads((root / "bootstrap.lock.json").read_text())
+            del lock["targets"]["x86_64-unknown-linux-musl"]["rust"]["components"][0]["size"]
+            path = directory / "bootstrap.json"
+            path.write_text(json.dumps(lock))
+            with self.assertRaisesRegex(InputError, "must pin a size"):
+                load_bootstrap(path)
+
     def test_accepts_complete_entry(self) -> None:
         with workspace() as directory:
             lock = write_lock(directory / "lock.json", [entry()])

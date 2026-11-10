@@ -308,6 +308,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-x86_64-unknown-linux-musl.tar.xz",
             "sha256": "a905fe818906ad0f63a619ebf97a3146ff7d9f183fa9805dcfd22bcd40b19510",
+            "size": 12303508,
             "role": "build-source",
             "target": "all"
           },
@@ -316,6 +317,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-x86_64-unknown-linux-musl.tar.xz",
             "sha256": "faa179147ef1f008a2473c1eaecdc1793142e3413034194959560b1c12ba557c",
+            "size": 110078576,
             "role": "build-source",
             "target": "all"
           },
@@ -324,6 +326,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-x86_64-unknown-linux-musl.tar.xz",
             "sha256": "0954607004e948289bda9049114caa89db9fc23ef01d127074820037023d67c2",
+            "size": 41497264,
             "role": "build-source",
             "target": "all"
           },
@@ -332,6 +335,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
             "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+            "size": 5927464,
             "role": "build-source",
             "target": "all"
           }
@@ -619,6 +623,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-aarch64-unknown-linux-musl.tar.xz",
             "sha256": "7fce0df58a1b125f6873e2b87513da3077c36e6e9bdf46ee7a6b847d435e9413",
+            "size": 11716492,
             "role": "build-source",
             "target": "all"
           },
@@ -627,6 +632,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-aarch64-unknown-linux-musl.tar.xz",
             "sha256": "701a51f22ee966b31bdf6c656c71819fd5c2731cbbff29d40338b8b94d61baa3",
+            "size": 116857884,
             "role": "build-source",
             "target": "all"
           },
@@ -635,6 +641,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-aarch64-unknown-linux-musl.tar.xz",
             "sha256": "e767f84f4d3ed6dcbf39e92887d59d4abe860c877810cb2c8c6fc67c8273b100",
+            "size": 31385528,
             "role": "build-source",
             "target": "all"
           },
@@ -643,6 +650,7 @@
             "version": "1.100.0-nightly",
             "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
             "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+            "size": 5927464,
             "role": "build-source",
             "target": "all"
           }
