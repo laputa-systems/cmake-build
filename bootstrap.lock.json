@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "alpine": {
+    "release": "3.25.0_alpha20260805",
+    "image": "alpine",
+    "image_index_digest": "sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000",
+    "image_manifest_reference": "alpinelinux/docker-alpine@410e6fcf",
+    "repositories": {
+      "x86_64-unknown-linux-musl": [
+        "https://cdn.alpinelinux.org/edge/main"
+      ],
+      "aarch64-unknown-linux-musl": [
+        "https://cdn.alpinelinux.org/edge/main"
+      ]
+    }
+  },
+  "targets": {
+    "x86_64-unknown-linux-musl": {
+      "architecture": "x86_64",
+      "platform": "linux/amd64",
+      "packages": [
+        {
+          "name": "linux-headers",
+          "version": "7.2.1-r0",
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/linux-headers-7.2.1-r0.apk",
+          "sha256": "45e0d4df3e4002122c953d0af6e208f1e8369fc6c88c67138400b87f871fd54b",
+          "size": 2017036,
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "license": "GPL-2.0-only",
+          "purpose": "Linux UAPI headers for the sysroot"
+        }
+      ],
+      "rust": {
+        "channel": "nightly-2026-09-15",
+        "version": "1.100.0-nightly",
+        "host": "x86_64-unknown-linux-musl",
+        "license": "Apache-2.0 OR MIT",
+        "name_prefix": "rust",
+        "components": [
+          {
+            "name": "cargo",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-x86_64-unknown-linux-musl.tar.xz",
+            "sha256": "a905fe818906ad0f63a619ebf97a3146ff7d9f183fa9805dcfd22bcd40b19510",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rustc",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-x86_64-unknown-linux-musl.tar.xz",
+            "sha256": "faa179147ef1f008a2473c1eaecdc1793142e3413034194959560b1c12ba557c",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-std",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-x86_64-unknown-linux-musl.tar.xz",
+            "sha256": "0954607004e948289bda9049114caa89db9fc23ef01d127074820037023d67c2",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-src",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
+            "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+            "role": "build-source",
+            "target": "all"
+          }
+        ]
+      }
+    },
+    "aarch64-unknown-linux-musl": {
+      "architecture": "aarch64",
+      "platform": "linux/arm64",
+      "packages": [],
+      "rust": {
+        "channel": "nightly-2026-09-15",
+        "version": "1.100.0-nightly",
+        "host": "aarch64-unknown-linux-musl",
+        "license": "Apache-2.0 OR MIT",
+        "name_prefix": "rust",
+        "components": [
+          {
+            "name": "cargo",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-aarch64-unknown-linux-musl.tar.xz",
+            "sha256": "7fce0df58a1b125f6873e2b87513da3077c36e6e9bdf46ee7a6b847d435e9413",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rustc",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-aarch64-unknown-linux-musl.tar.xz",
+            "sha256": "701a51f22ee966b31bdf6c656c71819fd5c2731cbbff29d40338b8b94d61baa3",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-std",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-aarch64-unknown-linux-musl.tar.xz",
+            "sha256": "e767f84f4d3ed6dcbf39e92887d59d4abe860c877810cb2c8c6fc67c8273b100",
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-src",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
+            "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+            "role": "build-source",
+            "target": "all"
+          }
+        ]
+      }
+    }
+  }
+}
