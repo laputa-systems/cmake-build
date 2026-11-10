@@ -25,14 +25,15 @@ class CliTests(unittest.TestCase):
             prepared.mkdir(parents=True)
             (prepared / "phase.json").write_text(json.dumps({"output_digest": "d" * 64}))
 
-            def bootstrap_action(cmake, samurai, ninja, output, tc, sysroot, target):
-                (output / "bootstrap-output").write_text("built")
+            def bootstrap_action(*, cmake_archive, samurai_archive, ninja_archive, directory, tc, sysroot, target, bootstrap_version):
+                (directory / "bootstrap-output").write_text("built")
 
             def configure_action(bootstrap, output, tc, target):
                 (output / "configured-output").write_text("built")
 
             with patch.object(build, "BUILD_ROOT", directory), patch.object(build, "_prepare_inside"), \
                     patch.object(build, "load_sources", return_value=sources), patch.object(build, "load_bootstrap"), \
+                    patch.object(build, "bootstrap_inputs", return_value=[SimpleNamespace(name="cmake", version="4.3.4-r0")]), \
                     patch.object(build, "_controller_digest", return_value="e" * 64), \
                     patch.object(build.Cache, "require", lambda self, item: Path(item.name)), \
                     patch.object(build.toolchain, "verify"), \

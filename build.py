@@ -389,6 +389,12 @@ def _configure_inside(description) -> int:
     cmake = selected["cmake-source"]
     samurai = selected["samurai-source"]
     ninja = selected["ninja-source"]
+    packages = [item for item in bootstrap_inputs(lock, description.triple) if item.name == "cmake"]
+    if len(packages) != 1:
+        _fail(f"{description.triple}: lock must contain exactly one bootstrap CMake package")
+    version = re.fullmatch(r"(.+)-r[0-9]+", packages[0].version)
+    if version is None:
+        _fail(f"{description.triple}: invalid bootstrap CMake package version {packages[0].version!r}")
     phases = PhaseCache(_target_root(description) / "phases")
     prepared = phases.directory("prepare")
     record = json.loads((prepared / "phase.json").read_text())
@@ -404,7 +410,9 @@ def _configure_inside(description) -> int:
     }
 
     def action(directory: Path) -> None:
-        bootstrap.build(cache.require(cmake), cache.require(samurai), cache.require(ninja), directory, tc, prepared / "sysroot", description)
+        bootstrap.build(cmake_archive=cache.require(cmake), samurai_archive=cache.require(samurai),
+                        ninja_archive=cache.require(ninja), directory=directory, tc=tc,
+                        sysroot=prepared / "sysroot", target=description, bootstrap_version=version.group(1))
 
     built = phases.run("bootstrap", inputs, action)
     bootstrap_record = json.loads((built.directory / "phase.json").read_text())

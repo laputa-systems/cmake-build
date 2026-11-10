@@ -1,4 +1,4 @@
-"""Build the upstream bootstrap CMake and the locked build executors."""
+"""Prepare the locked Alpine bootstrap and build executors."""
 
 from __future__ import annotations
 
@@ -11,13 +11,15 @@ from .targets import Target
 from .rust import _run as run_process
 from . import toolchain
 
+_BOOTSTRAP_CMAKE = Path("/usr/bin/cmake")
+
 
 class BootstrapError(Exception):
     pass
 
 
-def _run(command: list[str], cwd: Path, env: dict[str, str]) -> None:
-    run_process(command, cwd=cwd, env=env)
+def _run(command: list[str], cwd: Path, env: dict[str, str]) -> str:
+    return run_process(command, cwd=cwd, env=env)
 
 
 def _source(archive: Path, destination: Path) -> Path:
@@ -28,20 +30,20 @@ def _source(archive: Path, destination: Path) -> Path:
     return entries[0]
 
 
-def build(cmake_archive: Path, samurai_archive: Path, ninja_archive: Path, directory: Path, tc: Path, sysroot: Path, target: Target) -> None:
+def build(*, cmake_archive: Path, samurai_archive: Path, ninja_archive: Path, directory: Path, tc: Path,
+          sysroot: Path, target: Target, bootstrap_version: str) -> None:
     flags = toolchain.flags(target, sysroot)
     env = {**os.environ, **toolchain.environment(tc, target)}
     env["CFLAGS"] = shlex.join(flags)
     env["CXXFLAGS"] = shlex.join(toolchain.cxx_flags(target, sysroot))
     env["LDFLAGS"] = shlex.join(flags)
+    version = _run([str(_BOOTSTRAP_CMAKE), "--version"], directory, env).splitlines()
+    if not version or version[0] != f"cmake version {bootstrap_version}":
+        raise BootstrapError(f"bootstrap CMake version {version[0] if version else 'missing'!r} != {bootstrap_version!r}")
     jobs = str(os.process_cpu_count() or 1)
     samurai = _source(samurai_archive, directory / "samurai")
     _run(["make", f"-j{jobs}", f"CC={shlex.join([str(tc / 'bin/clang'), *flags])}"], samurai, env)
-    source = _source(cmake_archive, directory / "source")
-    bootstrap_directory = directory / "bootstrap"
-    bootstrap_directory.mkdir()
-    _run([str(source / "bootstrap"), f"--parallel={jobs}", "--no-system-libs", "--", "-DCMAKE_USE_OPENSSL=OFF", f"-DCMAKE_SYSROOT={sysroot}"], bootstrap_directory, env)
-    _run(["make", f"-j{jobs}", "cmake"], bootstrap_directory, env)
+    _source(cmake_archive, directory / "source")
     file = directory / "toolchain.cmake"
     file.write_text(
         f'set(CMAKE_C_COMPILER "{tc / "bin/clang"}")\n'
@@ -61,7 +63,7 @@ def build(cmake_archive: Path, samurai_archive: Path, ninja_archive: Path, direc
     ninja = _source(ninja_archive, directory / "ninja-source")
     ninja_build = directory / "ninja-build"
     _run([
-        str(bootstrap_directory / "bin/cmake"), "-S", str(ninja), "-B", str(ninja_build),
+        str(_BOOTSTRAP_CMAKE), "-S", str(ninja), "-B", str(ninja_build),
         "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={samurai / 'samu'}",
         f"-DCMAKE_TOOLCHAIN_FILE={file}", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=OFF",
     ], directory, env)
@@ -74,7 +76,7 @@ def configure(bootstrap_directory: Path, directory: Path, tc: Path, target: Targ
     file = bootstrap_directory / "toolchain.cmake"
     env = {**os.environ, **toolchain.environment(tc, target)}
     _run([
-        str(bootstrap_directory / "bootstrap/bin/cmake"), "-S", str(source), "-B", str(directory),
+        str(_BOOTSTRAP_CMAKE), "-S", str(source), "-B", str(directory),
         "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}",
         f"-DCMAKE_TOOLCHAIN_FILE={file}", "-DCMAKE_BUILD_TYPE=Release",
         "-DCMAKE_USE_OPENSSL=OFF", "-DBUILD_CursesDialog=OFF", "-DBUILD_QtDialog=OFF",
@@ -82,6 +84,6 @@ def configure(bootstrap_directory: Path, directory: Path, tc: Path, target: Targ
     ], directory, env)
     fixture = Path(__file__).resolve().parents[1] / "tests/fixtures/native"
     _run([
-        str(bootstrap_directory / "bootstrap/bin/cmake"), "-S", str(fixture), "-B", str(directory / "native-check"),
+        str(_BOOTSTRAP_CMAKE), "-S", str(fixture), "-B", str(directory / "native-check"),
         f"-DCMAKE_TOOLCHAIN_FILE={file}",
     ], directory, env)
