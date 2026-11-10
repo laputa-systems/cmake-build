@@ -156,6 +156,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
         "tools": _phase_digest(tools),
         "vendor": _phase_digest(vendored),
         "prepare": _phase_digest(prepared),
+        "image": sandbox._locked_image_fingerprint(target),
         "kache": digest_bytes(kache)[0],
         "implementation": digest_bytes(Path(__file__))[0],
     }
