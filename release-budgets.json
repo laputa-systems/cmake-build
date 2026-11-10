@@ -7,14 +7,14 @@
       "memory_status": "measured",
       "metrics": {
         "archive_bytes": {
-          "allowed_regression": 305134.32,
+          "allowed_regression": 261734.64,
           "spread": 0,
-          "value": 10171144
+          "value": 8724488
         },
         "executable_bytes": {
-          "allowed_regression": 1254179.28,
+          "allowed_regression": 913586.88,
           "spread": 0,
-          "value": 41805976
+          "value": 30452896
         },
         "fmt_configure_seconds": {
           "allowed_regression": 0.17004753602668643,
@@ -22,9 +22,9 @@
           "value": 0.44189624150749296
         },
         "unpacked_bytes": {
-          "allowed_regression": 1634300.04,
+          "allowed_regression": 1293707.64,
           "spread": 0,
-          "value": 54476668
+          "value": 43123588
         },
         "version_seconds": {
           "allowed_regression": 0.008492710185237229,

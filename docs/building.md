@@ -49,6 +49,8 @@ The [Rustls profile study](performance-rust-release.md) compares the smaller
 candidate with the previous x86-64 release.
 Existing limits are retained. When a target's memory baseline is unmeasured,
 the recorded baseline archive can establish it for review and commit.
+The recorded archive digest identifies the memory baseline; size limits can
+be tightened separately when a smaller qualified build is measured.
 The local `qualify` command enforces size limits. The native qualification
 workflow also requires a measured memory baseline and a passing benchmark;
 its memory results are bound to the archive and budget hashes.
