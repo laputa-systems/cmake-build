@@ -5,9 +5,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `ae26222`.
-- **Accepted:** G1. **Red:** none. **Parked:** none.
-- **Next slice:** G2 acceptance review: preparation and the isolation probe pass; verify the required negative controls against real artifacts and settle compiler identity evidence before accepting it. G3 and G4 depend on G2.
+- **Last accepted revision:** `0bf3764`.
+- **Accepted:** G1, G2. **Red:** none. **Parked:** none.
+- **Next slice:** G3. Its timing measurements require a working `perf-gate-ready`; the host's BusyBox `ps` cannot supply the gate's process listing.
 
 ## Charter
 
