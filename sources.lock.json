@@ -131,6 +131,50 @@
       "target": "aarch64-unknown-linux-musl",
       "license": "BSD-3-Clause",
       "purpose": "Official Kitware binary for parity and performance comparison"
+    },
+    {
+      "name": "fmt-source",
+      "version": "12.2.1",
+      "url": "https://github.com/fmtlib/fmt/archive/12.2.1.tar.gz",
+      "sha256": "449374d74f31b67796dece454d59b93e6f1538efcce0e9ac78000c98142c139e",
+      "size": 738814,
+      "role": "test",
+      "target": "all",
+      "license": "MIT",
+      "purpose": "Small real-project qualification"
+    },
+    {
+      "name": "zstd-source",
+      "version": "1.5.7",
+      "url": "https://github.com/meta/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+      "sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+      "size": 2434947,
+      "role": "test",
+      "target": "all",
+      "license": "BSD-3-Clause OR GPL-2.0-only",
+      "purpose": "Medium real-project qualification"
+    },
+    {
+      "name": "libjpeg-turbo-source",
+      "version": "3.2.1",
+      "url": "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.1/libjpeg-turbo-3.2.1.tar.gz",
+      "sha256": "c27ad72a68da151177929aa969ae773a2da5ac2af9ce946079314fdac8cece7f",
+      "size": 2549854,
+      "role": "test",
+      "target": "all",
+      "license": "BSD-3-Clause AND IJG AND Zlib",
+      "purpose": "Custom-command real-project qualification"
+    },
+    {
+      "name": "llvm-project-source",
+      "version": "23.1.5",
+      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/llvm-project-23.1.5.src.tar.xz",
+      "sha256": "fb50b1eac93ddeb3aa8dab4cfe324dff74f4a9c2bdee6160c9e36188f8d06a6e",
+      "size": 179220264,
+      "role": "test",
+      "target": "all",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "purpose": "Large configure and benchmark fixture"
     }
   ]
 }
