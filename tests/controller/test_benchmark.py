@@ -44,13 +44,17 @@ class BenchmarkTests(unittest.TestCase):
         metadata = {'target': 'test', 'host': 'test', 'cpu_model': 'test', 'container': 'test', 'cpus': [0],
                     'archive_sha256': 'a', 'official_sha256': 'b', 'baseline_digest': 'c',
                     'cmake_sha256': 'c', 'toolchain_sha256': 'd',
-                    'strace_version': 'test', 'runner_sha256': 'd', 'implementation_sha256': 'f', 'profiles': profiles,
+                    'strace_version': 'test', 'runner_sha256': 'd', 'implementation_sha256': 'f',
+                    'rss_implementation_sha256': 'g', 'profiles': profiles,
                     'projects': [SimpleNamespace(name='fmt', version='1', sha256='e')],
                     'sizes': {variant: {'executable': 1, 'files': 2, 'archive': 3}
                               for variant in ('product', 'musl', 'kitware')}}
         for record in records:
             record.update(load_before=0.0, load_after=0.0)
-        self.assertIn('## Raw samples', benchmark.render(records, 1, metadata))
+        report = benchmark.render(records, 1, metadata)
+        self.assertIn('## Raw samples', report)
+        self.assertIn("RSS is CMake's image high-water mark", report)
+        self.assertIn('Startup timings are untraced', report)
         metadata['profiles'] = profiles[:-1]
         with self.assertRaises(benchmark.BenchmarkError):
             benchmark.render(records, 1, metadata)

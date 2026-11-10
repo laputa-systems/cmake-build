@@ -90,6 +90,7 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
              f"CMake source SHA-256: `{metadata['cmake_sha256']}`. Toolchain SHA-256: `{metadata['toolchain_sha256']}`.",
              f"Tracer: `{metadata['strace_version']}`. Runner SHA-256: `{metadata['runner_sha256']}`.",
              f"Benchmark implementation SHA-256: `{metadata['implementation_sha256']}`.",
+             f"RSS measurement implementation SHA-256: `{metadata['rss_implementation_sha256']}`.",
              'See the [baseline analysis](performance-analysis.md) for the interpretation and limits of the initial run.', '',
              '| Project | Version | Source SHA-256 |', '| --- | --- | --- |']
     for item in metadata['projects']:
@@ -103,8 +104,9 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
         size = metadata['sizes'][variant]
         lines.append(f"| {variant} | {size['executable']} | {size['files']} | {size['archive']} |")
     lines.extend(['', '## Measurements', '',
-             'RSS is the kernel-reported maximum for the process and its waited-for children, not the sum',
-             'of simultaneous process memory.', '',
+             'RSS is CMake\'s image high-water mark, read before exit; it excludes child processes.',
+             'Configure timings include process-tracing overhead. Startup timings are untraced; their RSS',
+             'comes from a separate traced invocation.', '',
              '| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Maximum RSS KiB |',
              '| --- | --- | --- | ---: | ---: | ---: | ---: |'])
     for (workload, scenario, variant), value in sorted(summary.items()):
@@ -155,7 +157,7 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     budget_path = root / 'release-budgets.json'
     budget_document = budgets.load(budget_path)
     budget_digest = digest_bytes(budget_path)[0]
-    budgets.validate_memory_source(budget_document, target.triple, archive_sha256)
+    budgets.validate_memory_source(budget_document, target.triple, archive_sha256, archive.stat().st_size)
     reference_phase = phases / 'reference'
     if not (reference_phase / 'build/bin/cmake').is_file():
         raise BenchmarkError('build the unmodified static-musl baseline with the upstream suite first')
@@ -255,6 +257,8 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
             mounts.append((source, f'/inputs/{name}'))
         runner_sha256 = digest_bytes(root / 'tests/benchmark/run.py')[0]
         implementation_sha256 = digest_bytes(Path(__file__))[0]
+        rss_implementation = root / 'buildsys/benchmark_process.py'
+        rss_implementation_sha256 = digest_bytes(rss_implementation)[0]
         result = sandbox.run_sealed(lock.reference_image, ['/opt/alpine/usr/python3', '/suite/run.py', str(repetitions)],
                                     target=target, mounts=mounts,
                                     env={'PYTHONHOME': '/opt/alpine/usr', 'TMPDIR': '/benchmark'},
@@ -263,13 +267,16 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
         if result.returncode:
             raise BenchmarkError(f'benchmark failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}')
         if (digest_bytes(root / 'tests/benchmark/run.py')[0] != runner_sha256
-            or digest_bytes(Path(__file__))[0] != implementation_sha256):
+            or digest_bytes(Path(__file__))[0] != implementation_sha256
+            or digest_bytes(rss_implementation)[0] != rss_implementation_sha256):
             raise BenchmarkError('benchmark implementation changed during measurement')
         if digest_bytes(budget_path)[0] != budget_digest:
             raise BenchmarkError('release budgets changed during measurement')
         if package.digest(archive) != archive_sha256:
             raise BenchmarkError('qualified archive changed during measurement')
         data = json.loads((workspace / 'results.json').read_text())
+        if data.get('rss_scope') != budgets.RSS_SCOPE:
+            raise BenchmarkError('benchmark produced an incompatible RSS measurement')
         cpu_info = Path('/proc/cpuinfo').read_text().splitlines()
         cpu_model = next((line.partition(':')[2].strip() for line in cpu_info
                           if line.split(':', 1)[0].strip() in ('model name', 'Hardware')), 'not reported')
@@ -283,9 +290,10 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
                                                          'cmake_sha256': locked['cmake-source'].sha256,
                                                          'toolchain_sha256': locked[f'llvm-toolchain-{target.machine}'].sha256,
                                                          'runner_sha256': runner_sha256,
-                                                         'implementation_sha256': implementation_sha256})
+                                                         'implementation_sha256': implementation_sha256,
+                                                         'rss_implementation_sha256': rss_implementation_sha256})
         try:
-            initialized = budgets.apply_memory(budget_document, target.triple, archive_sha256, data['records'])
+            initialized = budgets.apply_memory(budget_document, target.triple, archive_sha256, archive.stat().st_size, data['records'])
         except budgets.BudgetError as error:
             rejected = scratch / 'benchmark-rejected.md'
             _write_atomic(rejected, document, scratch)

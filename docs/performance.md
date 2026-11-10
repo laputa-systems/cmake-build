@@ -1,5 +1,10 @@
 # CMake executable performance
 
+The historical RSS values in this report are invalid: `wait4` can include the
+benchmark launcher's earlier high-water mark. They are retained only as raw
+historical data and must not be used as memory budgets. Timing samples are
+unaffected by that accounting error.
+
 Target: `x86_64-unknown-linux-musl`. Runs per variant: 10.
 
 All three binaries ran in the same native Debian container with the pinned musl toolchain.
@@ -38,10 +43,9 @@ The official archive includes additional tools and resources, so total package s
 
 ## Measurements
 
-RSS is the kernel-reported maximum for the process and its waited-for children, not the sum
-of simultaneous process memory.
+The legacy RSS column is invalid for comparing executable memory, as noted above.
 
-| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Maximum RSS KiB |
+| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Invalid RSS KiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
 | fmt | cmakelists-edit | kitware | 0.037395 | 0.031258–0.050411 | 0.036302 | 22584 |
 | fmt | cmakelists-edit | musl | 0.058848 | 0.053267–0.068288 | 0.058810 | 22584 |
@@ -100,9 +104,9 @@ of simultaneous process memory.
 
 ## Raw samples
 
-Seconds, peak RSS in KiB, and one-minute host load before and after each invocation.
+Seconds, invalid legacy RSS in KiB, and one-minute host load before and after each invocation.
 
-| Workload | Operation | Variant | Iteration | Seconds | CPU seconds | Peak RSS KiB | Load before | Load after |
+| Workload | Operation | Variant | Iteration | Seconds | CPU seconds | Invalid RSS KiB | Load before | Load after |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | process | version | product | 1 | 0.007304 | 0.007128 | 22584 | 4.17 | 4.17 |
 | process | script | product | 1 | 0.004037 | 0.003840 | 22584 | 4.17 | 4.17 |

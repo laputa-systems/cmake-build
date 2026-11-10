@@ -1,10 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "targets": {
     "x86_64-unknown-linux-musl": {
       "archive_sha256": "b53ca751fd8c1f0c3b3918c7c9aed7f5a30a79b2bbf4f9289ec567ede5a0cc3e",
+      "memory_archive_bytes": 10171144,
       "repetitions": 10,
-      "memory_status": "measured",
+      "memory_status": "unmeasured",
       "metrics": {
         "archive_bytes": {
           "allowed_regression": 261734.64,
@@ -30,58 +31,15 @@
           "allowed_regression": 0.008492710185237229,
           "spread": 0.0042463550926186144,
           "value": 0.004559908498777077
-        },
-        "fmt_initial_rss_kib": {
-          "value": 58628.0,
-          "spread": 5828,
-          "allowed_regression": 11656
-        },
-        "libjpeg-turbo_initial_rss_kib": {
-          "value": 65368.0,
-          "spread": 668,
-          "allowed_regression": 1961.04
-        },
-        "llvm-clang_initial_rss_kib": {
-          "value": 491716.0,
-          "spread": 4112,
-          "allowed_regression": 14751.48
-        },
-        "zstd_initial_rss_kib": {
-          "value": 66814.0,
-          "spread": 7020,
-          "allowed_regression": 14040
         }
       }
     },
     "aarch64-unknown-linux-musl": {
       "archive_sha256": "61f116c8638f56e2ec7173137ba33dac16dc43bacf54f58c496649761bbfe343",
+      "memory_archive_bytes": 9377384,
       "repetitions": 5,
-      "memory_status": "measured",
+      "memory_status": "unmeasured",
       "metrics": {
-        "fmt_initial_rss_kib": {
-          "value": 77016,
-          "spread": 448,
-          "central_spread": 356.0,
-          "allowed_regression": 2310.48
-        },
-        "zstd_initial_rss_kib": {
-          "value": 79052,
-          "spread": 648,
-          "central_spread": 512.0,
-          "allowed_regression": 2371.56
-        },
-        "libjpeg-turbo_initial_rss_kib": {
-          "value": 78084,
-          "spread": 576,
-          "central_spread": 144.0,
-          "allowed_regression": 2342.52
-        },
-        "llvm-clang_initial_rss_kib": {
-          "value": 489864,
-          "spread": 180,
-          "central_spread": 116.0,
-          "allowed_regression": 14695.92
-        },
         "executable_bytes": {
           "value": 40748528,
           "spread": 0,

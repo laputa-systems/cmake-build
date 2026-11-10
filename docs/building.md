@@ -43,13 +43,21 @@ copy of the build tree, with the upstream test resources.
 interleaved repetitions on a native Linux host with `strace` installed. It
 requires an active qualified generation and the unmodified musl baseline from
 the upstream suite. The command writes [performance results](performance.md)
-and compares size and peak-memory measurements with `release-budgets.json`.
+and compares size and CMake-image peak-memory measurements with
+`release-budgets.json`. RSS excludes compiler and other child processes. The
+configure runs use process tracing to read the image high-water mark at exit;
+startup timing uses an untraced invocation and measures RSS separately.
 The [ARM baseline report](performance-aarch64.md) records its native run.
 The [Rustls profile study](performance-rust-release.md) compares the smaller
 candidate with the previous x86-64 release.
 Existing limits are retained. When a target's memory baseline is unmeasured,
 the recorded baseline archive can establish it for review and commit.
-The recorded archive digest identifies the memory baseline; size limits can
+The native baseline workflow checks that historical archive against its own
+recorded size limits; release qualification continues to use the current
+candidate limits.
+Budget schema 2 rejects the earlier process-tree RSS baselines because they
+could include launcher memory. The recorded archive digest identifies the
+memory baseline; size limits can
 be tightened separately when a smaller qualified build is measured.
 The local `qualify` command enforces size limits. The native qualification
 workflow also requires a measured memory baseline and a passing benchmark;

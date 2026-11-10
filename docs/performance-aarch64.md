@@ -1,5 +1,10 @@
 # CMake executable performance
 
+The historical RSS values in this report are invalid: `wait4` can include the
+benchmark launcher's earlier high-water mark. They are retained only as raw
+historical data and must not be used as memory budgets. Timing samples are
+unaffected by that accounting error.
+
 This is the original ARM prerelease measured by [native run 42859968423](https://github.com/laputa-systems/cmake-build/actions/runs/42859968423).
 
 Target: `aarch64-unknown-linux-musl`. Runs per variant: 5.
@@ -39,10 +44,9 @@ The official archive includes additional tools and resources, so total package s
 
 ## Measurements
 
-RSS is the kernel-reported maximum for the process and its waited-for children, not the sum
-of simultaneous process memory.
+The legacy RSS column is invalid for comparing executable memory, as noted above.
 
-| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Maximum RSS KiB |
+| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Invalid RSS KiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
 | fmt | cmakelists-edit | kitware | 0.023576 | 0.023254–0.024103 | 0.022956 | 22916 |
 | fmt | cmakelists-edit | musl | 0.037693 | 0.037032–0.038534 | 0.037162 | 22916 |
@@ -101,9 +105,9 @@ of simultaneous process memory.
 
 ## Raw samples
 
-Seconds, peak RSS in KiB, and one-minute host load before and after each invocation.
+Seconds, invalid legacy RSS in KiB, and one-minute host load before and after each invocation.
 
-| Workload | Operation | Variant | Iteration | Seconds | CPU seconds | Peak RSS KiB | Load before | Load after |
+| Workload | Operation | Variant | Iteration | Seconds | CPU seconds | Invalid RSS KiB | Load before | Load after |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | process | version | product | 1 | 0.002429 | 0.002287 | 22660 | 1.33 | 1.33 |
 | process | script | product | 1 | 0.002518 | 0.002333 | 22660 | 1.33 | 1.33 |

@@ -1,5 +1,10 @@
 # Rustls release-profile study
 
+The historical RSS values in this study are invalid: `wait4` can include the
+benchmark launcher's earlier high-water mark. They are retained in the raw
+data and table for transparency, but must not be used as memory budgets.
+Timing samples are unaffected by that accounting error.
+
 The x86-64 study compares the qualified prerelease at `58313ac` with the
 release-profile experiment at `46103c8`. Both use the same pinned toolchain,
 workloads, Debian container, CPU affinity `[0, 1, 2, 3]`, and the benchmark
@@ -15,8 +20,8 @@ The original CMake executable is 41,805,976 bytes; the experiment is
 30,452,896 bytes, 27.2% smaller. The archive decreased from 10,171,144 to
 8,724,488 bytes, 14.2% smaller. The paired timing ranges overlap in every
 case, so these samples do not establish a runtime speedup or a clear
-regression. Peak RSS is the maximum reported for an individual process in the
-waited process tree, not the sum of concurrent processes.
+regression. The old RSS numbers are not reliable measurements of either
+executable's memory.
 
 The change uses Cargo's standard release profile for Rustls. That profile
 also changes Rust's default debug-assertion and integer-overflow checks from
@@ -25,8 +30,8 @@ upstream, ELF, relocation and HTTPS qualification, including untrusted
 certificates and hostname mismatches. ARM qualification is required for the
 release candidate.
 
-The table lists median and observed range in seconds, plus median peak RSS in
-KiB. `product` is the release-profile experiment; `musl` is the previous
+The table lists median and observed range in seconds, plus the invalid legacy
+RSS figures in KiB. `product` is the release-profile experiment; `musl` is the previous
 qualified product, not the separate unmodified musl reference used in the
 [original x86-64 report](performance.md). The [raw measurements and syscall
 profiles](performance-rust-release.json) contain all five samples and the
@@ -34,7 +39,7 @@ sample-boundary loads. The untimed LLVM traces recorded the same 614,737
 file/process calls for each executable, including child processes; tracing
 cannot attribute their wall time to CMake itself.
 
-| Workload | Scenario | Variant | Median seconds | Minimum | Maximum | Median RSS KiB |
+| Workload | Scenario | Variant | Median seconds | Minimum | Maximum | Invalid legacy RSS KiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
 | fmt | cmakelists-edit | musl | 0.055226 | 0.053619 | 0.058742 | 23252 |
 | fmt | cmakelists-edit | product | 0.057388 | 0.054022 | 0.065686 | 23252 |

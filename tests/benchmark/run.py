@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, '/controller')
 from buildsys.benchmark import interleaved_orders
+from buildsys import benchmark_process, budgets
 
 root = Path('/benchmark')
 repetitions = int(sys.argv[1])
@@ -30,27 +31,39 @@ workloads = {
 def invoke(command: list[str], workload: str, scenario: str, variant: str, iteration: int, measured: bool = True) -> str:
     output = root / 'output.txt'
     before = os.getloadavg()[0]
-    with output.open('wb') as stream:
-        started = time.perf_counter()
-        process = subprocess.Popen(command, cwd=root, env=base_env, stdout=stream, stderr=subprocess.STDOUT)
-        try:
-            _, status, usage = os.wait4(process.pid, 0)
-        except BaseException:
+    started = time.perf_counter()
+    startup = workload == 'process'
+    if measured and not startup:
+        result = benchmark_process.run(command, cwd=root, env=base_env, output=output)
+        returncode, cpu_seconds, max_rss_kib = result.returncode, result.cpu_seconds, result.max_rss_kib
+    else:
+        with output.open('wb') as stream:
+            process = subprocess.Popen(command, cwd=root, env=base_env, stdout=stream, stderr=subprocess.STDOUT)
             try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            process.wait()
-            raise
-        duration = time.perf_counter() - started
-        process.returncode = os.waitstatus_to_exitcode(status)
+                _, status, usage = os.wait4(process.pid, 0)
+            except BaseException:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                process.wait()
+                raise
+            process.returncode = os.waitstatus_to_exitcode(status)
+        returncode, cpu_seconds, max_rss_kib = process.returncode, usage.ru_utime + usage.ru_stime, 0
+    duration = time.perf_counter() - started
     text = output.read_text(errors='replace')
-    if process.returncode != 0:
-        raise RuntimeError(f'{variant} {workload} {scenario} failed ({process.returncode}):\n{text[-6000:]}')
+    if returncode != 0:
+        raise RuntimeError(f'{variant} {workload} {scenario} failed ({returncode}):\n{text[-6000:]}')
+    if measured and startup:
+        measured_output = root / 'rss-output.txt'
+        memory = benchmark_process.run(command, cwd=root, env=base_env, output=measured_output)
+        if memory.returncode != 0 or measured_output.read_text(errors='replace') != text:
+            raise RuntimeError(f'{variant} {workload} {scenario}: RSS run differed from the timing run')
+        max_rss_kib = memory.max_rss_kib
     if measured:
         records.append({'variant': variant, 'workload': workload, 'scenario': scenario, 'iteration': iteration,
-                        'seconds': duration, 'max_rss_kib': usage.ru_maxrss, 'exit_code': process.returncode,
-                        'cpu_seconds': usage.ru_utime + usage.ru_stime,
+                        'seconds': duration, 'max_rss_kib': max_rss_kib, 'exit_code': returncode,
+                        'cpu_seconds': cpu_seconds,
                         'load_before': before, 'load_after': os.getloadavg()[0]})
     return text
 
@@ -145,4 +158,5 @@ for workload, (input_name, subdirectory, options) in workloads.items():
             invoke(['/tools/ninja', '-C', str(build), '-j', str(len(cpus)), target],
                    workload, 'graph-build', variant, 0, False)
 
-(root / 'results.json').write_text(json.dumps({'cpus': cpus, 'records': records, 'profiles': profiles}, indent=2) + '\n')
+(root / 'results.json').write_text(json.dumps({'cpus': cpus, 'records': records, 'profiles': profiles,
+                                               'rss_scope': budgets.RSS_SCOPE}, indent=2) + '\n')

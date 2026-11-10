@@ -20,7 +20,8 @@ The Alpine median was 48.6% lower. Paired pipeline differences ranged from
 462.24 to 798.18 seconds, with a median of 644.83 seconds. Alpine is selected
 because the gain exceeds the 20% threshold and the observed paired spread.
 The peak RSS is the largest individual descendant reported by `time -v`, not
-the sum of concurrent processes.
+the sum of concurrent processes. These historical `wait4`-based RSS values may
+also include a launcher's earlier high-water mark and are not memory budgets.
 
 | Executor | Full-build median | Full-build range | Peak RSS range | Runs |
 | --- | ---: | ---: | ---: | ---: |

@@ -63,7 +63,7 @@ class GenerationTest(unittest.TestCase):
         first = generations.qualify(self.store, self.archive, first_digest, lambda tree: {'basic': 'passed'})
         first_tree = first / 'tree'
         unpacked = sum(path.stat().st_size for path in first_tree.rglob('*') if path.is_file() and not path.is_symlink())
-        limits = {'schema_version': 1, 'targets': {'example': {'metrics': {
+        limits = {'schema_version': 2, 'targets': {'example': {'metrics': {
             'executable_bytes': {'value': 5, 'allowed_regression': 0},
             'unpacked_bytes': {'value': unpacked, 'allowed_regression': 0},
             'archive_bytes': {'value': self.archive.stat().st_size, 'allowed_regression': 0},
@@ -80,7 +80,7 @@ class GenerationTest(unittest.TestCase):
         size = self.archive.stat().st_size
         def qualify(tree):
             unpacked = sum(path.stat().st_size for path in tree.rglob('*') if path.is_file() and not path.is_symlink())
-            limits = {'schema_version': 1, 'targets': {'example': {'metrics': {
+            limits = {'schema_version': 2, 'targets': {'example': {'metrics': {
                 'executable_bytes': {'value': 5, 'allowed_regression': 0},
                 'unpacked_bytes': {'value': unpacked, 'allowed_regression': 0},
                 'archive_bytes': {'value': size, 'allowed_regression': 0},

@@ -7,9 +7,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last prerelease:** `58313ac`, qualified natively on both architectures and reproduced on x86_64. GitHub does not mark the prerelease immutable; consumers must pin and verify its archive digest.
 - **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. Exact-archive checks passed both native CI jobs at `9608087`. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
-- **Measured:** five-run ARM memory and performance baselines, the x86_64 Rustls release-profile study, clean and unchanged build costs, and a main-thread CPU sample. The release-profile candidate reduced executable and archive size, passed x86_64 qualification, and showed no clear runtime change against the previous product.
+- **Measured:** five-run performance baselines, the x86_64 Rustls release-profile study, clean and unchanged build costs, and a main-thread CPU sample. The release-profile candidate reduced executable and archive size, passed x86_64 qualification, and showed no clear runtime change against the previous product. The earlier RSS values are invalid because `wait4` can include the launcher's high-water mark.
 - **Parked:** locale-specific fmt assertions need locale data, and CPU call-stack sampling needs a suitable profiling tool. The specified Laputa consumer proof has not been run.
-- **In progress:** qualify the integrated release-profile candidate and its memory budgets on both native architectures. Two clean x86_64 builds at `91983ee` produced identical archives.
+- **In progress:** remeasure CMake-image memory baselines on both native architectures, then qualify the integrated release-profile candidate against them. Two clean x86_64 builds at `91983ee` produced identical archives.
 - **Next:** review native results and reproduction before dispatching a new prerelease.
 
 ## Charter
