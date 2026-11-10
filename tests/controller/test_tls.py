@@ -9,12 +9,21 @@ import sys
 from pathlib import Path
 
 from buildsys.inputs import Cache, Input
-from buildsys.rust import RustError, vendor
+from buildsys.phases import PhaseCache
+from buildsys.rust import RustError, _phase_digest, vendor
 from buildsys.tls import TlsError, check_tree
 from helpers import workspace
 
 
 class DependencyTests(unittest.TestCase):
+    def test_rejects_tampered_vendor_phase(self) -> None:
+        with workspace() as directory:
+            phase = PhaseCache(directory).run("vendor", {"source": "a" * 64}, lambda path: (path / "crate").write_bytes(b"verified"))
+            self.assertTrue(_phase_digest(phase.directory))
+            (phase.directory / "crate").write_bytes(b"tampered")
+            with self.assertRaisesRegex(RustError, "does not match"):
+                _phase_digest(phase.directory)
+
     def test_vendor_process_tree_stops_on_termination(self) -> None:
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))

@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import os
 import signal
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from .inputs import Cache, Input, digest_bytes, safe_extract
+from .inputs import Cache, Input, digest_bytes, safe_extract, tree_digest
 from .phases import PhaseCache
+from .targets import Target
+from . import toolchain
 
 
 class RustError(Exception):
@@ -20,6 +23,12 @@ class RustError(Exception):
 class _Interrupted(BaseException):
     def __init__(self, signum: int) -> None:
         self.signum = signum
+
+
+def _rust_environment() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items()
+            if key not in {"RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS"}
+            and not (key.startswith("CARGO_TARGET_") and key.endswith(("_RUSTFLAGS", "_LINKER")))}
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> str:
@@ -93,7 +102,7 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
             raise RustError("rustls-ffi: expected one source directory")
         project = entries[0]
         env = {
-            **os.environ,
+            **_rust_environment(),
             "TMPDIR": str(scratch),
             "CARGO_HOME": str(root / "cargo"),
             "RUSTC_WRAPPER": "",
@@ -109,3 +118,77 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
     result = phases.run("vendor", vendor_inputs, download)
     print(f"Rust sources {'reused' if result.reused else 'vendored'} at {result.directory}")
     return result.directory
+
+
+def _phase_digest(directory: Path) -> str:
+    try:
+        record = json.loads((directory / "phase.json").read_text())
+        expected = record["output_digest"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise RustError(f"{directory}: missing or invalid phase record") from error
+    if (directory / "state.json").exists() or tree_digest(directory, exclude={"phase.json", "state.json"}) != expected:
+        raise RustError(f"{directory}: phase output does not match its record")
+    return expected
+
+
+def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratch: Path) -> Path:
+    tools = root / "phases/tools"
+    vendored = root / "phases/vendor"
+    tc = prepared / "toolchain"
+    sysroot = prepared / "sysroot"
+    toolchain.verify(tc, target, environ={**os.environ, "PATH": f"{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"})
+    inputs = {
+        "tools": _phase_digest(tools),
+        "vendor": _phase_digest(vendored),
+        "prepare": _phase_digest(prepared),
+        "kache": digest_bytes(kache)[0],
+        "implementation": digest_bytes(Path(__file__))[0],
+    }
+    phases = PhaseCache(root / "phases")
+
+    def action(directory: Path) -> None:
+        projects = list((vendored / "source").iterdir())
+        if len(projects) != 1 or not projects[0].is_dir():
+            raise RustError("vendored Rustls source has an invalid layout")
+        project = directory / "source"
+        shutil.copytree(projects[0], project)
+        cargo_home = directory / "cargo"
+        cargo_home.mkdir()
+        (cargo_home / "config.toml").write_text(
+            '[source.crates-io]\nreplace-with = "vendored-sources"\n'
+            '[source.vendored-sources]\ndirectory = ' + json.dumps(str(vendored / "vendor")) + '\n'
+        )
+        host_libs = directory / "host-libs"
+        host_libs.mkdir()
+        host_runtime = Path("/usr/lib/libgcc_s.so.1")
+        if not host_runtime.is_file():
+            raise RustError(f"missing host procedural-macro runtime {host_runtime}")
+        (host_libs / "libgcc_s.so").symlink_to(host_runtime)
+        env = {
+            **_rust_environment(),
+            "TMPDIR": str(scratch),
+            "CARGO_HOME": str(cargo_home),
+            "CARGO_TARGET_DIR": str(directory / "target"),
+            "XDG_CACHE_HOME": str(scratch / "kache-cache"),
+            "XDG_CONFIG_HOME": str(scratch / "kache-config"),
+            "RUSTC_WRAPPER": str(kache),
+            "LIBRARY_PATH": str(host_libs),
+            "PATH": f"{tools / 'bin'}{os.pathsep}{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+            f"CARGO_TARGET_{target.triple.upper().replace('-', '_')}_LINKER": str(tc / "bin/clang"),
+            "RUSTFLAGS": f"-C link-arg=--sysroot={sysroot} -C link-arg=-fuse-ld=lld -L native={tc / 'lib'}",
+        }
+        _run([
+            str(tools / "bin/cargo"), "build", "--offline", "--frozen", "--target", target.triple,
+            "-Zbuild-std=std,panic_unwind", "-Zbuild-std-features=panic-unwind,backtrace,llvm-libunwind",
+            "--no-default-features", "--features", "graviola",
+        ], cwd=project, env=env)
+        archive = directory / "target" / target.triple / "debug/librustls_ffi.a"
+        if not archive.is_file():
+            raise RustError("Rustls static archive was not produced")
+        symbols = _run([str(tc / "bin/llvm-nm"), "-g", str(archive)], cwd=directory, env=env)
+        if any(line.split() and line.split()[-1].startswith(("SSL_", "OPENSSL_")) for line in symbols.splitlines()):
+            raise RustError("Rustls static archive contains OpenSSL symbols")
+
+    result = phases.run("staticlib", inputs, action)
+    print(f"Rustls static library {'reused' if result.reused else 'built'} at {result.directory}")
+    return result.directory / "target" / target.triple / "debug/librustls_ffi.a"
