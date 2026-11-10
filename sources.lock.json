@@ -78,6 +78,88 @@
       "purpose": "Build executor"
     },
     {
+      "name": "ninja-source",
+      "version": "1.13.2",
+      "url": "https://codeload.github.com/ninja-build/ninja/tar.gz/refs/tags/v1.13.2",
+      "sha256": "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17",
+      "size": 292385,
+      "role": "build-source",
+      "target": "all",
+      "license": "Apache-2.0",
+      "purpose": "Ninja executor comparison"
+    },
+    {
+      "name": "alpine-cmake-reference-x86_64",
+      "version": "4.3.4-r0",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/cmake-4.3.4-r0.apk",
+      "sha256": "3b124e7f233c01d74e4d74e4c70081f9c0f443e7b0c6523663b7a3ba1ea87b17",
+      "size": 24718959,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "license": "BSD-3-Clause",
+      "purpose": "Alpine CMake bootstrap comparison"
+    },
+    {
+      "name": "alpine-cmake-acl-libs-x86_64",
+      "version": "2.3.2-r1",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/acl-libs-2.3.2-r1.apk",
+      "sha256": "656c5b548deb4b25380abc94c4cc7804409a3e56b8cc0cf6fd1f29d18fd9e0b8",
+      "size": 14342,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
+      "name": "alpine-cmake-libarchive-x86_64",
+      "version": "3.8.11-r0",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libarchive-3.8.11-r0.apk",
+      "sha256": "1484454f890951739ea02c16f0a66a6d0e01c4e2a5f2a8c11ac3dfc90b2f9594",
+      "size": 325535,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
+      "name": "alpine-cmake-libuv-x86_64",
+      "version": "1.52.1-r0",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libuv-1.52.1-r0.apk",
+      "sha256": "adbd5eb3f708e291cfceac96fa80c3b4e45e7554d44e27466383339c1429f19d",
+      "size": 99587,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
+      "name": "alpine-cmake-lz4-libs-x86_64",
+      "version": "1.10.0-r1",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/lz4-libs-1.10.0-r1.apk",
+      "sha256": "b726e9e6399219631d35cf23ddfbeab29e31cb93d64d0dad628a33246a1d7890",
+      "size": 79079,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
+      "name": "alpine-cmake-rhash-libs-x86_64",
+      "version": "1.4.6-r1",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/rhash-libs-1.4.6-r1.apk",
+      "sha256": "fcaf9dba6b380e4583f3db62ee1e12033537ab51aa400beddcce1b714c5578e0",
+      "size": 143470,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
+      "name": "alpine-cmake-zstd-libs-x86_64",
+      "version": "1.5.7-r2",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/zstd-libs-1.5.7-r2.apk",
+      "sha256": "5025e2207b44a131f1b2262761187d88500829c2171d566d37a1225246fe542e",
+      "size": 374521,
+      "role": "reference",
+      "target": "x86_64-unknown-linux-musl",
+      "purpose": "Alpine CMake comparison runtime closure"
+    },
+    {
       "name": "openssl-test-x86_64",
       "version": "3.5.9-r0",
       "url": "https://cdn.alpinelinux.org/edge/main/x86_64/openssl-3.5.9-r0.apk",
