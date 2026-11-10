@@ -30,7 +30,9 @@ Select the `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` archive
 for the package target. Pin its SHA-256 per architecture in the recipe's
 `upstream_sources` and verify it through Laputa's source cache. Require detached
 qualification results for the same archive digest and architecture before
-updating the pin. Pin a published immutable asset rather than a moving URL.
+updating the pin. Pin the release URL and the independently recorded digest.
+GitHub does not currently mark the prerelease immutable, so verify the pinned
+digest even when the release includes its own checksum file.
 
 The archive extracts to a relocatable `usr/` prefix with `usr/bin/cmake`,
 `usr/share/cmake-4.4/`, and `usr/share/doc/cmake-build/`. The executable finds

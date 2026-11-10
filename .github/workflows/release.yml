@@ -78,7 +78,7 @@ jobs:
             cp "$archive" "$metadata" "$results" "$folder/qualification-$target.md" .work/release/
           done
           (cd .work/release && LC_ALL=C sha256sum -- * > SHA256SUMS)
-      - name: Publish immutable prerelease
+      - name: Publish unique prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.sha }}

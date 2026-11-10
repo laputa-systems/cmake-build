@@ -19,5 +19,12 @@ qualification run containing both native jobs at the same SHA. It verifies
 the artifacts again and creates a new prerelease tag and release with combined
 SHA-256 sums. It never rebuilds an artifact or updates an existing release.
 
-The workflows are defined but their first hosted qualification and prerelease
-runs have not yet completed.
+The [qualification run for `58313ac`](https://github.com/laputa-systems/cmake-build/actions/runs/42828105487)
+passed both native jobs. The [prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-58313acce6f9-run42833257470-1)
+contains those qualified archives. A later native run restored and reused all
+three caches on both architectures.
+
+The workflow refuses to replace an existing release or tag. GitHub does not
+currently mark the prerelease immutable, so consumers must verify an independently
+pinned archive digest; the workflow's no-overwrite check does not prevent later
+manual changes by someone with repository permissions.
