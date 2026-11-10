@@ -387,6 +387,7 @@ def _configure_inside(description) -> int:
     cache = Cache(CACHE, offline=True)
     cmake = selected["cmake-source"]
     samurai = selected["samurai-source"]
+    ninja = selected["ninja-source"]
     phases = PhaseCache(_target_root(description) / "phases")
     prepared = phases.directory("prepare")
     record = json.loads((prepared / "phase.json").read_text())
@@ -396,11 +397,12 @@ def _configure_inside(description) -> int:
         "prepare": record["output_digest"],
         "cmake": cmake.sha256,
         "samurai": samurai.sha256,
+        "ninja": ninja.sha256,
         "controller": _controller_digest(),
     }
 
     def action(directory: Path) -> None:
-        bootstrap.build(cache.require(cmake), cache.require(samurai), directory, tc, prepared / "sysroot", description)
+        bootstrap.build(cache.require(cmake), cache.require(samurai), cache.require(ninja), directory, tc, prepared / "sysroot", description)
 
     built = phases.run("bootstrap", inputs, action)
     bootstrap_record = json.loads((built.directory / "phase.json").read_text())

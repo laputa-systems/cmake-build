@@ -1,4 +1,4 @@
-"""Build the upstream bootstrap CMake and the locked Samurai executor."""
+"""Build the upstream bootstrap CMake and the locked build executors."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _source(archive: Path, destination: Path) -> Path:
     return entries[0]
 
 
-def build(cmake_archive: Path, samurai_archive: Path, directory: Path, tc: Path, sysroot: Path, target: Target) -> None:
+def build(cmake_archive: Path, samurai_archive: Path, ninja_archive: Path, directory: Path, tc: Path, sysroot: Path, target: Target) -> None:
     flags = toolchain.flags(target, sysroot)
     env = {**os.environ, **toolchain.environment(tc, target)}
     env["CFLAGS"] = shlex.join(flags)
@@ -58,16 +58,24 @@ def build(cmake_archive: Path, samurai_archive: Path, directory: Path, tc: Path,
         f'set(CMAKE_CXX_FLAGS_INIT "{shlex.join([*toolchain.cxx_flags(target, sysroot), "-fstack-protector-strong", "-fstack-clash-protection"])}")\n'
         f'set(CMAKE_EXE_LINKER_FLAGS_INIT "-static-pie -Wl,-z,relro,-z,now,-z,noexecstack")\n'
     )
+    ninja = _source(ninja_archive, directory / "ninja-source")
+    ninja_build = directory / "ninja-build"
+    _run([
+        str(bootstrap_directory / "bin/cmake"), "-S", str(ninja), "-B", str(ninja_build),
+        "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={samurai / 'samu'}",
+        f"-DCMAKE_TOOLCHAIN_FILE={file}", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=OFF",
+    ], directory, env)
+    _run([str(samurai / "samu"), "-C", str(ninja_build), f"-j{jobs}"], directory, env)
 
 
 def configure(bootstrap_directory: Path, directory: Path, tc: Path, target: Target) -> None:
     source = next((bootstrap_directory / "source").iterdir())
-    samurai = next((bootstrap_directory / "samurai").iterdir())
+    ninja = bootstrap_directory / "ninja-build/ninja"
     file = bootstrap_directory / "toolchain.cmake"
     env = {**os.environ, **toolchain.environment(tc, target)}
     _run([
         str(bootstrap_directory / "bootstrap/bin/cmake"), "-S", str(source), "-B", str(directory),
-        "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={samurai / 'samu'}",
+        "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}",
         f"-DCMAKE_TOOLCHAIN_FILE={file}", "-DCMAKE_BUILD_TYPE=Release",
         "-DCMAKE_USE_OPENSSL=OFF", "-DBUILD_CursesDialog=OFF", "-DBUILD_QtDialog=OFF",
         "-DCMAKE_USE_SYSTEM_LIBRARIES=OFF", "-DCMake_ENABLE_DEBUGGER=ON",
