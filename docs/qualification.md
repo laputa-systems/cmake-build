@@ -208,11 +208,14 @@ The following failures also occurred in the unmodified static-PIE baseline:
 
 ## Full upstream CTest: x86_64-unknown-linux-musl
 
-The full upstream suite ran on an earlier x86-64 executable, before the Rustls
-release-profile and section-garbage-collection changes. It was not rerun on the
-published archive. The run used a copied build tree inside the network-isolated
-builder. It executed 674 tests: 667 passed and seven failed. All seven failures also
-occurred in the unmodified static-musl baseline under the same conditions:
+The full upstream suite ran on the executable extracted from the published
+x86-64 archive. The archive SHA-256 was
+`cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c`.
+The run used a copied build tree inside the network-isolated builder and
+executed 674 tests without skips: 667 passed and seven failed. All seven
+had also failed in the earlier unmodified static-musl baseline run. The
+baseline CMake and CTest binaries in that earlier run match the current
+reference binaries byte-for-byte. The failures were:
 
 - `kwsys.testDynamicLoader`
 - `curl`
