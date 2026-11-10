@@ -6,8 +6,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `ae26222`.
-- **Accepted:** G1. **Red:** none. **Parked:** G2 on `park/G2`: the provenance fixture reads LLVM link traces from stderr, but the sealed link writes them to stdout. Retry after correcting and testing trace capture.
-- **Next slice:** G2 after its retry condition; G3 and G4 depend on G2.
+- **Accepted:** G1. **Red:** none. **Parked:** none.
+- **Next slice:** G2 acceptance review: preparation and the isolation probe pass; verify the required negative controls against real artifacts and settle compiler identity evidence before accepting it. G3 and G4 depend on G2.
 
 ## Charter
 
