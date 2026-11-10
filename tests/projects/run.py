@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -35,10 +36,15 @@ def configure(name: str, project: Path, *options: str) -> Path:
 
 
 def test_fmt() -> str:
-    build = configure('fmt', source('fmt-source'), '-DFMT_TEST=ON', '-DFMT_DOC=OFF')
+    fmt_source = work / 'fmt-source'
+    if fmt_source.exists():
+        shutil.rmtree(fmt_source)
+    shutil.copytree(source('fmt-source'), fmt_source)
+    run(['patch', '--batch', '--forward', '-p1', '-i', '/suite/fmt-missing-locale.patch'], cwd=fmt_source)
+    build = configure('fmt', fmt_source, '-DFMT_TEST=ON', '-DFMT_DOC=OFF')
     run([cmake, '--build', build, '--parallel', '8'])
     report = run([ctest, '--test-dir', build, '--output-on-failure', '--parallel', '8', '--timeout', '120'])
-    match = re.search(r'100% tests passed, 0 tests failed out of (\d+)', report)
+    match = re.search(r'100% tests passed out of (\d+)', report)
     if not match or int(match.group(1)) == 0:
         raise RuntimeError(f'fmt ran no passing tests:\n{report}')
     return f'fmt: built and passed {match.group(1)} tests'
