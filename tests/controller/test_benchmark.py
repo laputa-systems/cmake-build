@@ -7,6 +7,12 @@ from buildsys import benchmark
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_fewer_than_five_repetitions_cannot_bypass_budgets(self) -> None:
+        from pathlib import Path
+        from buildsys.targets import native_target
+        with self.assertRaisesRegex(benchmark.BenchmarkError, 'at least five'):
+            benchmark.run(Path('/not-a-workspace'), native_target(), 4)
+
     def test_interleaving_rotates_each_baseline_through_each_position(self) -> None:
         orders = list(benchmark.interleaved_orders(('product', 'musl', 'kitware'), 12))
         self.assertEqual(len(orders), 12)

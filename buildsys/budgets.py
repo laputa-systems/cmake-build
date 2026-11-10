@@ -68,7 +68,9 @@ def memory_baseline(records: list[dict]) -> dict[str, dict]:
             raise BudgetError(f'insufficient memory samples: {workload}')
         measured = statistics.median(samples)
         spread = max(samples) - min(samples)
-        metrics[name] = {'value': measured, 'spread': spread, 'allowed_regression': max(measured * 0.03, 2 * spread)}
+        lower, _, upper = statistics.quantiles(samples, n=4, method='inclusive')
+        metrics[name] = {'value': measured, 'spread': spread, 'central_spread': upper - lower,
+                         'allowed_regression': max(measured * 0.03, 2 * spread)}
     return metrics
 
 
@@ -80,7 +82,7 @@ def check_memory(document: dict, target: str, records: list[dict]) -> dict[str, 
     for name, sample in memory_baseline(records).items():
         baseline, allowance = _metric_values(entry['metrics'], target, name)
         measured = sample['value']
-        limit = baseline + max(allowance, 2 * sample['spread'])
+        limit = baseline + max(allowance, 2 * sample['central_spread'])
         if measured > limit:
             raise BudgetError(f'{target} memory budget exceeded: {name}: {measured:g} > {limit:g}')
         measurements[name] = measured

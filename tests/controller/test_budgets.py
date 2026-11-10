@@ -55,6 +55,9 @@ class SizeBudgetTests(unittest.TestCase):
                 record['max_rss_kib'] = 120
         with self.assertRaises(budgets.BudgetError):
             budgets.check_memory(document, 'test', records)
+        records[0]['max_rss_kib'] = 300
+        with self.assertRaises(budgets.BudgetError):
+            budgets.check_memory(document, 'test', records)
         with self.assertRaises(budgets.BudgetError):
             budgets.check_memory(document, 'test', records[:4])
 

@@ -131,6 +131,8 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
 def run(root: Path, target: Target, repetitions: int = 5) -> None:
     if platform.system() != 'Linux':
         raise BenchmarkError('benchmarking requires a native Linux host')
+    if repetitions < 5:
+        raise BenchmarkError('benchmarking requires at least five repetitions')
     phases = root / '.work/build' / target.triple / 'phases'
     active = root / '.work/generations' / target.triple / 'active'
     if not active.is_symlink():
@@ -151,10 +153,9 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     ) or not qualification.get('upstream'):
         raise BenchmarkError('archive lacks qualification for the requested target')
     budget_path = root / 'release-budgets.json'
-    if repetitions >= 5:
-        budget_document = budgets.load(budget_path)
-        budget_digest = digest_bytes(budget_path)[0]
-        budgets.validate_memory_source(budget_document, target.triple, archive_sha256)
+    budget_document = budgets.load(budget_path)
+    budget_digest = digest_bytes(budget_path)[0]
+    budgets.validate_memory_source(budget_document, target.triple, archive_sha256)
     reference_phase = phases / 'reference'
     if not (reference_phase / 'build/bin/cmake').is_file():
         raise BenchmarkError('build the unmodified static-musl baseline with the upstream suite first')
@@ -188,11 +189,13 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     scratch.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='benchmark-', dir=scratch) as temporary:
         directory = Path(temporary)
+        workspace = directory / 'work'
+        workspace.mkdir()
         tracer = shutil.which('strace')
         if tracer is None:
             raise BenchmarkError('strace is required for file and process profiles')
         tracer_version = subprocess.run([tracer, '--version'], capture_output=True, text=True, check=True).stdout.splitlines()[0]
-        trace_root = directory / 'trace'
+        trace_root = workspace / 'trace'
         trace_lib = trace_root / 'lib'
         trace_lib.mkdir(parents=True)
         shutil.copy2(tracer, trace_root / 'strace')
@@ -212,8 +215,7 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
                     raise BenchmarkError(f'strace library is missing: {name.strip()}')
                 shutil.copy2(library, trace_lib / name.strip())
         candidate = safe_extract(archive, directory / 'candidate') / 'usr'
-        if repetitions >= 5:
-            budgets.check_size(budget_document, target.triple, candidate.parent, archive)
+        budgets.check_size(budget_document, target.triple, candidate.parent, archive)
         official_source = safe_extract(Cache(root / '.work/cache', offline=True).require(reference), directory / 'official')
         official_entries = list(official_source.iterdir())
         if len(official_entries) != 1 or not official_entries[0].is_dir():
@@ -233,7 +235,7 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
         names = ('fmt-source', 'zstd-source', 'libjpeg-turbo-source', 'llvm-project-source')
         input_cache = Cache(root / '.work/cache', offline=True)
         phase_cache = PhaseCache(phases)
-        mounts = [(directory, '/benchmark'), (root / 'tests/benchmark', '/suite'),
+        mounts = [(workspace, '/benchmark'), (root / 'tests/benchmark', '/suite'),
                   (root / 'buildsys', '/controller/buildsys'),
                   (candidate, '/variants/product'), (baseline, '/variants/musl'),
                   (official_entries[0], '/variants/kitware'), (runtime, '/opt/alpine'),
@@ -256,15 +258,16 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
         result = sandbox.run_sealed(lock.reference_image, ['/opt/alpine/usr/python3', '/suite/run.py', str(repetitions)],
                                     target=target, mounts=mounts,
                                     env={'PYTHONHOME': '/opt/alpine/usr', 'TMPDIR': '/benchmark'},
-                                    workdir='/benchmark', timeout=28800)
+                                    workdir='/benchmark', timeout=28800,
+                                    read_only=frozenset(destination for _, destination in mounts if destination != '/benchmark'))
         if result.returncode:
             raise BenchmarkError(f'benchmark failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}')
         if (digest_bytes(root / 'tests/benchmark/run.py')[0] != runner_sha256
             or digest_bytes(Path(__file__))[0] != implementation_sha256):
             raise BenchmarkError('benchmark implementation changed during measurement')
-        if repetitions >= 5 and digest_bytes(budget_path)[0] != budget_digest:
+        if digest_bytes(budget_path)[0] != budget_digest:
             raise BenchmarkError('release budgets changed during measurement')
-        data = json.loads((directory / 'results.json').read_text())
+        data = json.loads((workspace / 'results.json').read_text())
         cpu_info = Path('/proc/cpuinfo').read_text().splitlines()
         cpu_model = next((line.partition(':')[2].strip() for line in cpu_info
                           if line.split(':', 1)[0].strip() in ('model name', 'Hardware')), 'not reported')
@@ -279,10 +282,15 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
                                                          'toolchain_sha256': locked[f'llvm-toolchain-{target.machine}'].sha256,
                                                          'runner_sha256': runner_sha256,
                                                          'implementation_sha256': implementation_sha256})
+        try:
+            initialized = budgets.apply_memory(budget_document, target.triple, archive_sha256, data['records'])
+        except budgets.BudgetError as error:
+            rejected = scratch / 'benchmark-rejected.md'
+            _write_atomic(rejected, document, scratch)
+            raise BenchmarkError(f'{error}; rejected report: {rejected}') from error
         _write_atomic(root / 'docs/performance.md', document, scratch)
-        if repetitions >= 5:
-            if budgets.apply_memory(budget_document, target.triple, archive_sha256, data['records']):
-                _write_atomic(budget_path, json.dumps(budget_document, indent=2, sort_keys=True) + '\n', scratch)
-                print(f'memory baseline established for {target.triple}; review and commit the budget')
-            else:
-                print(f'size and memory budgets passed for {target.triple}; existing baseline retained')
+        if initialized:
+            _write_atomic(budget_path, json.dumps(budget_document, indent=2, sort_keys=True) + '\n', scratch)
+            print(f'memory baseline established for {target.triple}; review and commit the budget')
+        else:
+            print(f'size and memory budgets passed for {target.triple}; existing baseline retained')
