@@ -28,7 +28,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, rust, sandbox, sysroot, tls, toolchain
+from buildsys import bootstrap, patches, rust, sandbox, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -222,6 +222,7 @@ def _controller_digest() -> str:
 
 def prepare(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    patches.verify_inventory(ROOT / "patches")
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
             _fail("prepare requires a sealed container with only loopback networking")
@@ -282,6 +283,7 @@ def prepare(args: argparse.Namespace) -> int:
 
 
 def _prepare_inside(description) -> int:
+    patches.verify_inventory(ROOT / "patches")
     try:
         sources = load_sources(SOURCES_LOCK)
         lock = load_bootstrap(BOOTSTRAP_LOCK)
@@ -522,7 +524,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError, bootstrap.BootstrapError, rust.RustError) as error:
+    except (InputError, PhaseError, bootstrap.BootstrapError, patches.PatchError, rust.RustError) as error:
         _fail(str(error))
 
 
