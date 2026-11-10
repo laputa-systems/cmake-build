@@ -61,7 +61,7 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
         "  if(NOT TARGET cmake)\n"
         '    message(FATAL_ERROR "cmake target is missing")\n'
         "  endif()\n"
-        '  target_link_options(cmake PRIVATE "LINKER:-Map,${CMAKE_BINARY_DIR}/cmake.map" "LINKER:--why-extract=${CMAKE_BINARY_DIR}/cmake.extract")\n'
+        '  target_link_options(cmake PRIVATE "LINKER:--gc-sections" "LINKER:-Map,${CMAKE_BINARY_DIR}/cmake.map" "LINKER:--why-extract=${CMAKE_BINARY_DIR}/cmake.extract")\n'
         f'  set_property(TARGET cmake PROPERTY RULE_LAUNCH_LINK "python3 -m buildsys.elf {shlex.quote(str(tc / "bin"))}")\n'
         "endfunction()\n"
         "if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)\n"
