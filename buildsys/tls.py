@@ -13,7 +13,7 @@ from .inputs import Cache, Input, digest_bytes, safe_extract
 from .phases import PhaseCache
 from .rust import RustError, _cargo_config, _phase_digest, _run, _rust_environment
 from .targets import Target
-from . import rust, toolchain
+from . import rust, sandbox, toolchain
 
 
 class TlsError(Exception):
@@ -107,7 +107,7 @@ def build_client(cache: Cache, source: Input, prepared: Path, archive: Path, tar
     sysroot = prepared / "sysroot"
     toolchain.verify(tc, target, environ={**os.environ, "PATH": f"{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"})
     phases = PhaseCache(root / "phases")
-    inputs = {"prepare": _phase_digest(prepared), "source": source.sha256,
+    inputs = {"prepare": _phase_digest(prepared), "source": source.sha256, "image": sandbox._locked_image_fingerprint(target),
               "toolchain": digest_bytes(Path(toolchain.__file__))[0], "implementation": digest_bytes(Path(__file__))[0]}
     env = {**os.environ, **toolchain.environment(tc, target), "TMPDIR": str(scratch)}
     env["CFLAGS"] = shlex.join(toolchain.flags(target, sysroot))
@@ -126,7 +126,7 @@ def build_client(cache: Cache, source: Input, prepared: Path, archive: Path, tar
 
     boot = phases.run("tls-bootstrap", inputs, bootstrap)
     boot_digest = _phase_digest(boot.directory)
-    curl_inputs = {"bootstrap": boot_digest, "rustls": _phase_digest(archive.parents[3]),
+    curl_inputs = {"bootstrap": boot_digest, "rustls": _phase_digest(archive.parents[3]), "image": inputs["image"],
                    "client": digest_bytes(client)[0], "implementation": inputs["implementation"]}
 
     def curl(directory: Path) -> None:

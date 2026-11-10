@@ -9,18 +9,90 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from buildsys import sandbox
+from buildsys import rust, sandbox, tls
 from buildsys.inputs import Cache, Input
 from buildsys.phases import PhaseCache
 from buildsys.rust import RustError, _phase_digest, build_static, vendor
 from buildsys.targets import target
-from buildsys.tls import TlsError, check_tree, check_host_vendored
+from buildsys.tls import TlsError, build_client, check_tree, check_host_vendored
 from buildsys.targets import native_target
 from buildsys.inputs import bootstrap_inputs, load_bootstrap, load_sources
 from helpers import ROOT, workspace
 
 
 class DependencyTests(unittest.TestCase):
+    def test_client_rebuilds_when_builder_image_changes(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        source = Input("cmake-source", "4.4.5", "https://example.invalid/cmake", "a" * 64, "source", "all", 1)
+        with workspace() as directory:
+            root = directory / "build"
+            staticlib = directory / "rust/phases/staticlib"
+            archive = staticlib / "target" / description.triple / "debug/librustls_ffi.a"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"archive")
+            (staticlib / "source").mkdir()
+            (staticlib / "source/Cargo.toml").write_text('[package]\nversion = "0.15.7"\n')
+            client = directory / "client.c"
+            client.write_text("int main(void) { return 0; }\n")
+            bootstrap_runs = []
+            client_runs = []
+
+            def extract(archive_path, destination):
+                (destination / "cmake-source").mkdir(parents=True)
+                return destination
+
+            def run(command, *, cwd, env):
+                if Path(command[0]).name == "bootstrap":
+                    bootstrap_runs.append(1)
+                if Path(command[0]).name == "clang":
+                    client_runs.append(1)
+                    Path(command[-1]).write_bytes(b"client")
+                return ""
+
+            with patch.object(tls.toolchain, "verify"), patch.object(tls, "_phase_digest", return_value="b" * 64), \
+                    patch.object(tls, "safe_extract", side_effect=extract), patch.object(tls, "_run", side_effect=run), \
+                    patch.object(Cache, "require", return_value=directory / "source"), \
+                    patch.object(sandbox, "image_fingerprint", return_value="c" * 64) as image:
+                for _ in range(2):
+                    build_client(Cache(directory), source, directory / "prepared", archive, description, root, directory, client)
+                self.assertEqual((len(bootstrap_runs), len(client_runs)), (1, 1))
+                image.return_value = "d" * 64
+                build_client(Cache(directory), source, directory / "prepared", archive, description, root, directory, client)
+                self.assertEqual((len(bootstrap_runs), len(client_runs)), (2, 2))
+
+    def test_static_build_rebuilds_when_builder_image_changes(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        with workspace() as directory:
+            root = directory / "rust"
+            (root / "phases/vendor/source/crate").mkdir(parents=True)
+            kache = directory / "kache"
+            kache.write_bytes(b"wrapper")
+            original_is_file = Path.is_file
+            cargo_runs = []
+
+            def is_file(path):
+                return True if path == Path("/usr/lib/libgcc_s.so.1") else original_is_file(path)
+
+            def run(command, *, cwd, env):
+                if Path(command[0]).name == "cargo":
+                    cargo_runs.append(1)
+                    archive = Path(env["CARGO_TARGET_DIR"]) / description.triple / "debug/librustls_ffi.a"
+                    archive.parent.mkdir(parents=True)
+                    archive.write_bytes(b"archive")
+                return ""
+
+            with patch.object(sandbox, "in_container", return_value=True), \
+                    patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo")]), \
+                    patch.object(rust.toolchain, "verify"), patch.object(rust, "_phase_digest", return_value="a" * 64), \
+                    patch.object(Path, "is_file", is_file), patch.object(rust, "_run", side_effect=run), \
+                    patch.object(sandbox, "image_fingerprint", return_value="b" * 64) as image:
+                build_static(root, directory / "prepared", description, kache, directory)
+                build_static(root, directory / "prepared", description, kache, directory)
+                self.assertEqual(len(cargo_runs), 1)
+                image.return_value = "c" * 64
+                build_static(root, directory / "prepared", description, kache, directory)
+                self.assertEqual(len(cargo_runs), 2)
+
     def test_locked_graph_rejects_changed_provider_patch(self) -> None:
         native = native_target()
         lock = load_bootstrap(ROOT / "bootstrap.lock.json")

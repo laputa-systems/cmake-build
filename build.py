@@ -28,7 +28,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import rust, sandbox, sysroot, tls, toolchain
+from buildsys import bootstrap, rust, sandbox, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -182,7 +182,6 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 _NOT_IMPLEMENTED = {
-    "configure": "G3 configures CMake with the locked toolchain",
     "build": "C1 builds CMake",
     "test": "C2 runs acceptance suites",
     "package": "D5 stages and publishes the archive",
@@ -211,9 +210,10 @@ def _required_inputs(
 def _controller_digest() -> str:
     material = {
         "build.py": digest_bytes(ROOT / "build.py")[0],
-        "buildsys": tree_digest(ROOT / "buildsys"),
+        "buildsys": tree_digest(ROOT / "buildsys", exclude={"__pycache__"}),
         "dockerfile": digest_bytes(DOCKERFILE)[0],
-        "provenance": tree_digest(ROOT / "tests" / "fixtures" / "provenance"),
+        "provenance": tree_digest(PROVENANCE.parent, exclude={"__pycache__"}),
+        "native_fixture": tree_digest(ROOT / "tests/fixtures/native"),
     }
     from buildsys.inputs import canonical_json, identity
 
@@ -258,7 +258,7 @@ def prepare(args: argparse.Namespace) -> int:
         ["python3", "build.py", "prepare", "--target", description.triple, "--in-container"],
         target=description,
         mounts=[(ROOT, "/src")],
-        env={"TMPDIR": str(WORK / "tmp"), "PYTHONPATH": "/src"},
+        env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"},
         timeout=3600,
     )
     if result.returncode != 0:
@@ -359,6 +359,69 @@ def _prepare_inside(description) -> int:
     return 0
 
 
+def configure(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if args.in_container:
+        if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+            _fail("configure requires a sealed container with only loopback networking")
+        return _configure_inside(description)
+    prepare(argparse.Namespace(target=description.triple, in_container=False))
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    tag = sandbox.image_tag(lock, description, DOCKERFILE)
+    result = sandbox.run_sealed(
+        tag, ["python3", "build.py", "configure", "--target", description.triple, "--in-container"],
+        target=description, mounts=[(ROOT, "/src")],
+        env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"}, timeout=3600,
+    )
+    print(result.stdout, end="")
+    if result.returncode:
+        print(result.stderr, file=sys.stderr)
+        _fail(f"configure failed inside the sealed container ({result.returncode})")
+    return 0
+
+
+def _configure_inside(description) -> int:
+    _prepare_inside(description)
+    sources = load_sources(SOURCES_LOCK)
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    selected = {item.name: item for item in sources if item.target in ("all", description.triple)}
+    cache = Cache(CACHE, offline=True)
+    cmake = selected["cmake-source"]
+    samurai = selected["samurai-source"]
+    ninja = selected["ninja-source"]
+    packages = [item for item in bootstrap_inputs(lock, description.triple) if item.name == "cmake"]
+    if len(packages) != 1:
+        _fail(f"{description.triple}: lock must contain exactly one bootstrap CMake package")
+    version = re.fullmatch(r"(.+)-r[0-9]+", packages[0].version)
+    if version is None:
+        _fail(f"{description.triple}: invalid bootstrap CMake package version {packages[0].version!r}")
+    phases = PhaseCache(_target_root(description) / "phases")
+    prepared = phases.directory("prepare")
+    record = json.loads((prepared / "phase.json").read_text())
+    tc = prepared / "toolchain"
+    toolchain.verify(tc, description)
+    inputs = {
+        "prepare": record["output_digest"],
+        "cmake": cmake.sha256,
+        "samurai": samurai.sha256,
+        "ninja": ninja.sha256,
+        "image": sandbox.image_fingerprint(lock, description, DOCKERFILE),
+        "controller": _controller_digest(),
+    }
+
+    def action(directory: Path) -> None:
+        bootstrap.build(cmake_archive=cache.require(cmake), samurai_archive=cache.require(samurai),
+                        ninja_archive=cache.require(ninja), directory=directory, tc=tc,
+                        sysroot=prepared / "sysroot", target=description, bootstrap_version=version.group(1))
+
+    built = phases.run("bootstrap", inputs, action)
+    bootstrap_record = json.loads((built.directory / "phase.json").read_text())
+    result = phases.run("configure", {"bootstrap": bootstrap_record["output_digest"], "image": inputs["image"], "controller": inputs["controller"]},
+                        lambda directory: bootstrap.configure(built.directory, directory, tc, description))
+    print(f"configure {'reused' if result.reused else 'built'} at {result.directory} ({result.fingerprint[:16]})")
+    return 0
+
+
 def _not_implemented(args: argparse.Namespace) -> int:
     _fail(f"{args.command} is not implemented yet: {_NOT_IMPLEMENTED[args.command]}")
 
@@ -443,6 +506,9 @@ def _parser() -> argparse.ArgumentParser:
         elif command == "prepare":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=prepare)
+        elif command == "configure":
+            child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.set_defaults(handler=configure)
         else:
             child.set_defaults(handler=_not_implemented)
     controller = subparsers.add_parser("controller-test")
@@ -456,7 +522,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError) as error:
+    except (InputError, PhaseError, bootstrap.BootstrapError, rust.RustError) as error:
         _fail(str(error))
 
 

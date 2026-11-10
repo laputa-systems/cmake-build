@@ -78,6 +78,17 @@
       "purpose": "Build executor"
     },
     {
+      "name": "ninja-source",
+      "version": "1.13.2",
+      "url": "https://codeload.github.com/ninja-build/ninja/tar.gz/refs/tags/v1.13.2",
+      "sha256": "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17",
+      "size": 292385,
+      "role": "build-source",
+      "target": "all",
+      "license": "Apache-2.0",
+      "purpose": "Ninja executor comparison"
+    },
+    {
       "name": "openssl-test-x86_64",
       "version": "3.5.9-r0",
       "url": "https://cdn.alpinelinux.org/edge/main/x86_64/openssl-3.5.9-r0.apk",

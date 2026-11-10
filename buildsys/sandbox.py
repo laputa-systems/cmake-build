@@ -135,6 +135,13 @@ def image_fingerprint(lock: BootstrapLock, target: Target, dockerfile: Path) -> 
     return identity(canonical_json(material).encode())
 
 
+def _locked_image_fingerprint(target: Target) -> str:
+    from .inputs import load_bootstrap
+
+    root = Path(__file__).resolve().parents[1]
+    return image_fingerprint(load_bootstrap(root / "bootstrap.lock.json"), target, root / "docker/builder.Dockerfile")
+
+
 def image_tag(lock: BootstrapLock, target: Target, dockerfile: Path) -> str:
     return f"cmake-build-builder:{image_fingerprint(lock, target, dockerfile)[:16]}"
 
