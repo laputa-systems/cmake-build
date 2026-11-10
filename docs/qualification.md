@@ -225,6 +225,10 @@ reference binaries byte-for-byte. The failures were:
 - `BootstrapTest`
 - `RunCMake.NinjaMultiConfigCustomCommands`
 
+The full run also passed 38 CPack-related cases. `RunCMake.CMakePresetsPackage`
+used the build-tree `cpack`. The tool is needed for that coverage and is not
+included in the published archive.
+
 The `curl` test requires access to `open.cdash.org`, which the sealed builder
 cannot reach. The `BootstrapTest` failure occurred when its default configuration required
 OpenSSL, which the builder does not provide.
