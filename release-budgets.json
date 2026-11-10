@@ -13,9 +13,9 @@
           "value": 8724488
         },
         "executable_bytes": {
-          "allowed_regression": 913586.88,
+          "allowed_regression": 828825.12,
           "spread": 0,
-          "value": 30452896
+          "value": 27627504
         },
         "fmt_configure_seconds": {
           "allowed_regression": 0.17004753602668643,
