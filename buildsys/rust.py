@@ -31,6 +31,13 @@ def _rust_environment() -> dict[str, str]:
             and not (key.startswith("CARGO_TARGET_") and key.endswith(("_RUSTFLAGS", "_LINKER")))}
 
 
+def _cargo_config(cargo_home: Path, vendored: Path) -> None:
+    (cargo_home / "config.toml").write_text(
+        '[source.crates-io]\nreplace-with = "vendored-sources"\n'
+        '[source.vendored-sources]\ndirectory = ' + json.dumps(str(vendored / "vendor")) + '\n'
+    )
+
+
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> str:
     def interrupt(signum, frame):
         raise _Interrupted(signum)
@@ -162,10 +169,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
         shutil.copytree(projects[0], project)
         cargo_home = directory / "cargo"
         cargo_home.mkdir()
-        (cargo_home / "config.toml").write_text(
-            '[source.crates-io]\nreplace-with = "vendored-sources"\n'
-            '[source.vendored-sources]\ndirectory = ' + json.dumps(str(vendored / "vendor")) + '\n'
-        )
+        _cargo_config(cargo_home, vendored)
         host_libs = directory / "host-libs"
         host_libs.mkdir()
         host_runtime = Path("/usr/lib/libgcc_s.so.1")

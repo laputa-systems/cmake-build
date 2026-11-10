@@ -11,9 +11,9 @@ from pathlib import Path
 
 from .inputs import Cache, Input, digest_bytes, safe_extract
 from .phases import PhaseCache
-from .rust import RustError, _phase_digest, _run, _rust_environment
+from .rust import RustError, _cargo_config, _phase_digest, _run, _rust_environment
 from .targets import Target
-from . import toolchain
+from . import rust, toolchain
 
 
 class TlsError(Exception):
@@ -30,11 +30,11 @@ def check_tree(tree: str) -> None:
         raise TlsError(f"TLS dependency closure: missing {sorted(missing)}, forbidden {sorted(present)}")
 
 
-def check_dependencies(cargo: Path, manifest: Path, target: str, env: dict[str, str]) -> None:
+def check_dependencies(cargo: Path, manifest: Path, target: str, env: dict[str, str], launcher: tuple[str, ...] = ()) -> None:
     cargo = cargo.resolve()
     manifest = manifest.resolve()
     command = [
-        str(cargo), "tree", "--manifest-path", str(manifest), "--locked", "--offline",
+        *launcher, str(cargo), "tree", "--manifest-path", str(manifest), "--locked", "--offline",
         "--no-default-features", "--features", "graviola", "--target", target,
         "-e", "normal", "--prefix", "none", "--format", "{p}",
     ]
@@ -51,14 +51,55 @@ def check_vendored(vendored: Path, tools: Path, target: str, scratch: Path) -> N
         raise TlsError("vendored Rustls source has an invalid layout")
     with tempfile.TemporaryDirectory(prefix="cargo-check-", dir=scratch) as temporary:
         cargo_home = Path(temporary)
-        (cargo_home / "config.toml").write_text(
-            '[source.crates-io]\nreplace-with = "vendored-sources"\n'
-            '[source.vendored-sources]\ndirectory = ' + json.dumps(str(vendored / "vendor")) + '\n'
-        )
+        _cargo_config(cargo_home, vendored)
         env = {**_rust_environment(), "CARGO_HOME": str(cargo_home), "TMPDIR": str(scratch),
                "RUSTC": str(tools / "rustc"), "RUSTC_WRAPPER": "",
                "PATH": f"{tools}{os.pathsep}{os.environ.get('PATH', '')}"}
         check_dependencies(tools / "cargo", projects[0] / "Cargo.toml", target, env)
+
+
+def check_host_vendored(root: Path, native: Target, components: list[Input], source: Input, patch: Path, cache: Cache,
+                        targets: list[str], scratch: Path) -> None:
+    tools = root / "phases/tools"
+    vendored = root / "phases/vendor"
+    names = {item.name: item for item in components}
+    required = {"rustc", "cargo", "rust-std", "rust-src", "musl", "libgcc"}
+    if not required <= names.keys() or any(sum(item.name == name for item in components) != 1 for name in required):
+        raise TlsError("bootstrap lock lacks or duplicates a Rust or host runtime component")
+    for item in (source, *(names[name] for name in ("rustc", "cargo", "rust-std", "rust-src"))):
+        cache.require(item)
+    implementation = digest_bytes(Path(rust.__file__))[0]
+    tool_inputs = {name: names[name].sha256 for name in ("rustc", "cargo", "rust-std", "rust-src")}
+    tool_inputs["implementation"] = implementation
+    tool_digest = _phase_digest(tools)
+    _phase_digest(vendored)
+    phase_cache = PhaseCache(root / "phases")
+    vendor_inputs = {"tools": tool_digest, "source": source.sha256, "patch": digest_bytes(patch)[0], "implementation": implementation}
+    for directory, inputs in ((tools, tool_inputs), (vendored, vendor_inputs)):
+        record = json.loads((directory / "phase.json").read_text())
+        if record.get("inputs") != dict(sorted(inputs.items())) or record.get("fingerprint") != phase_cache.fingerprint(directory.name, inputs):
+            raise TlsError(f"{directory}: inputs changed; run fetch")
+    projects = list((vendored / "source").iterdir())
+    if len(projects) != 1 or not projects[0].is_dir():
+        raise TlsError("vendored Rustls source has an invalid layout")
+    with tempfile.TemporaryDirectory(prefix="cargo-host-check-", dir=scratch) as temporary:
+        directory = Path(temporary)
+        loader = safe_extract(cache.require(names["musl"]), directory / "musl") / native.musl_loader.lstrip("/")
+        if not loader.is_file():
+            raise TlsError("locked musl package does not contain its loader")
+        library = safe_extract(cache.require(names["libgcc"]), directory / "libgcc") / "usr/lib"
+        library_path = f"{library}{os.pathsep}{tools / 'lib'}"
+        launcher = (str(loader), "--library-path", library_path)
+        rustc = directory / "rustc"
+        rustc.write_text("#!/bin/sh\nexec " + shlex.join([*launcher, str(tools / "bin/rustc")]) + ' "$@"\n')
+        rustc.chmod(0o755)
+        cargo_home = directory / "cargo"
+        cargo_home.mkdir()
+        _cargo_config(cargo_home, vendored)
+        env = {key: value for key, value in _rust_environment().items() if key not in {"LD_LIBRARY_PATH", "LD_PRELOAD"}}
+        env.update({"CARGO_HOME": str(cargo_home), "TMPDIR": str(scratch), "RUSTC": str(rustc), "RUSTC_WRAPPER": ""})
+        for target in targets:
+            check_dependencies(tools / "bin/cargo", projects[0] / "Cargo.toml", target, env, launcher)
 
 
 def build_client(cache: Cache, source: Input, prepared: Path, archive: Path, target: Target, root: Path, scratch: Path, client: Path) -> Path:
