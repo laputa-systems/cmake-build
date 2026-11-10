@@ -432,7 +432,8 @@ def build_command(args: argparse.Namespace) -> int:
             _fail("build requires a sealed container with only loopback networking")
         if _NATIVE != description:
             _fail(f"{description.triple} does not match the running machine; no emulation is used")
-        return _build_inside(description)
+        mode = cmake.BuildMode.QUALIFICATION if args.qualification_build else cmake.BuildMode.DEVELOPMENT
+        return _build_inside(description, mode)
     configure(argparse.Namespace(target=description.triple, in_container=False))
     scratch = WORK / "tmp"
     scratch.mkdir(parents=True, exist_ok=True)
@@ -443,8 +444,11 @@ def build_command(args: argparse.Namespace) -> int:
     shutil.copy2(wrapper, scratch / "build-kache")
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     tag = sandbox.image_tag(lock, description, DOCKERFILE)
+    command = ["python3", "build.py", "build", "--target", description.triple, "--in-container"]
+    if args.qualification_build:
+        command.append("--qualification-build")
     result = sandbox.run_sealed(
-        tag, ["python3", "build.py", "build", "--target", description.triple, "--in-container"],
+        tag, command,
         target=description, mounts=[(ROOT, "/src")],
         env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"}, timeout=7200,
     )
@@ -455,7 +459,7 @@ def build_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def _build_inside(description) -> int:
+def _build_inside(description, mode: cmake.BuildMode) -> int:
     _configure_inside(description)
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     sources = {item.name: item for item in load_sources(SOURCES_LOCK) if item.target in ("all", description.triple)}
@@ -476,12 +480,16 @@ def _build_inside(description) -> int:
         "patches": identity(canonical_json([(item.name, item.sha256) for item in inventory]).encode()),
         "image": sandbox.image_fingerprint(lock, description, DOCKERFILE),
         "controller": _controller_digest(),
+        "mode": identity(mode.value.encode()),
     }
+    if mode is cmake.BuildMode.DEVELOPMENT:
+        inputs["compiler_cache"] = digest_bytes(WORK / "tmp/build-kache")[0]
     phases = PhaseCache(_target_root(description) / "phases")
     result = phases.run("cmake", inputs, lambda directory: cmake.build(
         bootstrap=bootstrap_directory, prepared=prepared, archive=archive, inventory=inventory,
         directory=directory, target=description, cmake_version=sources["cmake-source"].version,
-        rustls_version=sources["rustls-ffi-source"].version,
+        rustls_version=sources["rustls-ffi-source"].version, mode=mode,
+        kache=WORK / "tmp/build-kache", compiler_cache=WORK / "compiler-cache" / description.triple,
     ))
     print(f"cmake {'reused' if result.reused else 'built'} at {result.directory} ({result.fingerprint[:16]})")
     return 0
@@ -499,7 +507,7 @@ def test_command(args: argparse.Namespace) -> int:
             _fail("test staging requires a sealed container with only loopback networking")
         if _NATIVE != description:
             _fail(f"{description.triple} does not match the running machine; no emulation is used")
-        _build_inside(description)
+        _build_inside(description, cmake.BuildMode.QUALIFICATION)
         rust_phases = WORK / "rust" / description.triple / "phases"
         tls.check_vendored(rust_phases / "vendor", rust_phases / "tools/bin", description.triple, WORK / "tmp")
         phases = PhaseCache(_target_root(description) / "phases")
@@ -523,7 +531,7 @@ def test_command(args: argparse.Namespace) -> int:
                             lambda directory: stage.stage(cmake_phase, directory, description.triple, source.version))
         print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
         return 0
-    build_command(argparse.Namespace(target=description.triple, in_container=False))
+    build_command(argparse.Namespace(target=description.triple, in_container=False, qualification_build=True))
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     image = sandbox.image_tag(lock, description, DOCKERFILE)
     result = sandbox.run_sealed(
@@ -632,6 +640,7 @@ def _parser() -> argparse.ArgumentParser:
             child.set_defaults(handler=configure)
         elif command == "build":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.add_argument("--qualification-build", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=build_command)
         elif command == "test":
             child.add_argument("--suite", required=True)

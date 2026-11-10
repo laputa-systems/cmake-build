@@ -60,3 +60,18 @@ The source-built, unstripped Ninja executable is 1,662,144 bytes; Samurai is
 73,080 bytes. The comparison excludes the one-time executor builds, so the
 additional Ninja build time is not separately measured. These are builder
 inputs and are not staged in the distribution.
+
+## Developer compiler cache
+
+`build` uses the existing `kache` wrapper for C and C++ compilations, with a
+persistent per-target store in `.work/compiler-cache/`. Compiler and build
+inputs participate in the cache keys. Linker-only driver flags stay on link
+commands, allowing compilations to be cached without changing their objects.
+Qualification builds use a separate phase fingerprint and do not use this
+compiler cache. Rust continues to use its existing wrapper.
+
+A native x86_64 build completed the ELF audit with caching enabled. A repeated
+compile of a CMake source was a local cache hit, ran no compiler, and restored
+the original object bytes. A header-change probe produced a fresh object.
+These checks establish cache behavior; they do not measure a speedup. CI cache
+restoration remains to be implemented with the native qualification workflow.

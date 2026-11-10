@@ -17,13 +17,14 @@ from helpers import ROOT, workspace
 class CliTests(unittest.TestCase):
     def test_test_command_dispatches_the_selected_suite(self) -> None:
         for name in ("basic", "parity", "network", "projects,upstream"):
-            with self.subTest(suite=name), patch.object(build, "build_command"), \
+            with self.subTest(suite=name), patch.object(build, "build_command") as compile_build, \
                     patch.object(build, "load_bootstrap"), patch.object(build.sandbox, "image_tag", return_value="image"), \
                     patch.object(build.sandbox, "run_sealed", return_value=SimpleNamespace(returncode=0, stdout="", stderr="")), \
                     patch.object(build.qualify, "basic") as basic, patch.object(build.qualify, "parity") as parity, \
                     patch.object(build.qualify, "network") as network, patch.object(build.qualify, "projects") as projects, \
                     patch.object(build.qualify, "upstream") as upstream, contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(build.main(["test", "--target", "x86_64-unknown-linux-musl", "--suite", name]), 0)
+                self.assertTrue(compile_build.call_args.args[0].qualification_build)
                 for candidate, mock in (("basic", basic), ("parity", parity), ("network", network),
                                         ("projects", projects), ("upstream", upstream)):
                     self.assertEqual(mock.call_count, int(candidate in name.split(",")))

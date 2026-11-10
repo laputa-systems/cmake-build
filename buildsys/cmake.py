@@ -8,10 +8,16 @@ import shlex
 import shutil
 import tempfile
 from pathlib import Path
+from enum import Enum
 
 from . import dependencies, elf, patches, toolchain
 from .rust import _run
 from .targets import Target
+
+
+class BuildMode(Enum):
+    DEVELOPMENT = "development"
+    QUALIFICATION = "qualification"
 
 
 class CMakeBuildError(Exception):
@@ -32,7 +38,8 @@ def check_capabilities(output: str, expected_version: str) -> None:
 
 
 def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[patches.Patch, ...],
-          directory: Path, target: Target, cmake_version: str, rustls_version: str) -> None:
+          directory: Path, target: Target, cmake_version: str, rustls_version: str, mode: BuildMode,
+          kache: Path, compiler_cache: Path) -> None:
     entries = list((bootstrap / "source").iterdir())
     if len(entries) != 1 or not entries[0].is_dir():
         raise CMakeBuildError("bootstrap source has an invalid layout")
@@ -75,6 +82,25 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
         f"-DRUSTLS_INCLUDE_DIR={archive.parents[3] / 'source/src'}", f"-DRUSTLS_LIBRARY={archive}",
         f"-DCMAKE_C_STANDARD_LIBRARIES={standard_libraries}", f"-DCMAKE_CXX_STANDARD_LIBRARIES={standard_libraries}",
     ]
+    if mode is BuildMode.DEVELOPMENT:
+        compiler_cache.mkdir(parents=True, exist_ok=True)
+        env.update({"XDG_CACHE_HOME": str(compiler_cache), "XDG_CONFIG_HOME": str(compiler_cache / "config"),
+                    "KACHE_CC_PATH_NORMALIZE": "0", "KACHE_CC_SOURCE_DATE_EPOCH": "passthrough"})
+        link_flags = {"-fuse-ld=lld", "--rtlib=compiler-rt", "--unwindlib=libunwind"}
+        compile_flags = [flag for flag in toolchain.flags(target, prepared / "sysroot") if flag not in link_flags]
+        hardening = ["-fstack-protector-strong", "-fstack-clash-protection"]
+        link_driver = [flag for flag in toolchain.flags(target, prepared / "sysroot") if flag in link_flags]
+        executable_link = [*link_driver, "-static-pie", "-Wl,-z,relro,-z,now,-z,noexecstack"]
+        command.extend([
+            f"-DCMAKE_C_COMPILER_LAUNCHER={kache}", f"-DCMAKE_CXX_COMPILER_LAUNCHER={kache}",
+            f"-DCMAKE_C_FLAGS={shlex.join([*compile_flags, *hardening])}",
+            f"-DCMAKE_CXX_FLAGS={shlex.join([*compile_flags, '-stdlib=libc++', *hardening])}",
+            f"-DCMAKE_EXE_LINKER_FLAGS={shlex.join(executable_link)}",
+            f"-DCMAKE_SHARED_LINKER_FLAGS={shlex.join(link_driver)}",
+            f"-DCMAKE_MODULE_LINKER_FLAGS={shlex.join(link_driver)}",
+        ])
+    elif mode is not BuildMode.QUALIFICATION:
+        raise CMakeBuildError(f"unsupported build mode: {mode!r}")
     command.extend(f"-DSPHINX_{name}=OFF" for name in (
         "INFO", "MAN", "HTML", "SINGLEHTML", "LINKCHECK", "QTHELP", "LATEXPDF", "TEXT", "INCLUDE_IN_ALL",
     ))
