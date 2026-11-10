@@ -102,13 +102,12 @@ Each decision gives its reason and, where one exists, the condition that would r
     - In every other case, including `SSL_CERT_DIR`, set `CURLSSLOPT_NATIVE_CA`. That selects `rustls_platform_server_cert_verifier`, which reads `SSL_CERT_FILE`, `SSL_CERT_DIR`, and the probed system paths.
     - Never embed a root store, never disable verification unless the user sets `CMAKE_TLS_VERIFY OFF`, and keep upstream's default of verifying.
 - **P6 Bootstrap and executor.** The bootstrap CMake is never shipped. The production compiler is always the P4 toolchain.
-  - The default is upstream `./bootstrap --parallel=$(nproc) --no-system-libs` built with the P4 toolchain. Its output is cached under a fingerprint of source, toolchain, and sysroot. Timing is in **Baseline**.
-  - Slice `G3` also measures the locked Alpine `cmake` apk. Switch to the apk only if it cuts the cold pipeline wall time by more than 20%.
-  - The executor is samurai 1.3 (`https://github.com/michaelforney/samurai/releases/download/1.3/samurai-1.3.tar.gz`, sha256 `1bc020a9e133432df51911ac71cc34322f828934d9a2282ba2916d88c15976af`, Laputa's pin) built with the P4 toolchain. Switch to Ninja (latest release, locked) only if `G3` measures a full CMake build or a no-op rebuild more than 5% faster. Record the numbers either way.
+  - The selected bootstrap is the locked Alpine CMake package. The `G3` comparison and its warm-cache limits are in `docs/build-system.md`.
+  - The selected build executor is the pinned Ninja built with the P4 toolchain. Samurai remains a qualification generator.
 - **P7 Configuration and targets.**
   - Settings: `CMAKE_BUILD_TYPE=Release`, `BUILD_CursesDialog=OFF`, `BUILD_QtDialog=OFF`, `SPHINX_*=OFF`, `CMAKE_USE_SYSTEM_LIBRARIES=OFF` (every bundled library is compiled by P4), `CMake_ENABLE_DEBUGGER=ON`.
   - The debugger stays because `cmake --debugger` is a `cmake` feature.
-  - `ctest` and `cpack` are built because upstream tests need `ctest`. They are excluded at staging, not by patch.
+  - Upstream tests need `ctest`. The default upstream build also builds `cpack`. Both are excluded at staging, not by patch.
   - Remove targets only through upstream options. Patch only where upstream has no option, and give each patch an inventory entry.
   - Laputa's three musl patches (`laputa/packages/cmake/patches/`) are candidates, not defaults. Apply one only after the unpatched build fails on our P3 sysroot with the error it fixes, and record that error. The 2026-11-10 Baseline build needed none of them, and the `linux/fs.h` failure they work around came from a sysroot missing Linux headers.
 - **P8 Hardening and linkage.** The baseline, before phase E, is:
@@ -134,11 +133,11 @@ Each decision gives its reason and, where one exists, the condition that would r
   - Bound: at most 20 minutes on 8 cores. Add tests to the subset freely. Remove one only by recording an upstream-failing reason.
   - A test is red when it fails on our build and passes on the P9 unmodified build. A failure shared with the P9 build is listed in `docs/qualification.md`, not hidden.
   - The full upstream `ctest` runs once at close. It is expensive, so report its start before running it.
-- **P12 Release budgets.** `release-budgets.json` holds the budgets measured at milestone M2: executable size, unpacked size, compressed size, `cmake --version` latency, and the small-project configure time. The regression threshold for each metric is the larger of 3% and 2× the observed spread over at least five interleaved runs. Timing gates are waived; size gates remain binding.
+- **P12 Release budgets.** `release-budgets.json` holds the budgets measured at milestone M2: executable size, unpacked size, compressed size, `cmake --version` latency, and the small-project configure time. The regression threshold for each metric is the larger of 3% and 2× the observed spread over at least five interleaved runs. Timing gates are waived; size and CMake-image memory gates remain binding.
 - **P13 CI shape.** Mirror python-build `.github/workflows/build.yml`:
   - `controller.yml` runs `controller-test` on push and PR.
   - `qualify.yml` uses `workflow_dispatch` only, with native jobs on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs `python3 build.py qualify --target <triple>` in the P2 container and uploads its archive, `artifact.json`, and qualification report.
-  - `release.yml` uses `workflow_dispatch` with inputs `tag` and `sha`. It requires a `qualify` run at that exact SHA and verifies that the uploaded artifacts' `artifact.json` source and commit identity match. It publishes the archives plus `SHA256SUMS` to a new immutable release. It never reruns a build or reuses historical evidence.
+  - `release.yml` uses `workflow_dispatch` with a full commit `sha`. It requires both native qualification jobs at that SHA and verifies archive-bound results and memory evidence. It publishes a new prerelease with `SHA256SUMS` and never rebuilds or overwrites an existing release. GitHub does not mark the prerelease immutable; consumers must pin its digest.
 
   No emulation is used anywhere. CI cache keys include the full input fingerprint.
 
@@ -146,7 +145,7 @@ Each decision gives its reason and, where one exists, the condition that would r
 
 - **Module layout.** Organize `buildsys/` the way python-build is organized (`inputs`, `elf`, `generations`, `reproduce`, `sandbox`), with no third-party Python dependencies. Copy no file wholesale; reuse patterns. The bound: one module per concern, and no framework shared with other repos.
 - **Phase E flag choices.** Adopt a flag set only if it improves a measured metric by more than its threshold and keeps every acceptance check green. Candidates: `-O2`/`-O3`/`-Oz`, sections plus `--gc-sections`, ThinLTO, `--icf=safe` (never `all`), `-fvisibility=hidden` for bundled libraries, and stripping. RTTI and exceptions stay on. Never use `-ffast-math` or `-march=native`. On a tie, keep the simpler set.
-- **Compiler cache.** ccache is allowed only for developer rebuilds, keyed on the toolchain identity, and never in `qualify`, `reproduce`, or release builds. Adopt it only if `G3` measures more than a 2× warm rebuild gain.
+- **Compiler cache.** Developer C and C++ builds use `kache` with a persistent per-target store. Qualification and reproduction do not use that developer cache. Rust uses its existing wrapper with isolated build state. CI restores verified inputs and qualification phases, which remain subject to fingerprint and output-digest checks.
 - **Link parallelism.** Set `-j` to `nproc` and limit ThinLTO link jobs so peak RSS stays below 75% of available memory, measured.
 - **PGO and BOLT.** These are optional research items after `E3`. Do them only if all of E is accepted, and never let them gate release.
 
