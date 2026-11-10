@@ -20,7 +20,25 @@ runs:
         set -euo pipefail
         printf '%s\n' '.work/' >> .git/info/exclude
         mkdir -p .work/tmp .work/tools
-        digest=$(git ls-files -z -- build.py buildsys docker patches tests sources.lock.json bootstrap.lock.json | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+        digest=$(git ls-files -z -- build.py buildsys docker patches tests licenses NOTICE sources.lock.json bootstrap.lock.json | python3 -c '
+        import hashlib, os, stat, sys
+        result = hashlib.sha256()
+        for raw in sys.stdin.buffer.read().split(b"\0"):
+            if not raw:
+                continue
+            path = os.fsdecode(raw)
+            info = os.lstat(path)
+            result.update(len(raw).to_bytes(8, "big") + raw)
+            if stat.S_ISLNK(info.st_mode):
+                target = os.fsencode(os.readlink(path))
+                result.update(b"L" + len(target).to_bytes(8, "big") + target)
+            elif stat.S_ISREG(info.st_mode):
+                result.update(b"F" + bytes([bool(info.st_mode & 0o111)]))
+                with open(path, "rb") as stream:
+                    result.update(hashlib.file_digest(stream, "sha256").digest())
+            else:
+                raise SystemExit(f"unsupported input: {path}")
+        print(result.hexdigest())')
         test "${#digest}" -eq 64
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
     - uses: actions/cache@v4

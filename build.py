@@ -10,7 +10,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import tomllib
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -32,7 +31,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, elf, generations, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -527,8 +526,11 @@ def test_command(args: argparse.Namespace) -> int:
         cmake_phase = phases.directory("cmake")
         record = json.loads((cmake_phase / "phase.json").read_text())
         source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
-        result = phases.run("stage", {"cmake": record["output_digest"], "controller": _controller_digest()},
-                            lambda directory: stage.stage(cmake_phase, directory, description.triple, source.version))
+        license_inputs = {"cmake": record["output_digest"], "controller": _controller_digest(),
+                          "licenses": tree_digest(ROOT / "licenses"), "notice": digest_bytes(ROOT / "NOTICE")[0]}
+        result = phases.run("stage", license_inputs,
+                            lambda directory: stage.stage(cmake_phase, directory, description.triple, source.version,
+                                                          ROOT / "licenses", ROOT / "NOTICE"))
         print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
         return 0
     build_command(argparse.Namespace(target=description.triple, in_container=False, qualification_build=True))
@@ -549,7 +551,7 @@ def test_command(args: argparse.Namespace) -> int:
 
 def _source_commit() -> str:
     status = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all", "--", "build.py", "buildsys", "docker", "patches", "tests", "sources.lock.json", "bootstrap.lock.json"],
+        ["git", "status", "--porcelain", "--untracked-files=all", "--", "build.py", "buildsys", "docker", "patches", "tests", "licenses", "NOTICE", "sources.lock.json", "bootstrap.lock.json"],
         cwd=ROOT, capture_output=True, text=True, check=True,
     )
     if status.stdout:
@@ -607,9 +609,16 @@ def _package_inside(description, commit: str) -> Path:
             "--no-default-features", "--features", "graviola", "--target", description.triple,
             "-e", "normal,build", "--prefix", "none", "--format", "{p}",
         ], cwd=projects[0], env=env)
-    std_lock = tomllib.loads((rust_root / "tools/lib/rustlib/src/rust/library/Cargo.lock").read_text())
-    std_packages = [{key: item[key] for key in ("name", "version", "source", "checksum") if key in item}
-                    for item in std_lock["package"]]
+        std_home = cargo_home / "std-home"
+        std_home.mkdir()
+        std_source = rust_root / "tools/lib/rustlib/src/rust/library"
+        std_env = {**env, "CARGO_HOME": str(std_home)}
+        std_closure = rust._run([
+            str(tools / "cargo"), "tree", "--locked", "--offline", "-p", "std",
+            "--features", "panic-unwind,backtrace,llvm-libunwind", "--target", description.triple,
+            "-e", "normal,build", "--prefix", "none", "--format", "{p}",
+        ], cwd=std_source, env=std_env)
+    licenses.verify_closure(rust_closure, std_closure, ROOT / "licenses")
     locked = [item for item in load_sources(SOURCES_LOCK)
               if item.target in ("all", description.triple) and item.role in ("source", "build-source")]
     locked.extend(bootstrap_inputs(load_bootstrap(BOOTSTRAP_LOCK), description.triple))
@@ -625,7 +634,7 @@ def _package_inside(description, commit: str) -> Path:
         "target": {"triple": description.triple, "cpu_baseline": description.cpu_baseline},
         "flags": flags,
         "dependencies": {"native": (cmake_phase / "dependencies.md").read_text(),
-                         "rustls": rust_closure.splitlines(), "rust_std_locked": std_packages,
+                         "rustls": rust_closure.splitlines(), "rust_std": std_closure.splitlines(),
                          "build_inputs": build_inputs},
         "build": {"mode": "qualification", "image": isolation["image_fingerprint"], "network": "none", "network_probe": "passed", "rust_wrapper": wrapper_info},
         "elf_audit": "passed",

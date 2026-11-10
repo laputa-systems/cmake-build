@@ -11,7 +11,7 @@ class StageError(Exception):
     pass
 
 
-def stage(cmake_phase: Path, directory: Path, target: str, version: str) -> None:
+def stage(cmake_phase: Path, directory: Path, target: str, version: str, licenses: Path, notice: Path) -> None:
     executable = cmake_phase / 'build/bin/cmake'
     source = cmake_phase / 'source'
     if not executable.is_file():
@@ -27,6 +27,8 @@ def stage(cmake_phase: Path, directory: Path, target: str, version: str) -> None
     notices.mkdir(parents=True)
     for name in ('LICENSE.rst', 'CONTRIBUTORS.rst'):
         shutil.copy2(source / name, notices / name)
+    shutil.copy2(notice, notices / 'NOTICE')
+    shutil.copytree(licenses, notices / 'licenses', symlinks=True)
     (notices / 'artifact.json').write_text(json.dumps({
         'cmake_version': version, 'target': target, 'qualification': 'pending',
     }, indent=2, sort_keys=True) + '\n')
