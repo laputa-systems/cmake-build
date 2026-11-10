@@ -408,7 +408,7 @@ def _configure_inside(description) -> int:
 
     built = phases.run("bootstrap", inputs, action)
     bootstrap_record = json.loads((built.directory / "phase.json").read_text())
-    result = phases.run("configure", {"bootstrap": bootstrap_record["output_digest"], "controller": inputs["controller"]},
+    result = phases.run("configure", {"bootstrap": bootstrap_record["output_digest"], "image": inputs["image"], "controller": inputs["controller"]},
                         lambda directory: bootstrap.configure(built.directory, directory, tc, description))
     print(f"configure {'reused' if result.reused else 'built'} at {result.directory} ({result.fingerprint[:16]})")
     return 0

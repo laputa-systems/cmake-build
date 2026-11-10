@@ -38,14 +38,16 @@ class CliTests(unittest.TestCase):
                     patch.object(build.toolchain, "verify"), \
                     patch.object(build.sandbox, "image_fingerprint", return_value="f" * 64) as image, \
                     patch.object(build.bootstrap, "build", side_effect=bootstrap_action) as bootstrap, \
-                    patch.object(build.bootstrap, "configure", side_effect=configure_action), \
+                    patch.object(build.bootstrap, "configure", side_effect=configure_action) as configure, \
                     contextlib.redirect_stdout(io.StringIO()):
                 build._configure_inside(target)
                 build._configure_inside(target)
                 self.assertEqual(bootstrap.call_count, 1)
+                self.assertEqual(configure.call_count, 1)
                 image.return_value = "0" * 64
                 build._configure_inside(target)
                 self.assertEqual(bootstrap.call_count, 2)
+                self.assertEqual(configure.call_count, 2)
 
     def test_controller_digest_ignores_python_bytecode(self) -> None:
         with workspace() as directory:
