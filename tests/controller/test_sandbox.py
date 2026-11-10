@@ -30,6 +30,26 @@ ARM = target("aarch64-unknown-linux-musl")
 
 
 class ReferenceImageTests(unittest.TestCase):
+    def test_sealed_container_protects_declared_read_only_inputs(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'container-id\n', '')
+        inspection = subprocess.CompletedProcess([], 0, json.dumps([{'HostConfig': {'NetworkMode': 'none'}}]), '')
+        started = subprocess.CompletedProcess([], 0, '', '')
+        removed = subprocess.CompletedProcess([], 0, '', '')
+        with workspace() as directory, patch.object(sandbox, '_docker', side_effect=[created, inspection, started, removed]) as docker:
+            inputs = directory / 'inputs'
+            output = directory / 'output'
+            inputs.mkdir()
+            output.mkdir()
+            sandbox.run_sealed('image', ['test'], target=X86, mounts=[(inputs, '/inputs'), (output, '/output')],
+                               read_only=frozenset({'/inputs'}))
+            create = docker.call_args_list[0].args
+            self.assertIn(f'{inputs}:/inputs:ro', create)
+            self.assertIn(f'{output}:/output:rw', create)
+        with patch.object(sandbox, '_docker') as docker:
+            with self.assertRaises(sandbox.SandboxError):
+                sandbox.run_sealed('image', ['test'], target=X86, mounts=[], read_only=frozenset({'/missing'}))
+            docker.assert_not_called()
+
     def test_fetch_uses_locked_reference_index(self) -> None:
         lock = load_bootstrap(build.BOOTSTRAP_LOCK)
         with patch.object(sandbox, "_docker", return_value=subprocess.CompletedProcess([], 0, "", "")) as docker:

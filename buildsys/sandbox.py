@@ -208,7 +208,10 @@ def _run_container(
     env: dict[str, str] | None = None,
     workdir: str = "/src",
     timeout: int = 3600,
+    read_only: frozenset[str] = frozenset(),
 ) -> SealedResult:
+    if not read_only <= {destination for _, destination in mounts}:
+        raise SandboxError('read-only destinations must be declared mounts')
     arguments = [
         "create",
         "--network",
@@ -221,7 +224,8 @@ def _run_container(
         workdir,
     ]
     for host, container in mounts:
-        arguments.extend(["--volume", f"{host}:{container}:rw"])
+        mode = 'ro' if container in read_only else 'rw'
+        arguments.extend(["--volume", f"{host}:{container}:{mode}"])
     for key, value in (env or {}).items():
         arguments.extend(["--env", f"{key}={value}"])
     arguments.extend([image, *command])
@@ -255,17 +259,19 @@ def _run_container(
 def run_sealed(
     image: str, command: list[str], *, target: Target, mounts: list[tuple[Path, str]],
     env: dict[str, str] | None = None, workdir: str = "/src", timeout: int = 3600,
+    read_only: frozenset[str] = frozenset(),
 ) -> SealedResult:
     return _run_container(image, command, network_mode="none", target=target, mounts=mounts,
-                          env=env, workdir=workdir, timeout=timeout)
+                          env=env, workdir=workdir, timeout=timeout, read_only=read_only)
 
 
 def run_networked(
     image: str, command: list[str], *, target: Target, mounts: list[tuple[Path, str]],
     env: dict[str, str] | None = None, workdir: str = "/src", timeout: int = 3600,
+    read_only: frozenset[str] = frozenset(),
 ) -> SealedResult:
     return _run_container(image, command, network_mode="bridge", target=target, mounts=mounts,
-                          env=env, workdir=workdir, timeout=timeout)
+                          env=env, workdir=workdir, timeout=timeout, read_only=read_only)
 
 
 def copy_reference_runtime(image: str, target: Target, destination: Path) -> None:

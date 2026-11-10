@@ -59,12 +59,15 @@ def basic(*, root: Path, phase: Path, image: str, target: Target) -> None:
             image, ['python3', '/suite/run.py'], target=target,
             mounts=[
                 (qualification, '/qualification'),
+                (qualification / 'relocated cmake', '/qualification/relocated cmake'),
                 (root / 'tests/acceptance/basic', '/suite'),
                 (phases / 'prepare', f'/src/.work/build/{target.triple}/phases/prepare'),
                 (phases / 'bootstrap/toolchain.cmake', '/tools/toolchain.cmake'),
                 (phases / 'bootstrap/ninja-build/ninja', '/tools/ninja'),
             ],
             env={'TMPDIR': '/qualification'}, workdir='/qualification', timeout=1800,
+            read_only=frozenset({'/qualification/relocated cmake', '/suite', f'/src/.work/build/{target.triple}/phases/prepare',
+                                 '/tools/toolchain.cmake', '/tools/ninja'}),
         )
         print(result.stdout, end='')
         if result.returncode:
@@ -89,16 +92,20 @@ def network(*, root: Path, phase: Path, image: str, target: Target) -> None:
         suite = root / 'tests/acceptance/network'
         local = sandbox.run_sealed(
             image, ['python3', '/suite/run.py'], target=target,
-            mounts=[(qualification, '/qualification'), (suite, '/suite'), (tools / 'usr/bin/openssl', '/tools/openssl')],
+            mounts=[(qualification, '/qualification'), (qualification / 'relocated cmake', '/qualification/relocated cmake'),
+                    (suite, '/suite'), (tools / 'usr/bin/openssl', '/tools/openssl')],
             env={'TMPDIR': '/qualification'}, workdir='/qualification', timeout=1800,
+            read_only=frozenset({'/qualification/relocated cmake', '/suite', '/tools/openssl'}),
         )
         print(local.stdout, end='')
         if local.returncode or 'local HTTPS qualification: 11 cases passed' not in local.stdout:
             raise QualificationError(f'local network qualification failed ({local.returncode}):\n{local.stderr}')
         internet = sandbox.run_networked(
             image, ['python3', '/suite/run.py', cmake_source.url, cmake_source.sha256], target=target,
-            mounts=[(qualification, '/qualification'), (suite / 'internet', '/suite')],
+            mounts=[(qualification, '/qualification'), (qualification / 'relocated cmake', '/qualification/relocated cmake'),
+                    (suite / 'internet', '/suite')],
             env={'TMPDIR': '/qualification'}, workdir='/qualification', timeout=1200,
+            read_only=frozenset({'/qualification/relocated cmake', '/suite'}),
         )
         print(internet.stdout, end='')
         if internet.returncode:
@@ -133,11 +140,14 @@ def projects(*, root: Path, phase: Path, image: str, target: Target) -> None:
         shutil.copy2(phase_root / 'cmake/build/bin/ctest', prefix / 'bin/ctest')
         result = sandbox.run_sealed(
             image, ['python3', '/suite/run.py'], target=target,
-            mounts=[(qualification, '/qualification'), (root / 'tests/projects', '/suite'), *inputs,
+            mounts=[(qualification, '/qualification'), (prefix, '/qualification/relocated cmake'),
+                    (root / 'tests/projects', '/suite'), *inputs,
                     (phase_root / 'prepare', f'/src/.work/build/{target.triple}/phases/prepare'),
                     (phase_root / 'bootstrap/toolchain.cmake', '/tools/toolchain.cmake'),
                     (phase_root / 'bootstrap/ninja-build/ninja', '/tools/ninja')],
             env={'TMPDIR': '/qualification'}, workdir='/qualification', timeout=7200,
+            read_only=frozenset({'/qualification/relocated cmake', '/suite', f'/src/.work/build/{target.triple}/phases/prepare',
+                                 '/tools/toolchain.cmake', '/tools/ninja', *(destination for _, destination in inputs)}),
         )
         print(result.stdout, end='')
         if result.returncode:
@@ -203,8 +213,12 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
                       (phases / 'bootstrap', f'/src/.work/build/{target.triple}/phases/bootstrap'),
                       (root / '.work/rust' / target.triple / 'phases/staticlib', f'/src/.work/rust/{target.triple}/phases/staticlib'),
                       (root / 'tests/projects', '/suite'), (selection, '/selection/upstream-subset.txt')]
+            if name == 'cmake':
+                mounts.append((phase / 'bin/cmake', f'/src/.work/build/{target.triple}/phases/{name}/build/bin/cmake'))
             result = sandbox.run_sealed(image, ['python3', '/suite/upstream.py'], target=target, mounts=mounts,
-                                        env={**env, 'UPSTREAM_PHASE': name}, workdir='/qualification', timeout=1260)
+                                        env={**env, 'UPSTREAM_PHASE': name}, workdir='/qualification', timeout=1260,
+                                        read_only=frozenset(destination for _, destination in mounts
+                                                            if destination not in ('/qualification', f'/src/.work/build/{target.triple}/phases/{name}')))
             print(result.stdout, end='')
             report = results / 'upstream.xml'
             if 'upstream subset:' not in result.stdout or not report.is_file():
@@ -275,13 +289,14 @@ def parity(*, root: Path, phase: Path, image: str, target: Target) -> None:
                 ('reference', lock.reference_image, baseline, entries[0], '/opt/alpine/usr/python3', runtime_mounts),
             ):
                 mounts = [(location, '/qualification'), (fixture, '/suite'), *common, *extra]
-                if prefix is not None:
-                    mounts.append((prefix, '/qualification/relocated cmake'))
+                mounts.append((prefix if prefix is not None else location / 'relocated cmake',
+                               '/qualification/relocated cmake'))
                 env = {'TMPDIR': '/qualification'}
                 if label == 'reference':
                     env['PYTHONHOME'] = '/opt/alpine/usr'
                 result = sandbox.run_sealed(image_name, [interpreter, '/suite/run.py'], target=target,
-                                            mounts=mounts, env=env, workdir='/qualification', timeout=3600)
+                                            mounts=mounts, env=env, workdir='/qualification', timeout=3600,
+                                            read_only=frozenset(destination for _, destination in mounts if destination != '/qualification'))
                 print(f'{label} {suite}: {result.stdout}', end='')
                 if result.returncode or 'qualification:' not in result.stdout:
                     raise QualificationError(f'{label} {suite} qualification failed ({result.returncode}):\n{result.stderr}')
