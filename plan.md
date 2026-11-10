@@ -5,9 +5,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `b095b3a`.
-- **Accepted:** G1, G2, G3, G4, C1. **Red:** none. **Parked:** none.
-- **Next slice:** C2. Stage and qualify the relocated CMake distribution.
+- **Last accepted revision:** `f340176`.
+- **Accepted:** G1, G2, G3, G4, C1, C2; M1 basic qualification passed. **Red:** none. **Parked:** none.
+- **Next slice:** D1. Audit the native ELF and the extracted archive members.
 
 ## Charter
 
