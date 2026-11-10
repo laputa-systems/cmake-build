@@ -57,3 +57,39 @@ the current package, then verify configure, graph generation, compilation,
 incremental rebuild, installation, exported metadata, and the consumer's own
 tests in an isolated environment. Check for host CMake and unapproved runtime
 libraries. This downstream proof has not yet run.
+
+## Proposed downstream proof
+
+Use zlib, libpng, and expat as the first consumer set. The libpng recipe uses
+zlib and installs CMake package metadata; the expat recipe also installs CMake
+package metadata. Their existing package proofs compile and run programs
+against the installed libraries. The libpng recipe disables its upstream tests,
+so the package proof does not replace a separate upstream test run.
+
+On each native architecture, prepare two isolated Laputa build environments
+with identical pinned sources, toolchains, executor settings, and resource
+limits. Keep the existing 4.4.4 recipe in one. In the other, use a separately
+approved CMake-only package based on the qualified 4.4.5 archive. Confirm that
+neither environment finds a host CMake. This comparison includes a CMake version
+change and cannot by itself attribute a difference to build flags.
+
+Measure provisioning separately from consumer work. With a fresh artifact
+store, build the same closure in each environment:
+
+```sh
+make build ARCH=x86_64 PKGS="zlib libpng expat" JOBS=4
+```
+
+Repeat with aarch64 on its native host. Record source-cache state, elapsed and
+CPU time, peak memory, failures, and per-package logs. A warm unchanged `make
+build` may reuse Laputa's artifact store without invoking CMake; label that
+result as package-cache reuse rather than CMake reconfiguration. In isolated
+consumer build trees, separately measure unchanged reconfiguration and an
+incremental source and header rebuild.
+
+Run the installed package proofs, each selected upstream project's applicable
+tests, and a downstream CMake project that imports the installed PNG and expat
+config packages. Verify the install paths and exports, inspect the generated
+Ninja graphs, and audit executables and libraries for the intended architecture
+and runtime closure. A failure or an unavailable test remains a recorded gap.
+This proof requires a Laputa integration change and has not yet run.
