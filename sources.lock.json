@@ -78,6 +78,28 @@
       "purpose": "Build executor"
     },
     {
+      "name": "openssl-test-x86_64",
+      "version": "3.5.9-r0",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/openssl-3.5.9-r0.apk",
+      "sha256": "68a170a5df42368882ff5816960c78c5640f0e57435b4275574dfe64d236c084",
+      "size": 340244,
+      "role": "test",
+      "target": "x86_64-unknown-linux-musl",
+      "license": "Apache-2.0",
+      "purpose": "Generate local TLS test certificates"
+    },
+    {
+      "name": "openssl-test-aarch64",
+      "version": "3.5.9-r0",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/openssl-3.5.9-r0.apk",
+      "sha256": "845ec66b196c94a62647b517de3e8bea7c616a25eb805b7c4bee31b4b88da0dd",
+      "size": 331136,
+      "role": "test",
+      "target": "aarch64-unknown-linux-musl",
+      "license": "Apache-2.0",
+      "purpose": "Generate local TLS test certificates"
+    },
+    {
       "name": "cmake-reference-x86_64",
       "version": "4.4.5",
       "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz",
