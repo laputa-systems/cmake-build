@@ -198,10 +198,11 @@ def build_image(
     return tag
 
 
-def run_sealed(
+def _run_container(
     image: str,
     command: list[str],
     *,
+    network_mode: str,
     target: Target,
     mounts: list[tuple[Path, str]],
     env: dict[str, str] | None = None,
@@ -211,7 +212,7 @@ def run_sealed(
     arguments = [
         "create",
         "--network",
-        "none",
+        network_mode,
         "--platform",
         target.docker_platform,
         "--user",
@@ -224,17 +225,23 @@ def run_sealed(
     for key, value in (env or {}).items():
         arguments.extend(["--env", f"{key}={value}"])
     arguments.extend([image, *command])
-    created = _checked(_docker(*arguments), "create sealed container")
+    created = _checked(_docker(*arguments), f"create {network_mode} container")
     container_id = created.stdout.strip()
     try:
         inspection = json.loads(
-            _checked(_docker("inspect", container_id), "inspect sealed container").stdout
+            _checked(_docker("inspect", container_id), "inspect container").stdout
         )[0]
-        if inspection.get("HostConfig", {}).get("NetworkMode") != "none":
-            raise SandboxError("container network mode is not none")
+        if inspection.get("HostConfig", {}).get("NetworkMode") != network_mode:
+            raise SandboxError(f"container network mode is not {network_mode}")
         started = _docker("start", "--attach", container_id, timeout=timeout)
     finally:
-        _docker("rm", "--force", container_id)
+        primary = sys.exception()
+        try:
+            _checked(_docker("rm", "--force", container_id), "remove container")
+        except Exception as error:
+            if primary is None:
+                raise
+            print(f"container cleanup failed: {error}", file=sys.stderr)
     settings = inspection.get("HostConfig", {})
     return SealedResult(
         returncode=started.returncode,
@@ -243,6 +250,22 @@ def run_sealed(
         network_mode=settings.get("NetworkMode", ""),
         networks=inspection.get("NetworkSettings", {}).get("Networks", {}),
     )
+
+
+def run_sealed(
+    image: str, command: list[str], *, target: Target, mounts: list[tuple[Path, str]],
+    env: dict[str, str] | None = None, workdir: str = "/src", timeout: int = 3600,
+) -> SealedResult:
+    return _run_container(image, command, network_mode="none", target=target, mounts=mounts,
+                          env=env, workdir=workdir, timeout=timeout)
+
+
+def run_networked(
+    image: str, command: list[str], *, target: Target, mounts: list[tuple[Path, str]],
+    env: dict[str, str] | None = None, workdir: str = "/src", timeout: int = 3600,
+) -> SealedResult:
+    return _run_container(image, command, network_mode="bridge", target=target, mounts=mounts,
+                          env=env, workdir=workdir, timeout=timeout)
 
 
 def _host_gateway() -> str:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import struct
 import subprocess
 import unittest
@@ -34,6 +35,24 @@ class ReferenceImageTests(unittest.TestCase):
         with patch.object(sandbox, "_docker", return_value=subprocess.CompletedProcess([], 0, "", "")) as docker:
             sandbox.pull_reference(lock, X86.docker_platform)
         docker.assert_called_once_with("pull", "--platform", X86.docker_platform, lock.reference_image)
+
+    def test_networked_container_rejects_wrong_mode_and_cleans_up(self) -> None:
+        created = subprocess.CompletedProcess([], 0, "container-id\n", "")
+        inspection = subprocess.CompletedProcess([], 0, json.dumps([{"HostConfig": {"NetworkMode": "none"}}]), "")
+        removed = subprocess.CompletedProcess([], 0, "", "")
+        with patch.object(sandbox, "_docker", side_effect=[created, inspection, removed]) as docker:
+            with self.assertRaisesRegex(sandbox.SandboxError, "not bridge"):
+                sandbox.run_networked("image", ["test"], target=X86, mounts=[])
+        self.assertEqual(docker.call_args_list[-1].args, ("rm", "--force", "container-id"))
+
+    def test_container_cleanup_failure_is_reported(self) -> None:
+        created = subprocess.CompletedProcess([], 0, "container-id\n", "")
+        inspection = subprocess.CompletedProcess([], 0, json.dumps([{"HostConfig": {"NetworkMode": "bridge"}}]), "")
+        started = subprocess.CompletedProcess([], 0, "ok", "")
+        removed = subprocess.CompletedProcess([], 1, "", "remove failed")
+        with patch.object(sandbox, "_docker", side_effect=[created, inspection, started, removed]):
+            with self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
+                sandbox.run_networked("image", ["test"], target=X86, mounts=[])
 
 
 def fake_toolchain(directory: Path, *, clang_version: str = CLANG_VERSION, lld: str = LLD_VERSION) -> Path:

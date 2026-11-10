@@ -148,3 +148,4 @@ finally:
         item.server_close()
     for thread in threads:
         thread.join(timeout=5)
+print('local HTTPS qualification: 11 cases passed')
