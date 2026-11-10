@@ -157,6 +157,7 @@ class BootstrapLock:
     image_manifest_reference: str
     repositories: dict[str, list[str]]
     targets: dict[str, dict]
+    keys: list[Input]
 
 
 def load_bootstrap(path: Path) -> BootstrapLock:
@@ -182,6 +183,10 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     targets = document.get("targets")
     if not isinstance(targets, dict):
         raise InputError(f"{path}: expected 'targets' object")
+    keys: list[Input] = []
+    for index, raw in enumerate(alpine.get("keys", [])):
+        entry = _entry(raw, f"{path}:alpine.keys", index)
+        keys.append(_input(entry, f"{path}:alpine.keys", index, require_size=False))
     for triple, section in targets.items():
         if triple not in TARGETS:
             raise InputError(f"{path}: unknown target section {triple}")
@@ -210,17 +215,19 @@ def load_bootstrap(path: Path) -> BootstrapLock:
         image_manifest_reference=alpine["image_manifest_reference"],
         repositories=repositories,
         targets=targets,
+        keys=keys,
     )
 
 
 def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
     section = lock.targets.get(triple)
+    inputs = list(lock.keys)
     if section is None:
-        return []
-    inputs = [
+        return inputs
+    inputs.extend(
         _input(entry, "bootstrap", index, require_size=False)
         for index, entry in enumerate(section.get("packages", []))
-    ]
+    )
     rust = section.get("rust")
     if rust:
         name_prefix = rust.get("name_prefix", "rust")
@@ -238,8 +245,9 @@ def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
 class Cache:
     """Content-addressed cache; every read and every publication is verified."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, offline: bool = False) -> None:
         self.root = Path(root)
+        self.offline = offline
 
     def _object(self, item: Input) -> Path:
         return self.root / "objects" / f"{item.sha256}.blob"
@@ -278,6 +286,8 @@ class Cache:
         return self.require(item)
 
     def fetch(self, item: Input, timeout: float = 120.0) -> Path:
+        if self.offline:
+            raise InputError(f"{item.name}: offline phase cannot fetch from the network")
         try:
             return self.require(item)
         except InputError:

@@ -12,7 +12,19 @@
       "aarch64-unknown-linux-musl": [
         "https://cdn.alpinelinux.org/edge/main"
       ]
-    }
+    },
+    "keys": [
+      {
+        "name": "alpine-key-616ae350",
+        "version": "2026",
+        "url": "https://alpinelinux.org/keys/alpine-devel@lists.alpinelinux.org-616ae350.rsa.pub",
+        "sha256": "d11f6b21c61b4274e182eb888883a8ba8acdbf820dcc7a6d82a7d9fc2fd2836d",
+        "size": 800,
+        "role": "build-source",
+        "target": "all",
+        "purpose": "aarch64 package signing key"
+      }
+    ]
   },
   "targets": {
     "x86_64-unknown-linux-musl": {
@@ -20,15 +32,268 @@
       "platform": "linux/amd64",
       "packages": [
         {
-          "name": "linux-headers",
-          "version": "7.2.1-r0",
-          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/linux-headers-7.2.1-r0.apk",
-          "sha256": "45e0d4df3e4002122c953d0af6e208f1e8369fc6c88c67138400b87f871fd54b",
-          "size": 2017036,
+          "name": "libbz2",
+          "version": "1.0.8-r6",
+          "license": "bzip2-1.0.6",
+          "sha256": "77bf2e1327c0582fb59225c1e0c1bc38aac384473210550ce0f4e5b6d60364bd",
+          "size": 33577,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libbz2-1.0.8-r6.apk",
           "role": "build-source",
           "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libcrypto3",
+          "version": "3.5.9-r0",
+          "license": "Apache-2.0",
+          "sha256": "3f49f0ca1256cda3b5c336dc8387b9b9b0134fab48602ee6adec70cacfe3be74",
+          "size": 1980202,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libcrypto3-3.5.9-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libexpat",
+          "version": "2.10.0-r0",
+          "license": "MIT",
+          "sha256": "ad565cb50371c22a746fa6cf9435d814fd6d1439220dc4dc80318088d9ea03db",
+          "size": 63639,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libexpat-2.10.0-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libffi",
+          "version": "3.8.0-r0",
+          "license": "MIT",
+          "sha256": "d1160fa275d18c06c49a159c76627168f4aa2c0b2776b84db522b7117a61e189",
+          "size": 23028,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libffi-3.8.0-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libgcc",
+          "version": "15.2.0-r9",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "sha256": "01c9609197de10519ceb204a09d1efa54baad145f65bf00ba0908086692ca3fe",
+          "size": 80348,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libgcc-15.2.0-r9.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libncursesw",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "953fc025d8c86b3e03d75214ab8bc8349b2070ab7de3ad638081e36a29fb44b2",
+          "size": 160709,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libncursesw-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libpanelw",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "cc9527c2549d7c3d00f8d603e96913d9268fa3ceb0a59f818c39caae1640f980",
+          "size": 5564,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libpanelw-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.5.9-r0",
+          "license": "Apache-2.0",
+          "sha256": "69f7a9a244bdb4a0a88123d5b9367aef28528795177d8187bd9647256d2e5f7c",
+          "size": 381865,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libssl3-3.5.9-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libstdc++",
+          "version": "15.2.0-r9",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "sha256": "adfebfc0c4b80c293be8cc802a7fb73d7f5854f01b47ff1f40282d18f255b357",
+          "size": 961408,
+          "url": "https://cdn.alpinelinux.org/edge/community/x86_64/libstdc++-15.2.0-r9.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "linux-headers",
+          "version": "7.2.1-r0",
           "license": "GPL-2.0-only",
-          "purpose": "Linux UAPI headers for the sysroot"
+          "sha256": "45e0d4df3e4002122c953d0af6e208f1e8369fc6c88c67138400b87f871fd54b",
+          "size": 2017036,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/linux-headers-7.2.1-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "make",
+          "version": "4.4.1-r4",
+          "license": "GPL-3.0-or-later",
+          "sha256": "b3b0b1e03637888031b075c4eccc35c5196045cfa28667b666d1ef35d07e22f3",
+          "size": 116300,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/make-4.4.1-r4.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "mpdecimal",
+          "version": "4.0.1-r0",
+          "license": "BSD-2-Clause",
+          "sha256": "28f3d868efbc1e9093b95f4a3f6e74393acd4a37292fcb5c0e0e0612fe83fff3",
+          "size": 79004,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/mpdecimal-4.0.1-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "musl",
+          "version": "1.2.6-r6",
+          "license": "MIT",
+          "sha256": "002f8b956419d67e91fd4e594f7b8d62fef13042cec45d977305df1a9ce0704f",
+          "size": 415482,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/musl-1.2.6-r6.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "ncurses-terminfo-base",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "41f697fef61c95b807829a35ba34283fa304da3aac3d70de43e6632d5969102c",
+          "size": 22183,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/ncurses-terminfo-base-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "patch",
+          "version": "2.8.1-r0",
+          "license": "GPL-3.0-or-later",
+          "sha256": "a4e3a6d2c33d4604ac5939f4d993e857cd383b85b91c28861539028d1a2ac3e2",
+          "size": 69606,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/patch-2.8.1-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "pyc",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "9331dc5585c71662b89f19632efe56b5cb972ac00e6ab93b995a26f92c99af53",
+          "size": 1271,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/pyc-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "549ed16bf67fe942afd9d8161e766d16bfaa0deae7e6db557906d8d69e07445c",
+          "size": 8482159,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/python3-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3-pyc",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "e4b345c0bb2f26f281ec4c05936a535e616618aff8577116ce8c64be976fabdc",
+          "size": 1331,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/python3-pyc-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3-pycache-pyc0",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "f0ddc43b1804ea16d14316e19714d06f02befd456b56b24210d1e2120adcc1b8",
+          "size": 4641828,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/python3-pycache-pyc0-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "readline",
+          "version": "8.3.3-r1",
+          "license": "GPL-3.0-or-later",
+          "sha256": "a0facde0de1a476438b099ffd85393aef0a2c1e0966dd6017941d44361803aed",
+          "size": 127189,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/readline-8.3.3-r1.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "sqlite-libs",
+          "version": "3.54.1-r0",
+          "license": "blessing",
+          "sha256": "5dfd76936e795efd988d6bad4949b8d20c410d6dc9dd256da884111f668f3915",
+          "size": 891646,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/sqlite-libs-3.54.1-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "xz",
+          "version": "5.8.4-r0",
+          "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+          "sha256": "a87eb30f63697adc2e335b0cf02fa4424a61fd9cf9ce9de6593e1d2991511049",
+          "size": 64572,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/xz-5.8.4-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "xz-libs",
+          "version": "5.8.4-r0",
+          "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+          "sha256": "c32448d77e4b41bc48ffd5bc66ff4ba7a3e17bd4278238d90d6a30f82194cf49",
+          "size": 118500,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/xz-libs-5.8.4-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "zlib",
+          "version": "1.4-r0",
+          "license": "Zlib",
+          "sha256": "c81f2e580754a6bebb9b3a17034082d35cfa275723d5a27c47e8bfdfab18aca7",
+          "size": 56759,
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/zlib-1.4-r0.apk",
+          "role": "build-source",
+          "target": "x86_64-unknown-linux-musl",
+          "purpose": "builder image"
         }
       ],
       "rust": {
@@ -76,7 +341,272 @@
     "aarch64-unknown-linux-musl": {
       "architecture": "aarch64",
       "platform": "linux/arm64",
-      "packages": [],
+      "packages": [
+        {
+          "name": "libbz2",
+          "version": "1.0.8-r6",
+          "license": "bzip2-1.0.6",
+          "sha256": "387613963132acce64d6210bf5a88b0c1522740d13e80060404f091260088038",
+          "size": 35661,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libbz2-1.0.8-r6.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libcrypto3",
+          "version": "3.5.9-r0",
+          "license": "Apache-2.0",
+          "sha256": "ddfed8feb861b75bc002c3bc4a8453cee00f46db822dadc40dabb2334c47b585",
+          "size": 2286824,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libcrypto3-3.5.9-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libexpat",
+          "version": "2.10.0-r0",
+          "license": "MIT",
+          "sha256": "2c493582b0a3464f65a47647b5c24c89416d26be8bd82336cb588b88edfb95ce",
+          "size": 63407,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libexpat-2.10.0-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libffi",
+          "version": "3.8.0-r0",
+          "license": "MIT",
+          "sha256": "660a197cf7d0f5541c1d220cf4d59c5ec12082ed91a78b3e00def261e4b4e5e5",
+          "size": 21307,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libffi-3.8.0-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libgcc",
+          "version": "15.2.0-r9",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "sha256": "23653103b2adf85dab73e4e35047f64b8671cd654e2d0291f44bec549084afd1",
+          "size": 66331,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libgcc-15.2.0-r9.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libncursesw",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "bd4f81dc1cef1399f7ca8c994ba5860136ca6d10f949d9609975310d8f3a6138",
+          "size": 163404,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libncursesw-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libpanelw",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "92ef1ac0cdb8da2a6a7d67af1fd77a4395c6ccd9560ac293eba03ecd2094c930",
+          "size": 5921,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libpanelw-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.5.9-r0",
+          "license": "Apache-2.0",
+          "sha256": "90f714960f379016298504d2afac67196814fff6f78ad9844348dda74cc99cb0",
+          "size": 373041,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libssl3-3.5.9-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "libstdc++",
+          "version": "15.2.0-r9",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "sha256": "36e8a2cee1ee14df5180c1f5737f0ffb59004ef92dd4f0bedff425968c4855ae",
+          "size": 908720,
+          "url": "https://cdn.alpinelinux.org/edge/community/aarch64/libstdc++-15.2.0-r9.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "linux-headers",
+          "version": "7.2.1-r0",
+          "license": "GPL-2.0-only",
+          "sha256": "d4db4bdb66a54ef86500bb8ea834e3769ff5502f22d1ab40b360edc1566a0e92",
+          "size": 1981326,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/linux-headers-7.2.1-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "make",
+          "version": "4.4.1-r4",
+          "license": "GPL-3.0-or-later",
+          "sha256": "07a05073a634b54afba68c77f646b05dd0fd57ac6c76fe084684bd78e7d3ea2d",
+          "size": 117594,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/make-4.4.1-r4.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "mpdecimal",
+          "version": "4.0.1-r0",
+          "license": "BSD-2-Clause",
+          "sha256": "49549baed3c6467bafee8e42f02d9d30d19304eaa12ff4b7b5123b10c55bca0d",
+          "size": 81417,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/mpdecimal-4.0.1-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "musl",
+          "version": "1.2.6-r6",
+          "license": "MIT",
+          "sha256": "180b2e52dbd452919c3271ed9dddf06826cee9a387650c81c00c7ac393031c5b",
+          "size": 417747,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/musl-1.2.6-r6.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "ncurses-terminfo-base",
+          "version": "6.6_p20261017-r0",
+          "license": "X11",
+          "sha256": "16fd5e1d7d93f98a3eeeccf0629bc49613a0a159b64c67a06f2d6a627a64347a",
+          "size": 22183,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/ncurses-terminfo-base-6.6_p20261017-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "patch",
+          "version": "2.8.1-r0",
+          "license": "GPL-3.0-or-later",
+          "sha256": "d1bd7caea9efc25119e6f65d409a66d102a4b3cd33373e29ff76affdabb3facb",
+          "size": 70808,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/patch-2.8.1-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "pyc",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "f11d26e7e73ecbea1db422e242352f85510edda132fc416938688b471fb16dbc",
+          "size": 1274,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/pyc-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "686e42ebdb4d491d5f6ef559c21d2740ee1be07a428226acff66701e7ed6197e",
+          "size": 8399884,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/python3-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3-pyc",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "f0a1a1ad50989b444705c8c03e4f9d8370dfc80636b0c37126c1c75f8b764429",
+          "size": 1330,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/python3-pyc-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "python3-pycache-pyc0",
+          "version": "3.14.10-r1",
+          "license": "PSF-2.0",
+          "sha256": "4e23834dfb3e6dee478457657edc5388130a24a1c9c13eb3c55609de499f38da",
+          "size": 4641752,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/python3-pycache-pyc0-3.14.10-r1.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "readline",
+          "version": "8.3.3-r1",
+          "license": "GPL-3.0-or-later",
+          "sha256": "ef3339d5a240b3501b57b21b48da192b429780af9e8a1ba3def629a72810dfbf",
+          "size": 129718,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/readline-8.3.3-r1.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "sqlite-libs",
+          "version": "3.54.1-r0",
+          "license": "blessing",
+          "sha256": "e92861972b07c848fbf7e2e5ed20ca872c00f3a87550d01a5f7820d4d02df526",
+          "size": 866515,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/sqlite-libs-3.54.1-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "xz",
+          "version": "5.8.4-r0",
+          "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+          "sha256": "f9b75ac773820a537740daba361083f4a060b6c81f26b0d37a1ef4c7ddb5dff4",
+          "size": 70079,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/xz-5.8.4-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "xz-libs",
+          "version": "5.8.4-r0",
+          "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+          "sha256": "54de3f3b3bc26b341f39fcda09e762a22fad10a1d185a1096cc95b4a09bdd4ef",
+          "size": 119441,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/xz-libs-5.8.4-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        },
+        {
+          "name": "zlib",
+          "version": "1.4-r0",
+          "license": "Zlib",
+          "sha256": "64c790260fc28ba0296d78550908f19cf11eabbd3e2f6ec9c7109a166912d216",
+          "size": 55065,
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/zlib-1.4-r0.apk",
+          "role": "build-source",
+          "target": "aarch64-unknown-linux-musl",
+          "purpose": "builder image"
+        }
+      ],
       "rust": {
         "channel": "nightly-2026-09-15",
         "version": "1.100.0-nightly",

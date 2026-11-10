@@ -24,8 +24,11 @@ from buildsys.inputs import (
     digest_bytes,
     load_bootstrap,
     load_sources,
+    tree_digest,
 )
 from buildsys.phases import PhaseCache, PhaseError
+from buildsys.sandbox import SandboxError
+from buildsys import sandbox, sysroot, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -37,8 +40,11 @@ ROOT = Path(__file__).resolve().parent
 WORK = ROOT / ".work"
 CACHE = WORK / "cache"
 PHASES = WORK / "phases"
+BUILD_ROOT = WORK / "build"
 SOURCES_LOCK = ROOT / "sources.lock.json"
 BOOTSTRAP_LOCK = ROOT / "bootstrap.lock.json"
+DOCKERFILE = ROOT / "docker" / "builder.Dockerfile"
+PROVENANCE = ROOT / "tests" / "fixtures" / "provenance" / "run.py"
 
 try:
     _NATIVE = native_target()
@@ -95,6 +101,16 @@ def doctor(args: argparse.Namespace) -> int:
         except InputError:
             missing.append(item.name)
     report["cache_missing"] = missing
+    toolchain_dir = _toolchain_directory(description)
+    if toolchain_dir.is_dir():
+        try:
+            report["toolchain"] = toolchain.verify(toolchain_dir, description)
+        except toolchain.ToolchainError as error:
+            report["toolchain_error"] = str(error)
+            print(json.dumps(report, indent=2))
+            return 1
+    else:
+        report["toolchain"] = None
     print(json.dumps(report, indent=2))
     return 0
 
@@ -121,11 +137,15 @@ def fetch(args: argparse.Namespace) -> int:
         total += size
         print(f"{item.name} {item.version} {outcome} {size} B")
     print(f"{len(selected)} inputs, {total} B, cache {CACHE}")
+    try:
+        sandbox.pull_image(bootstrap, description.docker_platform)
+    except SandboxError as error:
+        _fail(str(error))
+    print(f"builder base {sandbox.image_reference(bootstrap)} for {description.docker_platform}")
     return 0
 
 
 _NOT_IMPLEMENTED = {
-    "prepare": "G2 builds the sealed image and sysroot",
     "configure": "G3 configures CMake with the locked toolchain",
     "build": "C1 builds CMake",
     "test": "C2 runs acceptance suites",
@@ -134,6 +154,170 @@ _NOT_IMPLEMENTED = {
     "reproduce": "D5 reproduces two clean builds",
     "benchmark": "E1 measures against the Kitware reference",
 }
+
+
+def _target_root(description) -> Path:
+    return BUILD_ROOT / description.triple
+
+
+def _toolchain_directory(description) -> Path:
+    return _target_root(description) / "phases" / "prepare" / "toolchain"
+
+
+def _required_inputs(
+    sources, lock, description
+) -> tuple[dict[str, object], list[object]]:
+    selected = [item for item in sources if item.target in ("all", description.triple)]
+    extras = bootstrap_inputs(lock, description.triple)
+    return {item.name: item for item in selected}, extras
+
+
+def _controller_digest() -> str:
+    material = {
+        "build.py": digest_bytes(ROOT / "build.py")[0],
+        "buildsys": tree_digest(ROOT / "buildsys"),
+        "dockerfile": digest_bytes(DOCKERFILE)[0],
+        "provenance": tree_digest(ROOT / "tests" / "fixtures" / "provenance"),
+    }
+    from buildsys.inputs import canonical_json, identity
+
+    return identity(canonical_json(material).encode())
+
+
+def prepare(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if sandbox.in_container():
+        return _prepare_inside(description)
+    if platform.machine() != description.machine:
+        _fail(
+            f"--target {description.triple} does not match the running machine "
+            f"({platform.machine()}); no emulation is used"
+        )
+    try:
+        sources = load_sources(SOURCES_LOCK)
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+    except InputError as error:
+        _fail(str(error))
+    cache = Cache(CACHE)
+    selected, extras = _required_inputs(sources, lock, description)
+    missing = []
+    for item in [*selected.values(), *extras]:
+        try:
+            cache.require(item)
+        except InputError:
+            missing.append(item.name)
+    if missing:
+        _fail(f"missing locked inputs: {', '.join(missing)}; run `build.py fetch`")
+    try:
+        tag = sandbox.build_image(lock, description, DOCKERFILE, cache, WORK / "tmp" / "image")
+    except (SandboxError, InputError) as error:
+        _fail(str(error))
+    probe = sandbox.network_boundary_selftest(tag, description, WORK / "tmp" / "probe")
+    if not probe["ok"]:
+        _fail(f"network boundary probe failed: {json.dumps(probe, indent=2)}")
+    result = sandbox.run_sealed(
+        tag,
+        ["python3", "build.py", "prepare", "--target", description.triple, "--in-container"],
+        target=description,
+        mounts=[(ROOT, "/src")],
+        env={"TMPDIR": str(WORK / "tmp"), "PYTHONPATH": "/src"},
+        timeout=3600,
+    )
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr, file=sys.stderr)
+        _fail(f"prepare failed inside the sealed container ({result.returncode})")
+    evidence = {
+        "image": tag,
+        "image_fingerprint": sandbox.image_fingerprint(lock, description, DOCKERFILE),
+        "network_mode": result.network_mode,
+        "networks": result.networks,
+        "probe": probe,
+    }
+    root = _target_root(description)
+    root.mkdir(parents=True, exist_ok=True)
+    evidence_path = root / "isolation.json"
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
+    print(json.dumps(evidence, indent=2))
+    return 0
+
+
+def _prepare_inside(description) -> int:
+    try:
+        sources = load_sources(SOURCES_LOCK)
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+    except InputError as error:
+        _fail(str(error))
+    cache = Cache(CACHE, offline=True)
+    selected, extras = _required_inputs(sources, lock, description)
+    inputs: dict[str, str] = {}
+    toolchain_input = selected.get(f"llvm-toolchain-{description.machine}")
+    musl_input = selected.get("musl-source")
+    headers = next((item for item in extras if item.name == "linux-headers"), None)
+    if toolchain_input is None or musl_input is None or headers is None:
+        _fail(f"{description.triple}: lock lacks toolchain, musl, or linux-headers")
+    inputs["toolchain"] = toolchain_input.sha256
+    inputs["musl"] = musl_input.sha256
+    inputs["linux-headers"] = headers.sha256
+    inputs["controller"] = _controller_digest()
+    inputs["image"] = sandbox.image_fingerprint(lock, description, DOCKERFILE)
+    phases = PhaseCache(_target_root(description) / "phases")
+
+    def action(directory: Path) -> None:
+        toolchain_dir = toolchain.install(
+            cache.require(toolchain_input), directory / "toolchain"
+        )
+        identity = toolchain.verify(toolchain_dir, description)
+        (directory / "toolchain.json").write_text(json.dumps(identity, indent=2) + "\n")
+        sysroot.build(
+            cache.require(musl_input),
+            cache.require(headers),
+            toolchain_dir,
+            description,
+            directory / "sysroot",
+            WORK / "tmp" / f"sysroot-{os.getpid()}",
+        )
+        sysroot_report = sysroot.verify(
+            directory / "sysroot", description, toolchain_dir
+        )
+        (directory / "sysroot.json").write_text(
+            json.dumps(sysroot_report, indent=2) + "\n"
+        )
+        fixture = subprocess.run(
+            [
+                sys.executable,
+                str(PROVENANCE),
+                "--toolchain",
+                str(toolchain_dir),
+                "--sysroot",
+                str(directory / "sysroot"),
+                "--target",
+                description.triple,
+                "--work",
+                str(directory / "fixture"),
+                "--output",
+                str(directory / "provenance.json"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "PYTHONPATH": str(ROOT)},
+        )
+        if fixture.returncode != 0:
+            raise PhaseError(
+                f"provenance fixture failed ({fixture.returncode}):\n"
+                f"{fixture.stdout}\n{fixture.stderr}"
+            )
+        print(fixture.stdout.strip())
+
+    try:
+        result = phases.run("prepare", inputs, action)
+    except (InputError, PhaseError, toolchain.ToolchainError, sysroot.SysrootError) as error:
+        _fail(str(error))
+    state = "reused" if result.reused else "built"
+    print(f"prepare {state} at {result.directory} ({result.fingerprint[:16]})")
+    return 0
 
 
 def _not_implemented(args: argparse.Namespace) -> int:
@@ -216,6 +400,9 @@ def _parser() -> argparse.ArgumentParser:
             child.set_defaults(handler=doctor)
         elif command == "fetch":
             child.set_defaults(handler=fetch)
+        elif command == "prepare":
+            child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.set_defaults(handler=prepare)
         else:
             child.set_defaults(handler=_not_implemented)
     controller = subparsers.add_parser("controller-test")
