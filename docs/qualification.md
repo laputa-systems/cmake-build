@@ -28,3 +28,169 @@ A separate networked container used `FetchContent` to download the locked CMake 
 fmt 12.2.1 configured and built with the staged CMake and pinned LLVM/musl toolchain. Its test run passed 18 of 21 CTest cases. `chrono-test`, `unicode-test`, and `xchar-test` failed locale assertions. A separate build with the official CMake binary and the same toolchain reproduced all three failures. The failures remain reported by the project fixture.
 
 zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. libjpeg-turbo 3.2.1 built with SIMD disabled, and `tjunittest-static` exited successfully after exercising its checks. LLVM 23.1.5 configured with Clang enabled. The complete project suite remains red because of the fmt failures.
+
+## Latest automated parity differences: x86_64-unknown-linux-musl
+
+### ninja build/build.ninja
+
+```diff
+--- reference/ninja build/build.ninja
++++ candidate/ninja build/build.ninja
+@@ -168,9 +168,8 @@
+ # Utility command for edit_cache
+
+ build CMakeFiles/edit_cache.util: CUSTOM_COMMAND
+-  COMMAND = cd "/qualification/graph suite/ninja build" && "/qualification/relocated cmake/bin/ccmake" -S"/qualification/graph suite/source" -B"/qualification/graph suite/ninja build"
+-  DESC = Running CMake cache editor...
+-  pool = console
++  COMMAND = cd "/qualification/graph suite/ninja build" && "/qualification/relocated cmake/bin/cmake" -E echo No\ interactive\ CMake\ dialog\ available.
++  DESC = No interactive CMake dialog available...
+   restat = 1
+
+ build edit_cache: phony CMakeFiles/edit_cache.util
+```
+
+### ninja-file-api.json
+
+```diff
+--- reference/ninja-file-api.json
++++ candidate/ninja-file-api.json
+@@ -371,17 +371,6 @@
+         "value": "CMAKE_DLLTOOL-NOTFOUND"
+       },
+       {
+-        "name": "CMAKE_EDIT_COMMAND",
+-        "properties": [
+-          {
+-            "name": "HELPSTRING",
+-            "value": "Path to cache edit program executable."
+-          }
+-        ],
+-        "type": "INTERNAL",
+-        "value": "/qualification/relocated cmake/bin/ccmake"
+-      },
+-      {
+         "name": "CMAKE_ERROR_DEPRECATED",
+         "properties": [
+           {
+@@ -830,7 +819,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "1"
++        "value": "0"
+       },
+       {
+         "name": "CMAKE_INSTALL_SYSCONFDIR",
+@@ -1262,7 +1251,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "/usr/bin/uname"
++        "value": "/bin/uname"
+       },
+       {
+         "name": "CMAKE_VERBOSE_MAKEFILE",
+@@ -1709,11 +1698,11 @@
+             "dependencies": [
+               {
+                 "backtrace": 2,
++                "id": "base::@6890427a1f51a3e7e1df"
++              },
++              {
++                "backtrace": 2,
+                 "id": "wrapper::@6890427a1f51a3e7e1df"
+-              },
+-              {
+-                "backtrace": 2,
+-                "id": "base::@6890427a1f51a3e7e1df"
+               }
+             ],
+             "id": "graph::@6890427a1f51a3e7e1df",
+@@ -1937,7 +1926,7 @@
+           {
+             "directoryIndex": 0,
+             "id": "graph::@6890427a1f51a3e7e1df",
+-            "jsonFile": "target-graph-Release-94aad6a7ba7a6c8b9c09.json",
++            "jsonFile": "target-graph-Release-84dc3cf0c9f923a1abb5.json",
+             "name": "graph",
+             "projectIndex": 0
+           },
+```
+
+### make-file-api.json
+
+```diff
+--- reference/make-file-api.json
++++ candidate/make-file-api.json
+@@ -386,17 +386,6 @@
+         "value": "CMAKE_DLLTOOL-NOTFOUND"
+       },
+       {
+-        "name": "CMAKE_EDIT_COMMAND",
+-        "properties": [
+-          {
+-            "name": "HELPSTRING",
+-            "value": "Path to cache edit program executable."
+-          }
+-        ],
+-        "type": "INTERNAL",
+-        "value": "/qualification/relocated cmake/bin/ccmake"
+-      },
+-      {
+         "name": "CMAKE_ERROR_DEPRECATED",
+         "properties": [
+           {
+@@ -830,7 +819,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "1"
++        "value": "0"
+       },
+       {
+         "name": "CMAKE_INSTALL_SYSCONFDIR",
+@@ -871,7 +860,7 @@
+           }
+         ],
+         "type": "FILEPATH",
+-        "value": "/usr/bin/make"
++        "value": "/usr/bin/gmake"
+       },
+       {
+         "name": "CMAKE_MODULE_LINKER_FLAGS",
+@@ -1266,7 +1255,7 @@
+           }
+         ],
+         "type": "INTERNAL",
+-        "value": "/usr/bin/uname"
++        "value": "/bin/uname"
+       },
+       {
+         "name": "CMAKE_VERBOSE_MAKEFILE",
+@@ -1713,11 +1702,11 @@
+             "dependencies": [
+               {
+                 "backtrace": 2,
++                "id": "base::@6890427a1f51a3e7e1df"
++              },
++              {
++                "backtrace": 2,
+                 "id": "wrapper::@6890427a1f51a3e7e1df"
+-              },
+-              {
+-                "backtrace": 2,
+-                "id": "base::@6890427a1f51a3e7e1df"
+               }
+             ],
+             "id": "graph::@6890427a1f51a3e7e1df",
+@@ -1941,7 +1930,7 @@
+           {
+             "directoryIndex": 0,
+             "id": "graph::@6890427a1f51a3e7e1df",
+-            "jsonFile": "target-graph-Release-94aad6a7ba7a6c8b9c09.json",
++            "jsonFile": "target-graph-Release-84dc3cf0c9f923a1abb5.json",
+             "name": "graph",
+             "projectIndex": 0
+           },
+```

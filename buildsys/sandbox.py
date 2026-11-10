@@ -268,6 +268,29 @@ def run_networked(
                           env=env, workdir=workdir, timeout=timeout)
 
 
+def copy_reference_runtime(image: str, target: Target, destination: Path) -> None:
+    destination.mkdir(parents=True)
+    (destination / "usr").mkdir()
+    (destination / "etc").mkdir()
+    created = _checked(_docker("create", "--network", "none", "--platform", target.docker_platform, image),
+                       "create reference runtime source")
+    container_id = created.stdout.strip()
+    try:
+        for source, name in (("/usr/lib", "usr"), ("/usr/bin/python3", "usr/python3"),
+                             ("/usr/bin/make", "usr/make"), ("/lib", "lib")):
+            _checked(_docker("cp", "--follow-link", f"{container_id}:{source}", str(destination / name)),
+                     f"copy {source} from reference runtime source")
+        (destination / "etc" / f"ld-musl-{target.machine}.path").write_text('/opt/alpine/lib:/opt/alpine/usr/lib\n')
+    finally:
+        primary = sys.exception()
+        try:
+            _checked(_docker("rm", "--force", container_id), "remove reference runtime source")
+        except Exception as error:
+            if primary is None:
+                raise
+            print(f"container cleanup failed: {error}", file=sys.stderr)
+
+
 def _host_gateway() -> str:
     result = _docker(
         "network",
