@@ -31,7 +31,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import benchmark, bootstrap, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import benchmark, bootstrap, budgets, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -846,7 +846,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
+    except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, budgets.BudgetError, cmake.CMakeBuildError, dependencies.DependencyError,
             elf.AuditError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
             sandbox.SandboxError, stage.StageError, tls.TlsError) as error:
         _fail(str(error))

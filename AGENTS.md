@@ -25,7 +25,8 @@ gate checks the locked, vendored Cargo graph offline without Docker.
 `package` creates a candidate archive; `qualify` runs the project and upstream
 suites and qualifies the extracted archive before activation. `benchmark`
 requires a qualified generation, an unmodified musl baseline, and host `strace`.
-It writes the measured report and budgets after the full run.
+It writes the measured report and checks size and memory budgets after five runs.
+An unmeasured memory baseline can be established only with its recorded archive.
 
 ## Layout
 
@@ -41,6 +42,8 @@ It writes the measured report and budgets after the full run.
 
 - [Building and qualification](docs/building.md)
 - [Build measurements](docs/build-system.md)
+- [CMake executable performance](docs/performance.md)
+- [Initial performance analysis](docs/performance-analysis.md)
 - [Dependency inventory](docs/dependencies.md)
 - [Qualification results](docs/qualification.md)
 - [CI and prereleases](docs/ci-and-releases.md)

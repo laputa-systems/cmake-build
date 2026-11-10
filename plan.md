@@ -5,11 +5,11 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `6c62b0b` for the license-bearing, reproducible x86_64 package; both native qualification jobs passed at that revision.
-- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5. The x86_64 and aarch64 native qualification jobs passed at `66669c2`; those earlier archives did not include third-party notices and are not release candidates. The later license-bearing archive reproduced byte for byte on x86_64.
-- **Parked:** the fmt locale-specific assertions need locale data. The upstream subset has one failure shared with the unmodified static-musl baseline.
-- **In progress:** native qualification and clean reproducibility of the debug-stripped package at `58313ac`; performance measurements and closeout. Full upstream CTest ran 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
-- **Next:** publish the authorized prerelease only after both native jobs succeed for its exact commit, and complete the remaining measurements and closeout checks.
+- **Last prerelease:** `58313ac`, qualified natively on both architectures and reproduced on x86_64. GitHub does not mark the prerelease immutable; consumers must pin and verify its archive digest.
+- **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5, and native qualification for the prerelease. The full x86_64 upstream run executed 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
+- **Parked:** none. Locale-specific fmt assertions need locale data. CPU sampling needs a `perf` executable; ARM memory budgets have not been measured.
+- **In progress:** bind the project and upstream suites to the extracted archive, enforce size budgets, and finish E1 analysis. The x86_64 executable measurements and syscall profiles are recorded; CMake's own clean and incremental build costs and Laputa consumer proof remain unmeasured.
+- **Next:** verify the exact-archive qualification changes, run native CI at the resulting commit, and investigate narrowly scoped optimizations against the measured baseline.
 
 ## Charter
 

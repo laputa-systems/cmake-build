@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "x86_64-unknown-linux-musl": {
+      "archive_sha256": "b53ca751fd8c1f0c3b3918c7c9aed7f5a30a79b2bbf4f9289ec567ede5a0cc3e",
+      "repetitions": 10,
+      "memory_status": "measured",
+      "metrics": {
+        "archive_bytes": {
+          "allowed_regression": 305134.32,
+          "spread": 0,
+          "value": 10171144
+        },
+        "executable_bytes": {
+          "allowed_regression": 1254179.28,
+          "spread": 0,
+          "value": 41805976
+        },
+        "fmt_configure_seconds": {
+          "allowed_regression": 0.17004753602668643,
+          "spread": 0.08502376801334321,
+          "value": 0.44189624150749296
+        },
+        "unpacked_bytes": {
+          "allowed_regression": 1634300.04,
+          "spread": 0,
+          "value": 54476668
+        },
+        "version_seconds": {
+          "allowed_regression": 0.008492710185237229,
+          "spread": 0.0042463550926186144,
+          "value": 0.004559908498777077
+        },
+        "fmt_initial_rss_kib": {
+          "value": 58628.0,
+          "spread": 5828,
+          "allowed_regression": 11656
+        },
+        "libjpeg-turbo_initial_rss_kib": {
+          "value": 65368.0,
+          "spread": 668,
+          "allowed_regression": 1961.04
+        },
+        "llvm-clang_initial_rss_kib": {
+          "value": 491716.0,
+          "spread": 4112,
+          "allowed_regression": 14751.48
+        },
+        "zstd_initial_rss_kib": {
+          "value": 66814.0,
+          "spread": 7020,
+          "allowed_regression": 14040
+        }
+      }
+    },
+    "aarch64-unknown-linux-musl": {
+      "archive_sha256": "61f116c8638f56e2ec7173137ba33dac16dc43bacf54f58c496649761bbfe343",
+      "memory_status": "unmeasured",
+      "metrics": {
+        "executable_bytes": {
+          "value": 40748528,
+          "spread": 0,
+          "allowed_regression": 1222455.8399999999
+        },
+        "unpacked_bytes": {
+          "value": 53419267,
+          "spread": 0,
+          "allowed_regression": 1602578.01
+        },
+        "archive_bytes": {
+          "value": 9377384,
+          "spread": 0,
+          "allowed_regression": 281321.52
+        }
+      }
+    }
+  }
+}

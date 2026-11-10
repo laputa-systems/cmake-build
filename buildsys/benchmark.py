@@ -11,7 +11,7 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
-from . import package, sandbox, stage
+from . import budgets, package, sandbox, stage
 from .inputs import Cache, bootstrap_inputs, digest_bytes, load_bootstrap, load_sources, safe_extract, tree_digest
 from .phases import PhaseCache
 from .targets import Target
@@ -84,10 +84,13 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
              'product differences and does not isolate an individual compiler flag.',
              'A warmup preceded measurement. Filesystem caches were not pinned; cold-cache results were not',
              'measured. Timings are not release gates.', '',
-             f"Host: `{metadata['host']}`. Container: `{metadata['container']}`.",
+             f"Host: `{metadata['host']}`. CPU: `{metadata['cpu_model']}`. Container: `{metadata['container']}`.",
              f"CPU affinity: `{metadata['cpus']}`. Product archive SHA-256: `{metadata['archive_sha256']}`.",
              f"Official archive SHA-256: `{metadata['official_sha256']}`. Baseline output digest: `{metadata['baseline_digest']}`.",
-             f"Tracer: `{metadata['strace_version']}`. Runner SHA-256: `{metadata['runner_sha256']}`.", '',
+             f"CMake source SHA-256: `{metadata['cmake_sha256']}`. Toolchain SHA-256: `{metadata['toolchain_sha256']}`.",
+             f"Tracer: `{metadata['strace_version']}`. Runner SHA-256: `{metadata['runner_sha256']}`.",
+             f"Benchmark implementation SHA-256: `{metadata['implementation_sha256']}`.",
+             'See the [baseline analysis](performance-analysis.md) for the interpretation and limits of the initial run.', '',
              '| Project | Version | Source SHA-256 |', '| --- | --- | --- |']
     for item in metadata['projects']:
         lines.append(f"| {item.name} | {item.version} | `{item.sha256}` |")
@@ -118,13 +121,14 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
     lines.extend(['', '## File and process syscall profiles', '',
                   'These untimed `strace -f -c` profiles cover an unchanged reconfigure after the',
                   'measured runs. They include child processes and use a host tracer, not the release binary.',
+                  'Tracing changes execution cost; its syscall times are not untraced wall-time shares.',
                   'Kernel sampling with `perf` is not collected by this command.', ''])
     for profile in metadata['profiles']:
         lines.extend([f"### {profile['workload']}: {profile['variant']}", '', '```text', profile['summary'].rstrip(), '```', ''])
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines).rstrip() + '\n'
 
 
-def run(root: Path, target: Target, repetitions: int = 10) -> None:
+def run(root: Path, target: Target, repetitions: int = 5) -> None:
     if platform.system() != 'Linux':
         raise BenchmarkError('benchmarking requires a native Linux host')
     phases = root / '.work/build' / target.triple / 'phases'
@@ -146,6 +150,11 @@ def run(root: Path, target: Target, repetitions: int = 10) -> None:
         qualification.get(name) != 'passed' for name in ('basic', 'parity', 'network', 'projects')
     ) or not qualification.get('upstream'):
         raise BenchmarkError('archive lacks qualification for the requested target')
+    budget_path = root / 'release-budgets.json'
+    if repetitions >= 5:
+        budget_document = budgets.load(budget_path)
+        budget_digest = digest_bytes(budget_path)[0]
+        budgets.validate_memory_source(budget_document, target.triple, archive_sha256)
     reference_phase = phases / 'reference'
     if not (reference_phase / 'build/bin/cmake').is_file():
         raise BenchmarkError('build the unmodified static-musl baseline with the upstream suite first')
@@ -203,6 +212,8 @@ def run(root: Path, target: Target, repetitions: int = 10) -> None:
                     raise BenchmarkError(f'strace library is missing: {name.strip()}')
                 shutil.copy2(library, trace_lib / name.strip())
         candidate = safe_extract(archive, directory / 'candidate') / 'usr'
+        if repetitions >= 5:
+            budgets.check_size(budget_document, target.triple, candidate.parent, archive)
         official_source = safe_extract(Cache(root / '.work/cache', offline=True).require(reference), directory / 'official')
         official_entries = list(official_source.iterdir())
         if len(official_entries) != 1 or not official_entries[0].is_dir():
@@ -251,28 +262,27 @@ def run(root: Path, target: Target, repetitions: int = 10) -> None:
         if (digest_bytes(root / 'tests/benchmark/run.py')[0] != runner_sha256
             or digest_bytes(Path(__file__))[0] != implementation_sha256):
             raise BenchmarkError('benchmark implementation changed during measurement')
+        if repetitions >= 5 and digest_bytes(budget_path)[0] != budget_digest:
+            raise BenchmarkError('release budgets changed during measurement')
         data = json.loads((directory / 'results.json').read_text())
+        cpu_info = Path('/proc/cpuinfo').read_text().splitlines()
+        cpu_model = next((line.partition(':')[2].strip() for line in cpu_info
+                          if line.split(':', 1)[0].strip() in ('model name', 'Hardware')), 'not reported')
         document = render(data['records'], repetitions, {'target': target.triple, 'cpus': data['cpus'],
                                                          'archive_sha256': archive_sha256, 'profiles': data['profiles'],
                                                          'baseline_digest': reference_record['output_digest'],
                                                          'official_sha256': reference.sha256, 'sizes': size_data,
-                                                         'strace_version': tracer_version, 'host': platform.platform(),
+                                                         'strace_version': tracer_version, 'host': platform.platform(), 'cpu_model': cpu_model,
                                                          'container': lock.reference_image,
                                                          'projects': [locked[name] for name in names],
-                                                         'runner_sha256': runner_sha256})
+                                                         'cmake_sha256': locked['cmake-source'].sha256,
+                                                         'toolchain_sha256': locked[f'llvm-toolchain-{target.machine}'].sha256,
+                                                         'runner_sha256': runner_sha256,
+                                                         'implementation_sha256': implementation_sha256})
         _write_atomic(root / 'docs/performance.md', document, scratch)
-        if repetitions >= 10:
-            summary = summarize(data['records'], repetitions)
-            metrics = {}
-            for label, key in (('version_seconds', ('process', 'version', 'product')),
-                               ('fmt_configure_seconds', ('fmt', 'initial', 'product'))):
-                value = summary[key]
-                spread = value['max_seconds'] - value['min_seconds']
-                metrics[label] = {'value': value['median_seconds'], 'spread': spread,
-                                  'allowed_regression': max(value['median_seconds'] * 0.03, spread * 2)}
-            for label, value in (('executable_bytes', size_data['product']['executable']),
-                                 ('unpacked_bytes', size_data['product']['files']),
-                                 ('archive_bytes', size_data['product']['archive'])):
-                metrics[label] = {'value': value, 'spread': 0, 'allowed_regression': value * 0.03}
-            _write_atomic(root / 'release-budgets.json', json.dumps({'target': target.triple, 'archive_sha256': archive_sha256,
-                                                                    'repetitions': repetitions, 'metrics': metrics}, indent=2, sort_keys=True) + '\n', scratch)
+        if repetitions >= 5:
+            if budgets.apply_memory(budget_document, target.triple, archive_sha256, data['records']):
+                _write_atomic(budget_path, json.dumps(budget_document, indent=2, sort_keys=True) + '\n', scratch)
+                print(f'memory baseline established for {target.triple}; review and commit the budget')
+            else:
+                print(f'size and memory budgets passed for {target.triple}; existing baseline retained')

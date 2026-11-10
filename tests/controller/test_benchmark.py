@@ -35,9 +35,10 @@ class BenchmarkTests(unittest.TestCase):
         profiles = [{'workload': workload, 'variant': variant, 'summary': 'total'}
                     for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
                     for variant in ('product', 'musl', 'kitware')]
-        metadata = {'target': 'test', 'host': 'test', 'container': 'test', 'cpus': [0],
+        metadata = {'target': 'test', 'host': 'test', 'cpu_model': 'test', 'container': 'test', 'cpus': [0],
                     'archive_sha256': 'a', 'official_sha256': 'b', 'baseline_digest': 'c',
-                    'strace_version': 'test', 'runner_sha256': 'd', 'profiles': profiles,
+                    'cmake_sha256': 'c', 'toolchain_sha256': 'd',
+                    'strace_version': 'test', 'runner_sha256': 'd', 'implementation_sha256': 'f', 'profiles': profiles,
                     'projects': [SimpleNamespace(name='fmt', version='1', sha256='e')],
                     'sizes': {variant: {'executable': 1, 'files': 2, 'archive': 3}
                               for variant in ('product', 'musl', 'kitware')}}
