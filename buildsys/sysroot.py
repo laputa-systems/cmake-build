@@ -200,7 +200,8 @@ def check_link_trace(
         raise SysrootError(f"{raw}: resolved outside the pinned toolchain")
 
 
-def verify(destination: Path, target: Target, toolchain: Path) -> dict:    destination = Path(destination)
+def verify(destination: Path, target: Target, toolchain: Path) -> dict:
+    destination = Path(destination)
     loader = destination / target.musl_loader.lstrip("/")
     if not loader.is_file():
         raise SysrootError(f"{loader}: missing loader")
