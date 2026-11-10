@@ -1,0 +1,100 @@
+name: prerelease
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA qualified on both native runners
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  prerelease:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - name: Install pinned report parser
+        run: |
+          set -euo pipefail
+          printf '%s\n' '.work/' >> .git/info/exclude
+          mkdir -p .work/tmp .work/tools
+          blob=$(python3 -c 'from pathlib import Path; from buildsys.inputs import Cache, load_sources; print(Cache(Path(".work/cache")).fetch(next(x for x in load_sources(Path("sources.lock.json")) if x.name == "jaq-x86_64")))')
+          install -m 0755 "$blob" .work/tools/jaq
+          echo "$PWD/.work/tools" >> "$GITHUB_PATH"
+      - name: Find successful native qualification
+        id: qualified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow qualify.yml --commit "$RELEASE_SHA" --status success --limit 20 --json databaseId,headSha,conclusion > .work/runs.json
+          jaq -r --arg sha "$RELEASE_SHA" '.[] | select(.headSha == $sha and .conclusion == "success") | .databaseId' .work/runs.json > .work/run-ids
+          found=''
+          while IFS= read -r run_id; do
+            gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion,jobs > .work/run.json
+            if jaq -e --arg sha "$RELEASE_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify x86_64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success")' .work/run.json >/dev/null; then
+              found="$run_id"
+              break
+            fi
+          done < .work/run-ids
+          test -n "$found"
+          echo "run_id=$found" >> "$GITHUB_OUTPUT"
+      - name: Download qualified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.qualified.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .work/download
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'cmake-prerelease-*' --dir .work/download
+      - name: Verify and stage prerelease assets
+        env:
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .work/release
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            folder=".work/download/cmake-prerelease-$target"
+            archive="$folder/cmake-4.4.5-$target.tar.xz"
+            metadata="$folder/artifact-$target.json"
+            results="$folder/results-$target.json"
+            sha=$(sha256sum "$archive" | cut -d' ' -f1)
+            size=$(stat -c '%s' "$archive")
+            jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" >/dev/null
+            python3 -c 'from pathlib import Path; from buildsys.package import inspect; import sys; inspect(Path(sys.argv[1]))' "$archive"
+            tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > .work/embedded.json
+            cmp -s "$metadata" .work/embedded.json
+            jaq -e --arg sha "$RELEASE_SHA" --arg target "$target" '.source.commit == $sha and .source.version == "4.4.5" and .target.triple == $target and .build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' "$metadata" >/dev/null
+            cp "$archive" "$metadata" "$results" "$folder/qualification-$target.md" .work/release/
+          done
+          (cd .work/release && LC_ALL=C sha256sum -- * > SHA256SUMS)
+      - name: Publish immutable prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.sha }}
+          RUN_ID: ${{ steps.qualified.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          tag="cmake-4.4.5-${RELEASE_SHA:0:12}-run${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for endpoint in "releases/tags/$tag" "git/ref/tags/$tag"; do
+            if gh api "repos/$GITHUB_REPOSITORY/$endpoint" > .work/tag-check.out 2> .work/tag-check.err; then
+              printf 'release tag already exists: %s\n' "$tag" >&2
+              exit 1
+            fi
+            case "$(< .work/tag-check.err)" in
+              *'HTTP 404'*) ;;
+              *) cat .work/tag-check.err >&2; exit 1 ;;
+            esac
+          done
+          printf 'Qualified commit: `%s`\n\nQualification run: %s/%s/actions/runs/%s\n' "$RELEASE_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID" > .work/release-notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_SHA" --title "CMake 4.4.5 prerelease ${RELEASE_SHA:0:12}" --notes-file .work/release-notes.md --prerelease --latest=false .work/release/*

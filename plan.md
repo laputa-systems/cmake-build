@@ -42,7 +42,7 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **O1 Toolchain release.** Use the latest llvm-prebuilt-musl release, `llvm-musl-23.1.5-dc0d9b9`, pinned by asset sha256 (values in **Reference**). Laputa's `llvm-toolchain` recipe pins `llvm-musl-23.1.5-2f0b039`. That release no longer exists on GitHub (`gh release view` → not found). Laputa updates its own pin later. This campaign only notes it in the Laputa handoff.
 - **O2 HTTP stack.** Keep CMake's bundled curl (`Utilities/cmcurl`, curl 8.20.0) with the Rustls backend. h12tiny was considered and rejected for now: its blocking client has no proxy, redirect, or FTP support, so replacing curl would mean a shim with more friction.
-- **O3 Push and CI.** The executor may push verified commits to `origin main` and dispatch the native x86_64 and aarch64 qualification workflows. Release dispatch stays with the owner (see **Needs environment**).
+- **O3 Push and CI.** The executor may push verified commits to `origin main` and dispatch the native x86_64 and aarch64 qualification workflows. A prerelease dispatch is authorized by O8; stable release dispatch stays with the owner (see **Needs environment**).
 
 - **O4 Crypto provider.** Use Graviola through a small rustls-ffi provider patch (P5). This matches python-build and h12tiny.
 
@@ -51,6 +51,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **O6 OpenSSL identifiers.** The owner allows version-recognition text and `openssl-probe` identifiers that locate system certificates. The audit still rejects OpenSSL libraries, API symbols, and other OpenSSL text.
 
 - **O7 Package evidence.** The archive contains `artifact.json` with build metadata and hashes for the other packaged files. A separate results record binds the final archive hash, size, and qualification results to the exact archive bytes.
+
+- **O8 Prerelease.** The owner authorized a native CI prerelease workflow and its dispatch on 2026-11-10. Publish only after both native qualification jobs succeed at the exact commit.
 
 ### Prescribed
 

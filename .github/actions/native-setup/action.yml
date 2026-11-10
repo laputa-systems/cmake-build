@@ -1,0 +1,65 @@
+name: Prepare native build
+description: Restore verified inputs and qualification phases for a native target
+inputs:
+  target:
+    required: true
+    description: Native target triple
+  jaq:
+    required: true
+    description: Locked native jaq input name
+  kache:
+    required: true
+    description: Locked native kache input name
+runs:
+  using: composite
+  steps:
+    - name: Prepare workspace and cache key
+      id: fingerprint
+      shell: bash
+      run: |
+        set -euo pipefail
+        printf '%s\n' '.work/' >> .git/info/exclude
+        mkdir -p .work/tmp .work/tools
+        digest=$(git ls-files -z -- build.py buildsys docker patches tests sources.lock.json bootstrap.lock.json | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+        test "${#digest}" -eq 64
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: .work/cache
+        key: inputs-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
+    - uses: actions/cache@v4
+      with:
+        path: |
+          .work/build/${{ inputs.target }}/phases/prepare
+          .work/build/${{ inputs.target }}/phases/bootstrap
+          .work/build/${{ inputs.target }}/phases/configure
+          .work/build/${{ inputs.target }}/phases/cmake
+        key: qualification-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
+    - uses: actions/cache@v4
+      with:
+        path: .work/rust/${{ inputs.target }}/phases
+        key: rust-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
+    - name: Install pinned native tools
+      shell: bash
+      env:
+        JAQ_INPUT: ${{ inputs.jaq }}
+        KACHE_INPUT: ${{ inputs.kache }}
+      run: |
+        set -euo pipefail
+        export TMPDIR="$PWD/.work/tmp"
+        jaq_blob=$(python3 -c 'from pathlib import Path; from buildsys.inputs import Cache, load_sources; import sys; print(Cache(Path(".work/cache")).fetch(next(x for x in load_sources(Path("sources.lock.json")) if x.name == sys.argv[1])))' "$JAQ_INPUT")
+        install -m 0755 "$jaq_blob" .work/tools/jaq
+        kache_blob=$(python3 -c 'from pathlib import Path; from buildsys.inputs import Cache, load_sources; import sys; print(Cache(Path(".work/cache")).fetch(next(x for x in load_sources(Path("sources.lock.json")) if x.name == sys.argv[1])))' "$KACHE_INPUT")
+        python3 -c 'from pathlib import Path; from buildsys.inputs import safe_extract; import sys; safe_extract(Path(sys.argv[1]), Path(".work/tmp/kache"))' "$kache_blob"
+        install -m 0755 .work/tmp/kache/kache .work/tools/kache
+        .work/tools/jaq --version
+        .work/tools/kache --version
+        echo "$PWD/.work/tools" >> "$GITHUB_PATH"
+    - name: Fetch locked inputs
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: |
+        set -euo pipefail
+        export TMPDIR="$PWD/.work/tmp"
+        python3 build.py fetch --target "$TARGET"
