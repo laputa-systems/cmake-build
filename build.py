@@ -30,7 +30,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, patches, rust, sandbox, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, patches, qualify, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -184,9 +184,7 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 _NOT_IMPLEMENTED = {
-    "test": "C2 runs acceptance suites",
     "package": "D5 stages and publishes the archive",
-    "qualify": "D5 qualifies packaged bytes",
     "reproduce": "D5 reproduces two clean builds",
     "benchmark": "E1 measures against the Kitware reference",
 }
@@ -487,6 +485,43 @@ def _build_inside(description) -> int:
     return 0
 
 
+def test_command(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if args.suite != "basic":
+        _fail(f"unsupported test suite {args.suite!r}; available: basic")
+    if args.in_container:
+        if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+            _fail("test staging requires a sealed container with only loopback networking")
+        if _NATIVE != description:
+            _fail(f"{description.triple} does not match the running machine; no emulation is used")
+        _build_inside(description)
+        phases = PhaseCache(_target_root(description) / "phases")
+        cmake_phase = phases.directory("cmake")
+        record = json.loads((cmake_phase / "phase.json").read_text())
+        source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+        result = phases.run("stage", {"cmake": record["output_digest"], "controller": _controller_digest()},
+                            lambda directory: stage.stage(cmake_phase, directory, description.triple, source.version))
+        print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
+        return 0
+    build_command(argparse.Namespace(target=description.triple, in_container=False))
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
+    image = sandbox.image_tag(lock, description, DOCKERFILE)
+    result = sandbox.run_sealed(
+        image, ["python3", "build.py", "test", "--target", description.triple, "--suite", "basic", "--in-container"],
+        target=description, mounts=[(ROOT, "/src")],
+        env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"}, timeout=7200,
+    )
+    print(result.stdout, end="")
+    if result.returncode:
+        _fail(f"staging failed inside the sealed container ({result.returncode}):\n{result.stderr}")
+    qualify.basic(root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
+    return 0
+
+
+def qualify_command(args: argparse.Namespace) -> int:
+    return test_command(argparse.Namespace(target=args.target, suite="basic", in_container=False))
+
+
 def _not_implemented(args: argparse.Namespace) -> int:
     _fail(f"{args.command} is not implemented yet: {_NOT_IMPLEMENTED[args.command]}")
 
@@ -577,6 +612,12 @@ def _parser() -> argparse.ArgumentParser:
         elif command == "build":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=build_command)
+        elif command == "test":
+            child.add_argument("--suite", required=True)
+            child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
+            child.set_defaults(handler=test_command)
+        elif command == "qualify":
+            child.set_defaults(handler=qualify_command)
         else:
             child.set_defaults(handler=_not_implemented)
     controller = subparsers.add_parser("controller-test")
@@ -591,7 +632,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.handler(args)
     except (InputError, PhaseError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
-            patches.PatchError, rust.RustError) as error:
+            patches.PatchError, qualify.QualificationError, rust.RustError, sandbox.SandboxError, stage.StageError) as error:
         _fail(str(error))
 
 
