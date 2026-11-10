@@ -106,7 +106,7 @@ def render(records: list[dict], repetitions: int, metadata: dict) -> str:
     lines.extend(['', '## Measurements', '',
              'RSS is CMake\'s image high-water mark, read before exit; it excludes child processes.',
              'Configure timings include process-tracing overhead. Startup timings are untraced; their RSS',
-             'comes from a separate traced invocation.', '',
+             'comes from a separate traced invocation. CPU time includes waited child processes.', '',
              '| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Maximum RSS KiB |',
              '| --- | --- | --- | ---: | ---: | ---: | ---: |'])
     for (workload, scenario, variant), value in sorted(summary.items()):

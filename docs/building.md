@@ -46,7 +46,8 @@ the upstream suite. The command writes [performance results](performance.md)
 and compares size and CMake-image peak-memory measurements with
 `release-budgets.json`. RSS excludes compiler and other child processes. The
 configure runs use process tracing to read the image high-water mark at exit;
-startup timing uses an untraced invocation and measures RSS separately.
+startup timing uses an untraced invocation and measures RSS separately. CPU time
+includes waited child processes.
 The [ARM baseline report](performance-aarch64.md) records its native run.
 The [Rustls profile study](performance-rust-release.md) compares the smaller
 candidate with the previous x86-64 release.
