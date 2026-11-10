@@ -162,3 +162,21 @@ Executed 85 tests. 84 passed.
 The following failures also occurred in the unmodified static-PIE baseline:
 
 - `kwsys.testDynamicLoader`
+
+## Full upstream CTest: x86_64-unknown-linux-musl
+
+The full upstream suite ran in a copied build tree inside the network-isolated
+builder. It executed 674 tests: 667 passed and seven failed. All seven failures also
+occurred in the unmodified static-musl baseline under the same conditions:
+
+- `kwsys.testDynamicLoader`
+- `curl`
+- `BundleUtilities`
+- `CTestTestUpload`
+- `CTestTestFdSetSize`
+- `BootstrapTest`
+- `RunCMake.NinjaMultiConfigCustomCommands`
+
+The `curl` test requires access to `open.cdash.org`, which the sealed builder
+cannot reach. The `BootstrapTest` failure occurred when its default configuration required
+OpenSSL, which the builder does not provide.

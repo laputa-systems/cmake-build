@@ -5,10 +5,10 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `6c62b0b` for the license-bearing, reproducible x86_64 package; native ARM qualification passed at that revision.
+- **Last accepted revision:** `6c62b0b` for the license-bearing, reproducible x86_64 package; both native qualification jobs passed at that revision.
 - **Accepted:** G1, G2, G3, G4, C1, C2, D1, D2, D3, D4, D5. The x86_64 and aarch64 native qualification jobs passed at `66669c2`; those earlier archives did not include third-party notices and are not release candidates. The later license-bearing archive reproduced byte for byte on x86_64.
 - **Parked:** the fmt locale-specific assertions need locale data. The upstream subset has one failure shared with the unmodified static-musl baseline.
-- **In progress:** native qualification and clean reproducibility of the debug-stripped package at `58313ac`; full upstream CTest; performance measurements and closeout.
+- **In progress:** native qualification and clean reproducibility of the debug-stripped package at `58313ac`; performance measurements and closeout. Full upstream CTest ran 674 tests; all seven failures also occurred in the unmodified static-musl baseline.
 - **Next:** publish the authorized prerelease only after both native jobs succeed for its exact commit, and complete the remaining measurements and closeout checks.
 
 ## Charter
