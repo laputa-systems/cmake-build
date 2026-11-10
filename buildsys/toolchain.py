@@ -13,7 +13,7 @@ from .targets import Target
 CLANG_VERSION = "clang version 23.1.5"
 LLD_VERSION = "LLD 23.1.5"
 LLVM_RELEASE = "llvm-musl-23.1.5-dc0d9b9"
-LLVM_COMMIT = "dc0d9b96ab4c5ddb11e308303e0129a559f2235d"
+RELEASE_TARGET_COMMIT = "dc0d9b96ab4c5ddb11e308303e0129a559f2235d"
 TOOLS = (
     "clang",
     "clang++",
@@ -91,7 +91,7 @@ def verify(toolchain: Path, target: Target, *, environ: dict[str, str] | None = 
             f"clang version {clang_first[0] if clang_first else 'missing'!r} != {CLANG_VERSION!r}"
         )
     lld_first = _run([str(bin_directory / "ld.lld"), "--version"], env=environment).splitlines()
-    if not lld_first or not lld_first[0].startswith(LLD_VERSION):
+    if not lld_first or lld_first[0] != f"{LLD_VERSION} (compatible with GNU linkers)":
         raise ToolchainError(
             f"ld.lld version {lld_first[0] if lld_first else 'missing'!r} != {LLD_VERSION!r}"
         )
@@ -106,7 +106,7 @@ def verify(toolchain: Path, target: Target, *, environ: dict[str, str] | None = 
             )
     return {
         "release": LLVM_RELEASE,
-        "commit": LLVM_COMMIT,
+        "release_target_commit": RELEASE_TARGET_COMMIT,
         "clang": clang_first[0],
         "lld": lld_first[0],
         "target": target.triple,

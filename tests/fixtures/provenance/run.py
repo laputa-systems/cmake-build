@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from buildsys.sysroot import check_link_trace, check_machine, elf_machine, trace_paths
+from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine, trace_paths
 from buildsys.targets import target as describe_target
 
 DYNAMIC_C = """
@@ -276,6 +276,32 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
         raise ProvenanceError("ThinLTO binary has an unexpected dynamic closure")
     _check_comment(toolchain, lto)
     checks.append("ThinLTO compile, llvm-ar archive, link, run")
+
+    wrong_machine = work / "wrong-machine.o"
+    other_machine = "aarch64" if target.machine == "x86_64" else "x86_64"
+    _run([str(clang), f"--target={other_machine}-linux-musl", "-c", "one.c", "-o", str(wrong_machine)], work=work)
+    try:
+        check_machine(wrong_machine, target)
+    except SysrootError:
+        pass
+    else:
+        raise ProvenanceError("wrong-machine object passed the machine check")
+
+    contaminated_sysroot = work / "contaminated-sysroot"
+    contaminated_sysroot.mkdir(exist_ok=True)
+    crt = contaminated_sysroot / "crt1.o"
+    _run([str(clang), *flags, "-c", "one.c", "-o", str(crt)], work=work)
+    contaminated_trace = _run(
+        [str(toolchain / "bin/ld.lld"), "-r", "--trace", str(crt), "-o", str(work / "contaminated.o")],
+        work=work,
+    ).stdout
+    try:
+        check_link_trace(contaminated_trace, toolchain, contaminated_sysroot, work, target)
+    except SysrootError:
+        pass
+    else:
+        raise ProvenanceError("sysroot object passed the link provenance check")
+    checks.append("wrong-machine object and sysroot link input rejected")
 
     for binary in (hello, hello_static, tree_static, tree_dynamic, lto):
         _check_comment(toolchain, binary)

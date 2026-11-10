@@ -75,6 +75,12 @@ class ToolchainTests(unittest.TestCase):
             with self.assertRaisesRegex(ToolchainError, "!= 'clang version 23.1.5'"):
                 verify(toolchain, X86, environ={"PATH": str(directory / "empty")})
 
+    def test_lld_version_prefix_is_not_enough(self) -> None:
+        with workspace() as directory:
+            toolchain = fake_toolchain(directory / "tc", lld="LLD 23.1.50")
+            with self.assertRaisesRegex(ToolchainError, "ld.lld version"):
+                verify(toolchain, X86, environ={"PATH": str(directory / "empty")})
+
     def test_fake_clang_earlier_on_path_fails(self) -> None:
         with workspace() as directory:
             toolchain = fake_toolchain(directory / "tc")
@@ -141,6 +147,25 @@ class LinkTraceTests(unittest.TestCase):
 
 
 class OfflineTests(unittest.TestCase):
+    def test_fetch_attempt_during_prepare_fails(self) -> None:
+        with workspace() as directory:
+            caches = []
+
+            def cache_factory(path, *, offline=False):
+                cache = Cache(directory / "cache", offline=offline)
+                caches.append(cache)
+                return cache
+
+            item = Input(name="source", version="1", url="https://example.invalid/source", sha256="a" * 64, role="source", target=X86.triple, size=4)
+
+            def fetch_during_build(*args):
+                caches[0].fetch(item)
+
+            with patch.object(build, "BUILD_ROOT", directory / "build"), patch.object(build, "Cache", side_effect=cache_factory), patch.object(Cache, "require", return_value=directory / "input"), patch.object(build.toolchain, "install", return_value=directory / "tc"), patch.object(build.toolchain, "verify", return_value={}), patch.object(build.sysroot, "build", side_effect=fetch_during_build), contextlib.redirect_stderr(io.StringIO()) as error:
+                with self.assertRaises(SystemExit):
+                    build._prepare_inside(X86)
+            self.assertIn("offline phase cannot fetch", error.getvalue())
+
     def test_offline_cache_refuses_fetch(self) -> None:
         with workspace() as directory:
             item = Input(
