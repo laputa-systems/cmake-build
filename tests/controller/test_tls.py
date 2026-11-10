@@ -7,15 +7,23 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
+from buildsys import sandbox
 from buildsys.inputs import Cache, Input
 from buildsys.phases import PhaseCache
-from buildsys.rust import RustError, _phase_digest, vendor
+from buildsys.rust import RustError, _phase_digest, build_static, vendor
+from buildsys.targets import target
 from buildsys.tls import TlsError, check_tree
 from helpers import workspace
 
 
 class DependencyTests(unittest.TestCase):
+    def test_static_build_rejects_networked_container(self) -> None:
+        with workspace() as directory, patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]):
+            with self.assertRaisesRegex(RustError, "sealed container"):
+                build_static(directory, directory, target("x86_64-unknown-linux-musl"), directory, directory)
+
     def test_rejects_tampered_vendor_phase(self) -> None:
         with workspace() as directory:
             phase = PhaseCache(directory).run("vendor", {"source": "a" * 64}, lambda path: (path / "crate").write_bytes(b"verified"))

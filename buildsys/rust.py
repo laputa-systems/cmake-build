@@ -13,7 +13,7 @@ from pathlib import Path
 from .inputs import Cache, Input, digest_bytes, safe_extract, tree_digest
 from .phases import PhaseCache
 from .targets import Target
-from . import toolchain
+from . import sandbox, toolchain
 
 
 class RustError(Exception):
@@ -133,6 +133,8 @@ def _phase_digest(directory: Path) -> str:
 
 
 def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratch: Path) -> Path:
+    if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
+        raise RustError("Rustls build requires a sealed container with only loopback networking")
     tools = root / "phases/tools"
     vendored = root / "phases/vendor"
     tc = prepared / "toolchain"
