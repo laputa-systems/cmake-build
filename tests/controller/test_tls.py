@@ -76,7 +76,7 @@ class DependencyTests(unittest.TestCase):
             def run(command, *, cwd, env):
                 if Path(command[0]).name == "cargo":
                     cargo_runs.append(1)
-                    archive = Path(env["CARGO_TARGET_DIR"]) / description.triple / "debug/librustls_ffi.a"
+                    archive = Path(env["CARGO_TARGET_DIR"]) / description.triple / "release/librustls_ffi.a"
                     archive.parent.mkdir(parents=True)
                     archive.write_bytes(b"archive")
                 return ""
