@@ -12,6 +12,16 @@ the selected member as missing from inspection. The pinned `clang` can decode
 the bitcode to textual IR and expose its target triple and compiler identity,
 but the existing audit does not validate that representation.
 
+The pinned Clang can also emit fat LTO objects containing native ELF code and
+an embedded `.llvm.lto` bitcode section. Their ELF `.comment` lets the current
+archive audit accept the carrier, but that alone does not establish provenance
+for the bitcode. In a synthetic probe, replacing only the bitcode with a module
+whose producer string was changed to `GCC: forged bitcode producer` still
+passed the archive audit. Linking with LLD's `--fat-lto-objects` then used the
+altered bitcode, as verified by the linked program's return value. The marker
+was deliberately forged; this was not an actual GCC-produced object. The
+shipped build uses neither fat LTO objects nor `--fat-lto-objects`.
+
 This probe establishes an audit compatibility issue, not an expected speed or
 size result. Full CMake ThinLTO link time, peak memory, executable size, and
 runtime were not measured. Supporting the candidate would require a reviewed
