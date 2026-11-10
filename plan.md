@@ -6,8 +6,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `0bf3764`.
-- **Accepted:** G1, G2. **Red:** none. **Parked:** none.
-- **Next slice:** G3. Its timing measurements require a working `perf-gate-ready`; the host's BusyBox `ps` cannot supply the gate's process listing.
+- **Accepted:** G1, G2. **Red:** none. **Parked:** G3 on `park/G3`: a root-run diagnostic left scratch that the build user could not remove; that scratch is now removed. Retry after correcting the generated native toolchain file and verifying configure and reuse. Timing comparisons remain outstanding.
+- **Next slice:** G4. For measurements, `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
 
 ## Charter
 
