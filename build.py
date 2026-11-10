@@ -383,6 +383,7 @@ def configure(args: argparse.Namespace) -> int:
 def _configure_inside(description) -> int:
     _prepare_inside(description)
     sources = load_sources(SOURCES_LOCK)
+    lock = load_bootstrap(BOOTSTRAP_LOCK)
     selected = {item.name: item for item in sources if item.target in ("all", description.triple)}
     cache = Cache(CACHE, offline=True)
     cmake = selected["cmake-source"]
@@ -398,6 +399,7 @@ def _configure_inside(description) -> int:
         "cmake": cmake.sha256,
         "samurai": samurai.sha256,
         "ninja": ninja.sha256,
+        "image": sandbox.image_fingerprint(lock, description, DOCKERFILE),
         "controller": _controller_digest(),
     }
 
