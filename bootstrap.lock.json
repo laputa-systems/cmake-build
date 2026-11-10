@@ -125,7 +125,7 @@
           "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
           "sha256": "adfebfc0c4b80c293be8cc802a7fb73d7f5854f01b47ff1f40282d18f255b357",
           "size": 961408,
-          "url": "https://cdn.alpinelinux.org/edge/community/x86_64/libstdc++-15.2.0-r9.apk",
+          "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libstdc++-15.2.0-r9.apk",
           "role": "build-source",
           "target": "x86_64-unknown-linux-musl",
           "purpose": "builder image"
@@ -436,7 +436,7 @@
           "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
           "sha256": "36e8a2cee1ee14df5180c1f5737f0ffb59004ef92dd4f0bedff425968c4855ae",
           "size": 908720,
-          "url": "https://cdn.alpinelinux.org/edge/community/aarch64/libstdc++-15.2.0-r9.apk",
+          "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libstdc++-15.2.0-r9.apk",
           "role": "build-source",
           "target": "aarch64-unknown-linux-musl",
           "purpose": "builder image"
