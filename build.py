@@ -32,7 +32,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, elf, generations, package, patches, qualify, reference, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, elf, generations, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -188,7 +188,6 @@ def fetch(args: argparse.Namespace) -> int:
 
 
 _NOT_IMPLEMENTED = {
-    "reproduce": "D5 reproduces two clean builds",
     "benchmark": "E1 measures against the Kitware reference",
 }
 
@@ -707,6 +706,20 @@ def qualify_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def reproduce_command(args: argparse.Namespace) -> int:
+    description = _target(args.target)
+    if description != _NATIVE:
+        _fail(f"{description.triple} does not match the running machine; no emulation is used")
+    source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+    differences = reproduce.run(ROOT, description.triple, source.version, _source_commit())
+    if differences:
+        for difference in differences:
+            print(difference)
+        return 1
+    print("reproducibility: file trees and archive bytes are identical")
+    return 0
+
+
 def _not_implemented(args: argparse.Namespace) -> int:
     _fail(f"{args.command} is not implemented yet: {_NOT_IMPLEMENTED[args.command]}")
 
@@ -807,6 +820,8 @@ def _parser() -> argparse.ArgumentParser:
             child.set_defaults(handler=package_command)
         elif command == "qualify":
             child.set_defaults(handler=qualify_command)
+        elif command == "reproduce":
+            child.set_defaults(handler=reproduce_command)
         else:
             child.set_defaults(handler=_not_implemented)
     controller = subparsers.add_parser("controller-test")
