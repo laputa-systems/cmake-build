@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "alpine": {
     "release": "3.25.0_alpha20260805",
     "image": "alpine",
@@ -811,5 +811,6 @@
         ]
       }
     }
-  }
+  },
+  "reference_image": "debian@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
 }

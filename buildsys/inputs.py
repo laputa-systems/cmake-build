@@ -16,6 +16,7 @@ from pathlib import Path
 from .targets import TARGETS
 
 SCHEMA_VERSION = 1
+BOOTSTRAP_SCHEMA_VERSION = 2
 ROLES = ("source", "build-source", "reference", "test")
 ALL_TARGETS = "all"
 _CHUNK = 1 << 20
@@ -92,14 +93,14 @@ class Input:
         return identity(material.encode())
 
 
-def _read_json(path: Path) -> dict:
+def _read_json(path: Path, schema_version: int = SCHEMA_VERSION) -> dict:
     try:
         document = json.loads(Path(path).read_text())
     except (OSError, json.JSONDecodeError) as error:
         raise InputError(f"cannot read lock {path}: {error}") from error
     if not isinstance(document, dict):
         raise InputError(f"{path}: expected a JSON object")
-    if document.get("schema_version") != SCHEMA_VERSION:
+    if document.get("schema_version") != schema_version:
         raise InputError(f"{path}: unsupported schema_version {document.get('schema_version')!r}")
     return document
 
@@ -155,6 +156,7 @@ class BootstrapLock:
     alpine_release: str
     image_index_digest: str
     image_manifest_reference: str
+    reference_image: str
     repositories: dict[str, list[str]]
     targets: dict[str, dict]
     keys: list[Input]
@@ -162,7 +164,11 @@ class BootstrapLock:
 
 def load_bootstrap(path: Path) -> BootstrapLock:
     path = Path(path)
-    document = _read_json(path)
+    document = _read_json(path, BOOTSTRAP_SCHEMA_VERSION)
+    reference_image = document.get("reference_image")
+    prefix = "debian@sha256:"
+    if not isinstance(reference_image, str) or not reference_image.startswith(prefix) or not _valid_sha256(reference_image[len(prefix):]):
+        raise InputError(f"{path}: reference_image must pin a Debian image index by sha256")
     alpine = document.get("alpine")
     if not isinstance(alpine, dict):
         raise InputError(f"{path}: expected 'alpine' object")
@@ -213,6 +219,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
         alpine_release=alpine["release"],
         image_index_digest=alpine["image_index_digest"],
         image_manifest_reference=alpine["image_manifest_reference"],
+        reference_image=reference_image,
         repositories=repositories,
         targets=targets,
         keys=keys,

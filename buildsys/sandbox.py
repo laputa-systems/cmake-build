@@ -97,6 +97,10 @@ def pull_image(lock: BootstrapLock, platform: str) -> None:
     )
 
 
+def pull_reference(lock: BootstrapLock, platform: str) -> None:
+    _checked(_docker("pull", "--platform", platform, lock.reference_image), f"pull {lock.reference_image}")
+
+
 def run_fetch(image: str, target: Target, root: Path, requested: str) -> None:
     result = _docker(
         "run", "--rm", "--network", "bridge", "--platform", target.docker_platform,

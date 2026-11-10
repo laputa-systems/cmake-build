@@ -157,9 +157,11 @@ def fetch(args: argparse.Namespace) -> int:
     print(f"{len(selected)} inputs, {total} B, cache {CACHE}")
     try:
         sandbox.pull_image(bootstrap, description.docker_platform)
+        sandbox.pull_reference(bootstrap, description.docker_platform)
     except SandboxError as error:
         _fail(str(error))
     print(f"builder base {sandbox.image_reference(bootstrap)} for {description.docker_platform}")
+    print(f"reference base {bootstrap.reference_image} for {description.docker_platform}")
     if _NATIVE is None:
         _fail("Rust vendoring requires a supported native machine")
     rust_source = next((item for item in sources if item.name == "rustls-ffi-source"), None)

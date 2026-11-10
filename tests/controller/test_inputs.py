@@ -47,6 +47,24 @@ def source(sha: str = GOOD_SHA, size: int | None = 4, name: str = "source") -> I
 
 
 class LockTests(unittest.TestCase):
+    def test_bootstrap_requires_a_pinned_reference_image_index(self) -> None:
+        with workspace() as directory:
+            root = Path(__file__).resolve().parents[2]
+            lock = json.loads((root / "bootstrap.lock.json").read_text())
+            self.assertRegex(load_bootstrap(root / "bootstrap.lock.json").reference_image,
+                             r"^debian@sha256:[0-9a-f]{64}$")
+            path = directory / "bootstrap.json"
+            for value in (None, "debian:trixie-slim", "debian@sha256:invalid"):
+                with self.subTest(value=value):
+                    lock["reference_image"] = value
+                    path.write_text(json.dumps(lock))
+                    with self.assertRaisesRegex(InputError, "reference_image"):
+                        load_bootstrap(path)
+            lock["schema_version"] = 1
+            path.write_text(json.dumps(lock))
+            with self.assertRaisesRegex(InputError, "unsupported schema_version"):
+                load_bootstrap(path)
+
     def test_bootstrap_rust_component_requires_size(self) -> None:
         with workspace() as directory:
             root = Path(__file__).resolve().parents[2]

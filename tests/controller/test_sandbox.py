@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import build
-from buildsys.inputs import Cache, Input, InputError
+from buildsys.inputs import Cache, Input, InputError, load_bootstrap
 from buildsys import sandbox
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
 from buildsys.targets import target
@@ -26,6 +26,14 @@ from helpers import workspace
 
 X86 = target("x86_64-unknown-linux-musl")
 ARM = target("aarch64-unknown-linux-musl")
+
+
+class ReferenceImageTests(unittest.TestCase):
+    def test_fetch_uses_locked_reference_index(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        with patch.object(sandbox, "_docker", return_value=subprocess.CompletedProcess([], 0, "", "")) as docker:
+            sandbox.pull_reference(lock, X86.docker_platform)
+        docker.assert_called_once_with("pull", "--platform", X86.docker_platform, lock.reference_image)
 
 
 def fake_toolchain(directory: Path, *, clang_version: str = CLANG_VERSION, lld: str = LLD_VERSION) -> Path:
