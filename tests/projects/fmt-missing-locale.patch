@@ -8,12 +8,13 @@
  #include <cstring>
  
  const char* const file_content = "Don't panic!";
-@@ -27,6 +28,9 @@
+@@ -27,6 +28,10 @@
  }
  
  std::locale do_get_locale(const char* name) {
 +#if defined(__linux__) && !defined(__GLIBC__)
-+  if (!std::getenv("MUSL_LOCPATH")) return std::locale::classic();
++  auto locale_path = std::getenv("MUSL_LOCPATH");
++  if (!locale_path || !*locale_path) return std::locale::classic();
 +#endif
    try {
      return std::locale(name);

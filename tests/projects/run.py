@@ -47,7 +47,8 @@ def test_fmt() -> str:
     match = re.search(r'100% tests passed out of (\d+)', report)
     if not match or int(match.group(1)) == 0:
         raise RuntimeError(f'fmt ran no passing tests:\n{report}')
-    return f'fmt: built and passed {match.group(1)} tests'
+    locale = '' if env.get('MUSL_LOCPATH') else '; locale-specific assertions skipped without locale data'
+    return f'fmt: built and passed {match.group(1)} tests{locale}'
 
 
 def test_zstd() -> str:

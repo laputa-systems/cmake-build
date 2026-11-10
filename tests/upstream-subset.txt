@@ -1,0 +1,3 @@
+^kwsys\.
+^CMakeLib\.
+^RunCMake\.(CommandLine|CommandLineTar|File_Archive|file|file-DOWNLOAD|CMakePresets|FileAPI|GeneratorExpression|try_compile|try_run|find_package|install|export|Ninja|BuildDepends|ExternalProject|FetchContent)$

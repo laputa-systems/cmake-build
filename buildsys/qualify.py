@@ -5,15 +5,47 @@ from __future__ import annotations
 import shutil
 import tempfile
 import difflib
+import json
+import os
+import re
+import shlex
+import subprocess
 from pathlib import Path
 
-from . import sandbox
-from .inputs import Cache, load_bootstrap, load_sources, safe_extract
+from . import sandbox, toolchain
+from .inputs import Cache, digest_bytes, load_bootstrap, load_sources, safe_extract
+from .phases import PhaseCache
 from .targets import Target
 
 
 class QualificationError(Exception):
     pass
+
+
+def _write_section(root: Path, marker: str, content: str) -> None:
+    report = root / 'docs/qualification.md'
+    scratch = root / '.work/tmp'
+    original = report.read_text()
+    before, found, after = original.partition(marker)
+    if found:
+        _, separator, following = after.partition('\n## ')
+        suffix = f'\n## {following}' if separator else ''
+    else:
+        before = original
+        suffix = ''
+    updated = before.rstrip() + '\n\n' + marker + '\n\n' + content.rstrip() + '\n' + suffix
+    with tempfile.NamedTemporaryFile(mode='w', prefix='qualification-report-', dir=scratch, delete=False) as temporary_report:
+        temporary_path = Path(temporary_report.name)
+        try:
+            temporary_report.write(updated)
+            temporary_report.flush()
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
+    try:
+        temporary_path.replace(report)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def basic(*, root: Path, phase: Path, image: str, target: Target) -> None:
@@ -77,6 +109,125 @@ def network(*, root: Path, phase: Path, image: str, target: Target) -> None:
             raise QualificationError('internet network qualification produced no result')
 
 
+def projects(*, root: Path, phase: Path, image: str, target: Target) -> None:
+    scratch = root / '.work/tmp'
+    scratch.mkdir(parents=True, exist_ok=True)
+    phase_root = root / '.work/build' / target.triple / 'phases'
+    cache = Cache(root / '.work/cache', offline=True)
+    sources = {item.name: item for item in load_sources(root / 'sources.lock.json') if item.target in ('all', target.triple)}
+    names = ('fmt-source', 'zstd-source', 'libjpeg-turbo-source', 'llvm-project-source')
+    phases = PhaseCache(phase_root)
+    inputs = []
+    for name in names:
+        item = sources.get(name)
+        if item is None:
+            raise QualificationError(f'project source {name} is missing from the lock')
+        archive = cache.require(item)
+        result = phases.run(f'project-{name}', {'source': item.sha256, 'implementation': digest_bytes(Path(__file__))[0]},
+                            lambda directory, archive=archive: safe_extract(archive, directory / 'source'))
+        inputs.append((result.directory / 'source', f'/inputs/{name}'))
+    with tempfile.TemporaryDirectory(prefix='project-qualification-', dir=scratch) as temporary:
+        qualification = Path(temporary)
+        prefix = qualification / 'relocated cmake'
+        shutil.copytree(phase, prefix, symlinks=True, ignore=shutil.ignore_patterns('phase.json', 'state.json'))
+        shutil.copy2(phase_root / 'cmake/build/bin/ctest', prefix / 'bin/ctest')
+        result = sandbox.run_sealed(
+            image, ['python3', '/suite/run.py'], target=target,
+            mounts=[(qualification, '/qualification'), (root / 'tests/projects', '/suite'), *inputs,
+                    (phase_root / 'prepare', f'/src/.work/build/{target.triple}/phases/prepare'),
+                    (phase_root / 'bootstrap/toolchain.cmake', '/tools/toolchain.cmake'),
+                    (phase_root / 'bootstrap/ninja-build/ninja', '/tools/ninja')],
+            env={'TMPDIR': '/qualification'}, workdir='/qualification', timeout=7200,
+        )
+        print(result.stdout, end='')
+        if result.returncode:
+            raise QualificationError(f'real project qualification failed ({result.returncode}):\n{result.stderr}')
+        for marker in ('fmt: built and passed ', 'zstd: built and passed ',
+                       'libjpeg-turbo: built and passed ', 'LLVM with Clang: configured and generated'):
+            if marker not in result.stdout:
+                raise QualificationError(f'real project qualification missing result: {marker}')
+
+
+def _junit(report: Path) -> dict[str, str]:
+    expression = ('[.[] | select(type == "object" and .t == "testsuite") | .c[] | '
+                  'select(type == "object" and .t == "testcase") | {name: .a.name, status: .a.status}]')
+    try:
+        result = subprocess.run(['jaq', '--from', 'xml', '--slurp', expression, str(report)],
+                                text=True, capture_output=True, check=False, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise QualificationError(f'cannot run jaq for upstream report: {error}') from error
+    if result.returncode:
+        raise QualificationError(f'cannot parse upstream report: {result.stderr}')
+    try:
+        cases = json.loads(result.stdout)
+        names = {item['name']: item['status'] for item in cases}
+    except (ValueError, TypeError, KeyError) as error:
+        raise QualificationError('upstream report has invalid test cases') from error
+    if not names or len(names) != len(cases) or any(status not in ('run', 'fail') for status in names.values()):
+        raise QualificationError('upstream report is empty, duplicated, or contains skipped tests')
+    return names
+
+
+def _check_baseline_failures(failures: set[str], baseline: dict[str, str]) -> None:
+    baseline_failures = {name for name, status in baseline.items() if status == 'fail'}
+    if set(baseline) != failures or baseline_failures != failures:
+        raise QualificationError(f'candidate-only upstream failures: {sorted(failures - baseline_failures)}')
+
+
+def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
+    scratch = root / '.work/tmp'
+    scratch.mkdir(parents=True, exist_ok=True)
+    phases = root / '.work/build' / target.triple / 'phases'
+    with tempfile.TemporaryDirectory(prefix='upstream-qualification-', dir=scratch) as temporary:
+        directory = Path(temporary)
+        base = Path('/src/.work/build') / target.triple / 'phases/prepare'
+        env = {**toolchain.environment(base / 'toolchain', target),
+               'CFLAGS': shlex.join(toolchain.flags(target, base / 'sysroot')),
+               'CXXFLAGS': shlex.join(toolchain.cxx_flags(target, base / 'sysroot')),
+               'PATH': f'{base}/toolchain/bin:/src/.work/build/{target.triple}/phases/bootstrap/ninja-build:/usr/bin:/bin',
+               'CMAKE_BUILD_PARALLEL_LEVEL': '8', 'TMPDIR': '/qualification/tmp'}
+
+        def run_phase(name: str, selection: Path) -> dict[str, str]:
+            copied = directory / f'{name}-phase'
+            shutil.copytree(phases / name, copied, symlinks=True)
+            results = directory / f'{name}-results'
+            results.mkdir()
+            (results / 'tmp').mkdir()
+            mounts = [(results, '/qualification'), (copied, f'/src/.work/build/{target.triple}/phases/{name}'),
+                      (phases / 'prepare', f'/src/.work/build/{target.triple}/phases/prepare'),
+                      (phases / 'bootstrap', f'/src/.work/build/{target.triple}/phases/bootstrap'),
+                      (root / '.work/rust' / target.triple / 'phases/staticlib', f'/src/.work/rust/{target.triple}/phases/staticlib'),
+                      (root / 'tests/projects', '/suite'), (selection, '/selection/upstream-subset.txt')]
+            result = sandbox.run_sealed(image, ['python3', '/suite/upstream.py'], target=target, mounts=mounts,
+                                        env={**env, 'UPSTREAM_PHASE': name}, workdir='/qualification', timeout=1260)
+            print(result.stdout, end='')
+            report = results / 'upstream.xml'
+            if 'upstream subset:' not in result.stdout or not report.is_file():
+                raise QualificationError(f'{name} upstream subset produced no report:\n{result.stderr}')
+            cases = _junit(report)
+            failed = {case for case, status in cases.items() if status == 'fail'}
+            if result.returncode != (1 if failed else 0):
+                raise QualificationError(f'{name} upstream result disagrees with its report:\n{result.stderr}')
+            return cases
+
+        candidate = run_phase('cmake', root / 'tests/upstream-subset.txt')
+        failures = {name for name, status in candidate.items() if status == 'fail'}
+        if failures:
+            selection = directory / 'reference-selection.txt'
+            selection.write_text(''.join(f'^{re.escape(name)}$\n' for name in sorted(failures)))
+            baseline = run_phase('reference', selection)
+            _check_baseline_failures(failures, baseline)
+        marker = f'## Latest upstream subset: {target.triple}'
+        summary = [f'Executed {len(candidate)} tests. {len(candidate) - len(failures)} passed.']
+        if failures:
+            summary.append('The following failures also occurred in the unmodified static-PIE baseline:')
+            summary.extend(f'- `{name}`' for name in sorted(failures))
+        else:
+            summary.append('No failures were observed.')
+        _write_section(root, marker, '\n\n'.join(summary))
+        print(f'upstream: {len(candidate)} tests, {len(failures)} shared baseline failures\n')
+
+
 def parity(*, root: Path, phase: Path, image: str, target: Target) -> None:
     scratch = root / '.work/tmp'
     scratch.mkdir(parents=True, exist_ok=True)
@@ -136,33 +287,12 @@ def parity(*, root: Path, phase: Path, image: str, target: Target) -> None:
             diff = ''.join(difflib.unified_diff(before, after, fromfile=f'reference/{name}', tofile=f'candidate/{name}'))
             if diff:
                 differences.append((name, diff))
-        report = root / 'docs/qualification.md'
         marker = f'## Latest automated parity differences: {target.triple}'
-        original = report.read_text()
-        before, found, after = original.partition(marker)
-        if found:
-            _, separator, following = after.partition('\n## ')
-            suffix = f'\n## {following}' if separator else ''
-        else:
-            before = original
-            suffix = ''
-        sections = [before.rstrip(), '', marker, '']
+        sections = []
         for name, diff in differences:
             lines = [line if line != ' ' else '' for line in diff.rstrip().split('\n')]
             sections.extend([f'### {name}', '', '```diff', '\n'.join(lines), '```', ''])
         if not differences:
             sections.extend(['No differences were observed in the compared outputs.', ''])
-        content = '\n'.join(sections).rstrip() + '\n' + suffix
-        with tempfile.NamedTemporaryFile(mode='w', prefix='parity-report-', dir=scratch, delete=False) as temporary_report:
-            temporary_path = Path(temporary_report.name)
-            try:
-                temporary_report.write(content)
-                temporary_report.flush()
-            except BaseException:
-                temporary_path.unlink(missing_ok=True)
-                raise
-        try:
-            temporary_path.replace(report)
-        finally:
-            temporary_path.unlink(missing_ok=True)
-        print(f'parity: compared {len(files)} outputs; {len(differences)} differ and are recorded in {report}\n')
+        _write_section(root, marker, '\n'.join(sections))
+        print(f'parity: compared {len(files)} outputs; {len(differences)} differ and are recorded in {root / "docs/qualification.md"}\n')

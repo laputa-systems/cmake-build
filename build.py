@@ -30,7 +30,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, cmake, dependencies, elf, patches, qualify, rust, sandbox, stage, sysroot, tls, toolchain
+from buildsys import bootstrap, cmake, dependencies, elf, patches, qualify, reference, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -489,8 +489,10 @@ def _build_inside(description) -> int:
 
 def test_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
-    suites = {"basic": qualify.basic, "parity": qualify.parity, "network": qualify.network}
-    if args.suite not in suites:
+    suites = {"basic": qualify.basic, "parity": qualify.parity, "network": qualify.network,
+              "projects": qualify.projects, "upstream": qualify.upstream}
+    selected = args.suite.split(",")
+    if len(set(selected)) != len(selected) or any(name not in suites for name in selected):
         _fail(f"unsupported test suite {args.suite!r}; available: {', '.join(suites)}")
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
@@ -501,6 +503,19 @@ def test_command(args: argparse.Namespace) -> int:
         rust_phases = WORK / "rust" / description.triple / "phases"
         tls.check_vendored(rust_phases / "vendor", rust_phases / "tools/bin", description.triple, WORK / "tmp")
         phases = PhaseCache(_target_root(description) / "phases")
+        if "upstream" in selected:
+            prepared = phases.directory("prepare")
+            bootstrap_directory = phases.directory("bootstrap")
+            prepare_record = json.loads((prepared / "phase.json").read_text())
+            bootstrap_record = json.loads((bootstrap_directory / "phase.json").read_text())
+            source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+            inputs = {"prepare": prepare_record["output_digest"], "bootstrap": bootstrap_record["output_digest"],
+                      "image": sandbox.image_fingerprint(load_bootstrap(BOOTSTRAP_LOCK), description, DOCKERFILE),
+                      "controller": _controller_digest()}
+            result = phases.run("reference", inputs, lambda directory: reference.build(
+                bootstrap=bootstrap_directory, prepared=prepared, directory=directory,
+                target=description, version=source.version))
+            print(f"reference {'reused' if result.reused else 'built'} at {result.directory}")
         cmake_phase = phases.directory("cmake")
         record = json.loads((cmake_phase / "phase.json").read_text())
         source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
@@ -512,14 +527,15 @@ def test_command(args: argparse.Namespace) -> int:
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     image = sandbox.image_tag(lock, description, DOCKERFILE)
     result = sandbox.run_sealed(
-        image, ["python3", "build.py", "test", "--target", description.triple, "--suite", "basic", "--in-container"],
+        image, ["python3", "build.py", "test", "--target", description.triple, "--suite", args.suite, "--in-container"],
         target=description, mounts=[(ROOT, "/src")],
         env={"TMPDIR": "/src/.work/tmp", "PYTHONPATH": "/src"}, timeout=7200,
     )
     print(result.stdout, end="")
     if result.returncode:
         _fail(f"staging failed inside the sealed container ({result.returncode}):\n{result.stderr}")
-    suites[args.suite](root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
+    for name in selected:
+        suites[name](root=ROOT, phase=_target_root(description) / "phases/stage", image=image, target=description)
     return 0
 
 
@@ -637,8 +653,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.handler(args)
     except (InputError, PhaseError, bootstrap.BootstrapError, cmake.CMakeBuildError, dependencies.DependencyError,
-            elf.AuditError, patches.PatchError, qualify.QualificationError, rust.RustError, sandbox.SandboxError,
-            stage.StageError, tls.TlsError) as error:
+            elf.AuditError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
+            sandbox.SandboxError, stage.StageError, tls.TlsError) as error:
         _fail(str(error))
 
 
