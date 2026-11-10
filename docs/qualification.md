@@ -1,5 +1,21 @@
 # Qualification
 
+## Published native qualification
+
+The [native qualification run](https://github.com/laputa-systems/cmake-build/actions/runs/42900481859)
+qualified the exact archives at commit `5932be3` on x86-64 and ARM64 runners.
+Both passed the ELF audit, basic, network, parity, and real-project suites,
+as well as size and five-run memory gates. The upstream subset results are
+listed below.
+
+| Target | Archive bytes | Archive SHA-256 | Detached results |
+| --- | ---: | --- | --- |
+| x86-64 musl | 8,125,188 | `cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c` | [x86-64 results](https://github.com/laputa-systems/cmake-build/releases/download/cmake-4.4.5-5932be3ecbc4-run42907504620-1/results-x86_64-unknown-linux-musl.json) |
+| ARM64 musl | 7,571,476 | `66ec96c09705c67adfa83494bf512dc4b7eb5f6cb0f9d706d8499bb460a1c3a8` | [ARM64 results](https://github.com/laputa-systems/cmake-build/releases/download/cmake-4.4.5-5932be3ecbc4-run42907504620-1/results-aarch64-unknown-linux-musl.json) |
+
+The x86-64 archive matched two independent clean builds. ARM64 clean-build
+reproduction was not run.
+
 ## x86-64 ELF audit
 
 The production build is a static PIE with a non-executable stack, RELRO, and immediate binding. The audit checks the target machine, runtime dependencies, symbol versions, compiler markers, host paths, and OpenSSL library and API references. A probe link identifies archive members before the final link. The audit checks those members and rejects the final output if its selected members differ.
