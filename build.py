@@ -28,7 +28,7 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import bootstrap, sandbox, sysroot, toolchain
+from buildsys import bootstrap, rust, sandbox, sysroot, tls, toolchain
 from buildsys.targets import (
     TARGETS,
     UnsupportedTargetError,
@@ -117,6 +117,22 @@ def doctor(args: argparse.Namespace) -> int:
 
 def fetch(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if args.vendor_in_container:
+        if not sandbox.in_container() or _NATIVE is None:
+            _fail("Rust vendoring requires a native builder container")
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+        source = next((item for item in load_sources(SOURCES_LOCK) if item.name == "rustls-ffi-source"), None)
+        if source is None:
+            _fail("source lock lacks rustls-ffi-source")
+        rust_root = WORK / "rust" / _NATIVE.triple
+        try:
+            vendored = rust.vendor(Cache(CACHE, offline=True), bootstrap_inputs(lock, _NATIVE.triple), source,
+                                   ROOT / "patches/rustls-ffi/0001-graviola-provider.patch", rust_root, WORK / "tmp")
+            tls.check_vendored(vendored, rust_root / "phases/tools/bin", description.triple, WORK / "tmp")
+        except (rust.RustError, tls.TlsError, InputError, PhaseError) as error:
+            _fail(str(error))
+        print(f"TLS dependency gate passed for {description.triple}")
+        return 0
     try:
         sources = load_sources(SOURCES_LOCK)
         bootstrap = load_bootstrap(BOOTSTRAP_LOCK)
@@ -142,6 +158,26 @@ def fetch(args: argparse.Namespace) -> int:
     except SandboxError as error:
         _fail(str(error))
     print(f"builder base {sandbox.image_reference(bootstrap)} for {description.docker_platform}")
+    if _NATIVE is None:
+        _fail("Rust vendoring requires a supported native machine")
+    rust_source = next((item for item in sources if item.name == "rustls-ffi-source"), None)
+    if rust_source is None:
+        _fail("source lock lacks rustls-ffi-source")
+    try:
+        native_inputs = bootstrap_inputs(bootstrap, _NATIVE.triple)
+        for item in native_inputs:
+            try:
+                cache.require(item)
+            except InputError:
+                cache.fetch(item)
+        rust_root = WORK / "rust" / _NATIVE.triple
+        rust.install_tools(cache, native_inputs, rust_root, WORK / "tmp")
+        if _NATIVE != description:
+            sandbox.pull_image(bootstrap, _NATIVE.docker_platform)
+        tag = sandbox.build_image(bootstrap, _NATIVE, DOCKERFILE, cache, WORK / "tmp/image")
+        sandbox.run_fetch(tag, _NATIVE, ROOT, description.triple)
+    except (rust.RustError, sandbox.SandboxError, InputError, PhaseError) as error:
+        _fail(str(error))
     return 0
 
 
@@ -177,6 +213,7 @@ def _controller_digest() -> str:
         "buildsys": tree_digest(ROOT / "buildsys", exclude={"__pycache__"}),
         "dockerfile": digest_bytes(DOCKERFILE)[0],
         "provenance": tree_digest(PROVENANCE.parent, exclude={"__pycache__"}),
+        "native_fixture": tree_digest(ROOT / "tests/fixtures/native"),
     }
     from buildsys.inputs import canonical_json, identity
 
@@ -452,6 +489,7 @@ def _parser() -> argparse.ArgumentParser:
         if command == "doctor":
             child.set_defaults(handler=doctor)
         elif command == "fetch":
+            child.add_argument("--vendor-in-container", action="store_true", help=argparse.SUPPRESS)
             child.set_defaults(handler=fetch)
         elif command == "prepare":
             child.add_argument("--in-container", action="store_true", help=argparse.SUPPRESS)
@@ -472,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (InputError, PhaseError) as error:
+    except (InputError, PhaseError, bootstrap.BootstrapError, rust.RustError) as error:
         _fail(str(error))
 
 

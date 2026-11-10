@@ -186,7 +186,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     keys: list[Input] = []
     for index, raw in enumerate(alpine.get("keys", [])):
         entry = _entry(raw, f"{path}:alpine.keys", index)
-        keys.append(_input(entry, f"{path}:alpine.keys", index, require_size=False))
+        keys.append(_input(entry, f"{path}:alpine.keys", index, require_size=True))
     for triple, section in targets.items():
         if triple not in TARGETS:
             raise InputError(f"{path}: unknown target section {triple}")
@@ -197,7 +197,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             raise InputError(f"{path}: {triple}.packages must be a list")
         for index, raw in enumerate(packages):
             entry = _entry(raw, f"{path}:{triple}.packages", index)
-            item = _input(entry, f"{path}:{triple}.packages", index, require_size=False)
+            item = _input(entry, f"{path}:{triple}.packages", index, require_size=True)
             if item.target not in (triple, ALL_TARGETS):
                 raise InputError(f"{path}: {item.name} target {item.target} is not {triple}")
         rust = section.get("rust")
@@ -208,7 +208,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
                 entry = _entry(raw, f"{path}:{triple}.rust.components", index)
                 if "role" not in entry:
                     entry = {**entry, "role": "build-source", "target": ALL_TARGETS}
-                _input(entry, f"{path}:{triple}.rust.components", index, require_size=False)
+                _input(entry, f"{path}:{triple}.rust.components", index, require_size=True)
     return BootstrapLock(
         alpine_release=alpine["release"],
         image_index_digest=alpine["image_index_digest"],
@@ -225,7 +225,7 @@ def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
     if section is None:
         return inputs
     inputs.extend(
-        _input(entry, "bootstrap", index, require_size=False)
+        _input(entry, "bootstrap", index, require_size=True)
         for index, entry in enumerate(section.get("packages", []))
     )
     rust = section.get("rust")
@@ -237,7 +237,7 @@ def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
             if "version" not in entry:
                 entry["version"] = rust.get("channel", "unknown")
             inputs.append(
-                _input(entry, "bootstrap", index, require_size=False)
+                _input(entry, "bootstrap", index, require_size=True)
             )
     return inputs
 

@@ -1,0 +1,93 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 4f25e1b..0e6709f 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -242,6 +242,16 @@ version = "0.3.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+ 
++[[package]]
++name = "graviola"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a1a15622a211648cbf64f485e0369791466d133eb6578fd99e4a61230c88a6aa"
++dependencies = [
++ "cfg-if",
++ "getrandom 0.4.3",
++]
++
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -520,11 +530,22 @@ dependencies = [
+  "log",
+  "macro_rules_attribute",
+  "rustls",
++ "rustls-graviola",
+  "rustls-platform-verifier",
+  "rustls-webpki",
+  "toml",
+ ]
+ 
++[[package]]
++name = "rustls-graviola"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bf5d0a370be690f7f1aa4e1b912fde3f5f9a5c53285062fd2d6ac1a52ab3e883"
++dependencies = [
++ "graviola",
++ "rustls",
++]
++
+ [[package]]
+ name = "rustls-native-certs"
+ version = "0.8.5"
+diff --git a/Cargo.toml b/Cargo.toml
+index 1e554e7..00630f6 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -68,6 +68,7 @@ fips = [
+     "webpki/aws-lc-rs-fips",
+ ]
+ no_log_capture = []
++graviola = ["dep:rustls-graviola"]
+ prefer-post-quantum = [
+     "aws-lc-rs",
+     "rustls/prefer-post-quantum",
+@@ -118,6 +119,11 @@ default-features = false
+ [dependencies.rustls-platform-verifier]
+ version = "0.7"
+ 
++[dependencies.rustls-graviola]
++version = "0.4"
++default-features = false
++optional = true
++
+ [dependencies.webpki]
+ version = "0.103"
+ features = ["std"]
+diff --git a/src/crypto_provider.rs b/src/crypto_provider.rs
+index 03e7aa1..5a21aea 100644
+--- a/src/crypto_provider.rs
++++ b/src/crypto_provider.rs
+@@ -609,14 +609,18 @@ pub(crate) fn get_default_or_install_from_crate_features() -> Option<Arc<CryptoP
+ }
+ 
+ fn provider_from_crate_features() -> Option<CryptoProvider> {
++    #[cfg(all(feature = "graviola", not(feature = "ring"), not(feature = "aws-lc-rs")))]
++    {
++        return Some(rustls_graviola::default_provider());
++    }
+     // Provider default is unambiguously aws-lc-rs
+-    #[cfg(all(feature = "aws-lc-rs", not(feature = "ring")))]
++    #[cfg(all(feature = "aws-lc-rs", not(feature = "ring"), not(feature = "graviola")))]
+     {
+         return Some(aws_lc_rs::default_provider());
+     }
+ 
+     // Provider default is unambiguously ring
+-    #[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
++    #[cfg(all(feature = "ring", not(feature = "aws-lc-rs"), not(feature = "graviola")))]
+     {
+         return Some(ring::default_provider());
+     }

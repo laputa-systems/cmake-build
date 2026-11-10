@@ -15,6 +15,7 @@ class CliTests(unittest.TestCase):
     def test_controller_digest_ignores_python_bytecode(self) -> None:
         with workspace() as directory:
             (directory / "buildsys/__pycache__").mkdir(parents=True)
+            (directory / "tests/fixtures/native").mkdir(parents=True)
             provenance = directory / "provenance"
             (provenance / "__pycache__").mkdir(parents=True)
             (directory / "build.py").write_text("controller")
@@ -25,6 +26,10 @@ class CliTests(unittest.TestCase):
                 (directory / "buildsys/__pycache__/module.pyc").write_bytes(b"changed")
                 (provenance / "__pycache__/run.pyc").write_bytes(b"changed")
                 self.assertEqual(before, build._controller_digest())
+    def test_internal_vendoring_rejects_host_execution(self) -> None:
+        with patch.object(build.sandbox, "in_container", return_value=False), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                build.main(["fetch", "--target", "x86_64-unknown-linux-musl", "--vendor-in-container"])
 
     def test_every_command_is_registered(self) -> None:
         parser = build._parser()

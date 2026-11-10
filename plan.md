@@ -5,9 +5,9 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
-- **Last accepted revision:** `0bf3764`.
-- **Accepted:** G1, G2. **Red:** none. **Parked:** none.
-- **Next slice:** G3. Its timing measurements require a working `perf-gate-ready`; the host's BusyBox `ps` cannot supply the gate's process listing.
+- **Last accepted revision:** `58a0c6e`.
+- **Accepted:** G1, G2, G4. **Red:** none. **Parked:** G3 on `park/G3`: a root-run diagnostic left scratch that the build user could not remove; that scratch is now removed. Retry after correcting the generated native toolchain file and verifying configure and reuse. Timing comparisons remain outstanding.
+- **Next slice:** G3. For measurements, `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
 
 ## Charter
 
@@ -73,6 +73,7 @@ Each decision gives its reason and, where one exists, the condition that would r
   Use a CMake toolchain file generated per target under the build root. Before every phase, compiler identity is checked against the lock: the first lines of `clang --version` and `ld.lld --version` must equal `clang version 23.1.5` and `LLD 23.1.5 (compatible with GNU linkers)`, and every tool must resolve inside `<tc>`. The released Clang does not print a commit; the locked archive digest identifies the asset, whose GitHub release target is `dc0d9b96ab4c5ddb11e308303e0129a559f2235d`. Report that as the release target, not as a compiler-reported commit. A tool resolving outside `<tc>`, or a different version string, is a hard failure.
 - **P5 TLS.** Configure curl with `CMAKE_USE_OPENSSL=OFF`, `CURL_USE_RUSTLS=ON`, `CURL_CA_BUNDLE=none`, and `CURL_CA_PATH=none`, so no build-host path is baked in.
   - **Library.** rustls-ffi `v0.15.7`. curl 8.20 requires 0.15 or newer, checked at `Utilities/cmcurl/CMakeLists.txt:1158`. The crypto provider is **Graviola** (owner decision O4). Build it as a staticlib with `--no-default-features --features graviola`.
+  - **Source package.** Use the crates.io `rustls-ffi` 0.15.7 package, locked by the registry index checksum and the package size. Its VCS metadata names commit `8f0eadf96fa21ade96d867c7ea06f8f5fddda856`, matching the upstream tag. The package contains the `librustls` subtree at its root, so patch paths are relative to that root.
   - **Provider patch.** Upstream rustls-ffi offers only ring and aws-lc-rs, so `patches/rustls-ffi/0001-graviola-provider.patch` does three things:
     - adds a `graviola` feature to `librustls/Cargo.toml`, depending on `rustls-graviola` 0.4 (h12tiny's version; `default-features = false`);
     - adds a `#[cfg(all(feature = "graviola", not(feature = "ring"), not(feature = "aws-lc-rs")))]` branch returning `rustls_graviola::default_provider()` in `provider_from_crate_features` (`librustls/src/crypto_provider.rs:611`), and gates the matching ring/aws-lc-rs-only code the same way;

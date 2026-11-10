@@ -12,9 +12,10 @@ python3 build.py doctor --target x86_64-unknown-linux-musl
 python3 build.py fetch --target x86_64-unknown-linux-musl
 ```
 
-`prepare`, `configure`, `build`, `test`, `package`, `qualify`, `reproduce`, and
-`benchmark` are registered and fail with a clear message until their slices
-land.
+Run `fetch` for the native target before `controller-test`; the TLS dependency
+gate checks the locked, vendored Cargo graph offline without Docker.
+`prepare` is available. `configure`, `build`, `test`, `package`, `qualify`,
+`reproduce`, and `benchmark` fail until their slices land.
 
 ## Layout
 
