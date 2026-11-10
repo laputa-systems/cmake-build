@@ -6,10 +6,10 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `59e4b3b` (D2 and D3).
-- **Accepted:** G1, G2, G3, G4, C1, C2, D2, D3; M1 basic qualification passed. **Red:** D4 fmt locale tests.
-- **Parked:** D4 on `park/d4` at `1faee47`. Three attempts ran; fmt's three locale test failures also occur with Kitware CMake and the same LLVM/musl toolchain. Retry when the musl locale behavior or upstream tests are resolved.
-- **In progress:** D1 awaits the OpenSSL text interpretation.
-- **Next:** Return to D1 when its OpenSSL text contract is resolved.
+- **Accepted:** G1, G2, G3, G4, C1, C2, D2, D3; M1 basic qualification passed. **Red:** D4's last full run.
+- **Parked:** none. D4's retry condition changed: a targeted correction to fmt's missing-locale detection passed the three previously failing tests. Locale-specific assertions remain untested without locale data.
+- **In progress:** D1 awaits the OpenSSL text interpretation. D4 is retrying on `park/d4`.
+- **Next:** Complete the D4 retry, then return to D1 when its OpenSSL text contract is resolved.
 
 ## Charter
 
