@@ -41,19 +41,19 @@
       "memory_status": "measured",
       "metrics": {
         "executable_bytes": {
-          "value": 40748528,
+          "value": 29526136,
           "spread": 0,
-          "allowed_regression": 1222455.8399999999
+          "allowed_regression": 885784.08
         },
         "unpacked_bytes": {
-          "value": 53419267,
+          "value": 42196875,
           "spread": 0,
-          "allowed_regression": 1602578.01
+          "allowed_regression": 1265906.25
         },
         "archive_bytes": {
-          "value": 9377384,
+          "value": 8120432,
           "spread": 0,
-          "allowed_regression": 281321.52
+          "allowed_regression": 243612.96
         },
         "fmt_initial_rss_kib": {
           "allowed_regression": 452.52,

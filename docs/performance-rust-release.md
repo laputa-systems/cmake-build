@@ -97,3 +97,9 @@ repository root. The script is the one used for this run, with SHA-256
 Its runner is `tests/benchmark/run.py` with the variant list narrowed to the
 two product executables; the measured runner SHA-256 is
 `e3547ac9951e3fc339b03a3f1c7533ad502618cd10d427e3f8f6ce2afdcffb85`.
+
+The ARM64 release-profile candidate at commit `91983ee` passed native basic,
+network, parity, project, and upstream checks. Its executable measured
+29,526,136 bytes, its regular files totaled 42,196,875 bytes, and its archive
+measured 8,120,432 bytes. Its historical RSS results are invalid and did not
+establish the corrected memory gate.
