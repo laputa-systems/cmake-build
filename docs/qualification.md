@@ -27,4 +27,4 @@ A separate networked container used `FetchContent` to download the locked CMake 
 
 fmt 12.2.1 configured and built with the staged CMake and pinned LLVM/musl toolchain. Its test run passed 18 of 21 CTest cases. `chrono-test`, `unicode-test`, and `xchar-test` failed locale assertions. A separate build with the official CMake binary and the same toolchain reproduced all three failures. The failures remain reported by the project fixture.
 
-zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. The libjpeg-turbo and LLVM runs are still in progress.
+zstd 1.5.7 configured and built, and its command-line program passed a compression and decompression round trip. libjpeg-turbo 3.2.1 built with SIMD disabled, and `tjunittest-static` exited successfully after exercising its checks. LLVM 23.1.5 configured with Clang enabled. The complete project suite remains red because of the fmt failures.
