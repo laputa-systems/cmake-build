@@ -55,8 +55,33 @@
     },
     "aarch64-unknown-linux-musl": {
       "archive_sha256": "61f116c8638f56e2ec7173137ba33dac16dc43bacf54f58c496649761bbfe343",
-      "memory_status": "unmeasured",
+      "repetitions": 5,
+      "memory_status": "measured",
       "metrics": {
+        "fmt_initial_rss_kib": {
+          "value": 77016,
+          "spread": 448,
+          "central_spread": 356.0,
+          "allowed_regression": 2310.48
+        },
+        "zstd_initial_rss_kib": {
+          "value": 79052,
+          "spread": 648,
+          "central_spread": 512.0,
+          "allowed_regression": 2371.56
+        },
+        "libjpeg-turbo_initial_rss_kib": {
+          "value": 78084,
+          "spread": 576,
+          "central_spread": 144.0,
+          "allowed_regression": 2342.52
+        },
+        "llvm-clang_initial_rss_kib": {
+          "value": 489864,
+          "spread": 180,
+          "central_spread": 116.0,
+          "allowed_regression": 14695.92
+        },
         "executable_bytes": {
           "value": 40748528,
           "spread": 0,
