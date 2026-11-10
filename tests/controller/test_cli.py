@@ -5,9 +5,10 @@ import io
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 import build
-from helpers import ROOT
+from helpers import ROOT, workspace
 
 
 class CliTests(unittest.TestCase):
@@ -39,7 +40,7 @@ class CliTests(unittest.TestCase):
             self.assertIn(command, output)
 
     def test_doctor_reads_real_locks(self) -> None:
-        with contextlib.redirect_stdout(io.StringIO()) as output:
+        with workspace() as directory, patch.object(build, "BUILD_ROOT", directory), contextlib.redirect_stdout(io.StringIO()) as output:
             status = build.main(["doctor", "--target", "x86_64-unknown-linux-musl"])
         self.assertEqual(status, 0)
         self.assertIn('"sources"', output.getvalue())
