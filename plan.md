@@ -6,8 +6,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 - **Goal:** both targets ship `cmake-4.4.5-<triple>.tar.xz` that pass **Acceptance**. aarch64 is qualified on a native GitHub ARM64 runner.
 - **Last accepted revision:** `58a0c6e`.
-- **Accepted:** G1, G2, G4. **Red:** none. **Parked:** G3 on `park/G3` at `cf7e76f`: native configure and its unchanged repeat pass, including a native `try_run` check and phase reuse. The required full-build timing comparisons remain outstanding; the host readiness gate reports busy.
-- **Next slice:** G3. Run the remaining P6 comparisons when the host is ready. The branch records five interleaved no-op samples per executor and their limits. Alpine CMake, upstream bootstrap, and both executors built CMake 4.4.5 in sealed containers, but their full-build timings failed the post-run gate. The gate includes the measured build's own load: during the upstream run, one Docker sample showed the build using 6.47 cores on an eight-core host, above the gate's 5.6-core threshold. The post-run load was 11.14, which also includes other host activity. Use separate build trees for the executor comparison: Ninja rejects Samurai's build log. `perf-gate-ready` can run in the existing Debian image with the host PID namespace and host `/proc`, since the host's BusyBox `ps` cannot supply its process listing.
+- **Accepted:** G1, G2, G4. **Red:** none. **In progress:** G3 on `park/G3` at `cf7e76f`: native configure and its unchanged repeat pass, including a native `try_run` check and phase reuse. The required full-build timing comparisons remain outstanding.
+- **Next slice:** G3. Run the remaining P6 comparisons with the owner's performance gate waiver. Record host load and variation. The branch records five interleaved no-op samples per executor and their limits. Alpine CMake, upstream bootstrap, and both executors built CMake 4.4.5 in sealed containers. Use separate build trees for the executor comparison: Ninja rejects Samurai's build log.
 
 ## Charter
 
@@ -31,7 +31,7 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **One writer by default.** Parallel lanes are allowed only for the pairs named in **Sequence**. Each lane works in a worktree at `.work/wt/<lane>`, following `orchestrate`'s worktree lifecycle. Subagents launch only through `pi-subagent-bridge`.
 - **Paths.** Put scratch, caches, downloads, and worktrees under `.work/` (ignored via `.git/info/exclude`). Never use `/tmp` or `$TMPDIR`. Export `TMPDIR=$PWD/.work/tmp` for builds.
 - **Commits.** Each commit is a Conventional Commit with the workstream as its scope (`controller`, `toolchain`, `cmake`, `tls`, `audit`, `package`, `qualify`, `bench`, `ci`, `docs`). Put the item ID in the body, and end the body with the session's attribution lines. Code comments never cite this doc. No formatters.
-- **Verification.** Run the slice's acceptance command and the narrowest affected suite on the integrated tree. Run the full local suite (`python3 build.py qualify --target x86_64-unknown-linux-musl`) only at milestones M1–M3 and at close. Run time-based perf measurements only when `perf-gate-ready` exits 0, and again with `-1` afterwards. Discard any run that overlapped load. Never claim a check passed unless it ran and passed. Anything not executed is reported as not executed.
+- **Verification.** Run the slice's acceptance command and the narrowest affected suite on the integrated tree. Run the full local suite (`python3 build.py qualify --target x86_64-unknown-linux-musl`) only at milestones M1–M3 and at close. The owner waived the performance gate; record host load and measurement variation. Never claim a check passed unless it ran and passed. Anything not executed is reported as not executed.
 - **Steering.** After each accepted slice, on resume, and after any second failure of a slice, run `orchestrate`'s parent steering checkpoint (`~/.claude/skills/orchestrate/references/campaigns.md#parent-steering-checkpoint`). Then rewrite **Status** in place. Never append logs.
 
 ## Decisions
@@ -43,6 +43,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **O3 Push and CI.** The executor may push verified commits to `origin main` and dispatch the native x86_64 and aarch64 qualification workflows. Release dispatch stays with the owner (see **Needs environment**).
 
 - **O4 Crypto provider.** Use Graviola through a small rustls-ffi provider patch (P5). This matches python-build and h12tiny.
+
+- **O5 Performance gate.** The owner waived the performance gate on 2026-11-10. Measurements remain required and report observed load and variation.
 
 ### Prescribed
 
