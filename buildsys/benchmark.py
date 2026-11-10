@@ -267,6 +267,8 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
             raise BenchmarkError('benchmark implementation changed during measurement')
         if digest_bytes(budget_path)[0] != budget_digest:
             raise BenchmarkError('release budgets changed during measurement')
+        if package.digest(archive) != archive_sha256:
+            raise BenchmarkError('qualified archive changed during measurement')
         data = json.loads((workspace / 'results.json').read_text())
         cpu_info = Path('/proc/cpuinfo').read_text().splitlines()
         cpu_model = next((line.partition(':')[2].strip() for line in cpu_info
@@ -293,4 +295,9 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
             _write_atomic(budget_path, json.dumps(budget_document, indent=2, sort_keys=True) + '\n', scratch)
             print(f'memory baseline established for {target.triple}; review and commit the budget')
         else:
+            evidence = budgets.release_evidence(budget_document, target.triple, archive_sha256, archive.stat().st_size,
+                                                budget_digest, repetitions, data['records'])
+            results = root / '.work/benchmark-results'
+            results.mkdir(parents=True, exist_ok=True)
+            _write_atomic(results / f'{target.triple}.json', json.dumps(evidence, indent=2, sort_keys=True) + '\n', scratch)
             print(f'size and memory budgets passed for {target.triple}; existing baseline retained')

@@ -114,3 +114,12 @@ def apply_memory(document: dict, target: str, archive_sha256: str, records: list
     entry['metrics'].update(memory_baseline(records))
     entry['memory_status'] = 'measured'
     return True
+
+
+def release_evidence(document: dict, target: str, archive_sha256: str, archive_size: int,
+                     budget_sha256: str, repetitions: int, records: list[dict]) -> dict:
+    if repetitions < 5 or validate_memory_source(document, target, archive_sha256) != 'measured':
+        raise BudgetError('release memory acceptance requires a measured baseline and five repetitions')
+    return {'target': target, 'archive_sha256': archive_sha256, 'archive_size': archive_size,
+            'budget_sha256': budget_sha256, 'repetitions': repetitions,
+            'measurements': check_memory(document, target, records), 'result': 'passed'}
