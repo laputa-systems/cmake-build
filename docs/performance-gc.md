@@ -14,7 +14,9 @@ tools. The baseline executable SHA-256 is
 `63f316b7e2a1371c918237ced5788dd4487823b71be98896d1b572a1fdac1887`.
 The candidate SHA-256 is
 `f53bd11fb5beb68320766184ef5705986bd9ad89ee5f5177b5cfa6042160d7fa`.
-Their sizes are 30,452,896 and 27,627,504 bytes. ELF `.text` decreased from
+Their sizes are 30,452,896 and 27,627,504 bytes. A package from commit
+`4edc1c4` measured 8,125,168 compressed bytes and 40,298,196 regular-file
+bytes. The previous candidate archive measured 8,724,488 bytes. ELF `.text` decreased from
 16,263,760 to 14,868,702 bytes, and `.eh_frame` decreased from 1,843,876 to
 1,590,024 bytes. The linker discarded unreachable sections; no CPU-specific
 flags or reduced security settings were used.

@@ -8,9 +8,9 @@
       "memory_status": "unmeasured",
       "metrics": {
         "archive_bytes": {
-          "allowed_regression": 261734.64,
+          "allowed_regression": 243755.04,
           "spread": 0,
-          "value": 8724488
+          "value": 8125168
         },
         "executable_bytes": {
           "allowed_regression": 828825.12,
@@ -23,9 +23,9 @@
           "value": 0.44189624150749296
         },
         "unpacked_bytes": {
-          "allowed_regression": 1293707.64,
+          "allowed_regression": 1208945.88,
           "spread": 0,
-          "value": 43123588
+          "value": 40298196
         },
         "version_seconds": {
           "allowed_regression": 0.008492710185237229,
