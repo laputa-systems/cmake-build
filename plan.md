@@ -8,8 +8,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **Last accepted revision:** `59e4b3b` (D2 and D3).
 - **Accepted:** G1, G2, G3, G4, C1, C2, D2, D3; M1 basic qualification passed. **Red:** D4's last full run.
 - **Parked:** none. D4's retry condition changed: a targeted correction to fmt's missing-locale detection passed the three previously failing tests. Locale-specific assertions remain untested without locale data.
-- **In progress:** D1 awaits the OpenSSL text interpretation. D4 is retrying on `park/d4`.
-- **Next:** Complete the D4 retry, then return to D1 when its OpenSSL text contract is resolved.
+- **In progress:** D1 is validating the approved OpenSSL identifier rule. D4 is retrying on `park/d4`.
+- **Next:** Complete the unmodified upstream baseline and the D1 audit.
 
 ## Charter
 
@@ -47,6 +47,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **O4 Crypto provider.** Use Graviola through a small rustls-ffi provider patch (P5). This matches python-build and h12tiny.
 
 - **O5 Performance gate.** The owner waived the performance gate on 2026-11-10. Measurements remain required and report observed load and variation.
+
+- **O6 OpenSSL identifiers.** The owner allows version-recognition text and `openssl-probe` identifiers that locate system certificates. The audit still rejects OpenSSL libraries, API symbols, and other OpenSSL text.
 
 ### Prescribed
 
