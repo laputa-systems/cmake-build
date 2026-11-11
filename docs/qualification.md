@@ -17,7 +17,7 @@ The x86-64 archive matched two independent clean builds. The full x86-64
 upstream suite ran with all three extracted executables: 667 of 674 tests
 passed. The seven failures match those listed for the earlier baseline below.
 The [ARM64 reproduction run](https://github.com/laputa-systems/cmake-build/actions/runs/42938846057)
-is in progress.
+matched two clean builds to the published archive bytes.
 
 ## Earlier CMake-only native qualification
 

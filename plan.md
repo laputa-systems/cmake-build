@@ -5,12 +5,12 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 ## Status
 
 - **Goal:** ship qualified CMake 4.4.5 archives with `cmake`, `ctest`, and `cpack` for x86-64 and ARM64 musl.
-- **Prerelease:** complete tools at commit `40f84ae`, qualified on both native architectures in run `42930810892` and published in run `42938731214`. The x86-64 archive matched two clean builds; ARM reproduction is running in `42938846057`. GitHub does not mark the prerelease immutable; pin its digest.
+- **Prerelease:** complete tools at commit `40f84ae`, qualified on both native architectures in run `42930810892` and published in run `42938731214`. Each archive matched two clean builds on its native architecture; ARM reproduction ran in `42938846057`. GitHub does not mark the prerelease immutable; pin its digest.
 - **Accepted:** the controller suite, ELF and TLS audits, relocation, real projects, upstream subset, native memory and size gates, and exact-archive qualification. Each final native upstream subset ran 85 tests, with one failure shared by the unmodified baseline. The full upstream run on the released x86-64 executable executed 674 tests; its seven failures had also occurred in the unmodified baseline.
 - **Measured:** five-run native reports compare the released executables with the pinned Kitware binary and unmodified static-musl baseline. The x86-64 section-garbage-collection study reduced executable size without a demonstrated runtime change. `-Oz` was rejected after a measured LLVM reconfiguration regression; the current provenance audit rejects ThinLTO bitcode members. Historical `wait4` RSS values are invalid and are labeled accordingly.
-- **In progress:** complete ARM reproduction and hand off the `cmake`, `ctest`, and `cpack` package contract to Laputa.
+- **Handoff:** the qualified complete-tools archive provides Laputa's `cmake`, `ctest`, and `cpack` package contract and unversioned resource path. The Laputa repository remains unchanged.
 - **Parked:** locale-specific fmt assertions need locale data. CPU call-stack sampling needs a suitable profiling tool. ThinLTO link time and memory remain unmeasured until bitcode provenance can be audited. The independent section-collection review returned no conclusion, and the full `ultrareview` was not run. The Laputa consumer proof has not been run.
-- **Next:** finish ARM reproduction and validate selected consumers in a separately authorized Laputa integration.
+- **Next:** validate selected consumers in a separately authorized Laputa integration.
 
 ## Charter
 

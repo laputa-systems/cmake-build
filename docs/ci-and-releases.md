@@ -27,7 +27,7 @@ passed on both native architectures at `40f84ae`. Its
 [prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-40f84aef2341-run42938731214-1)
 contains those archives and their detached evidence. The x86-64 archive matched
 two clean builds. The [ARM64 reproduction](https://github.com/laputa-systems/cmake-build/actions/runs/42938846057)
-is in progress.
+also matched two clean builds to the published archive.
 
 The [qualification run for `5932be3`](https://github.com/laputa-systems/cmake-build/actions/runs/42900481859)
 passed both native jobs and their corrected memory gates. The
