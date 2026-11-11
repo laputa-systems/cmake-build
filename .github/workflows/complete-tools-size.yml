@@ -1,0 +1,53 @@
+name: Complete tools size baseline
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            jaq: jaq-x86_64
+            kache: kache-x86_64-unknown-linux-musl
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+            jaq: jaq-aarch64
+            kache: kache-aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/native-setup
+        with:
+          target: ${{ matrix.target }}
+          jaq: ${{ matrix.jaq }}
+          kache: ${{ matrix.kache }}
+      - name: Build and measure the complete-tools candidate
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          python3 build.py package --target "$TARGET"
+          archive=".work/artifacts/$TARGET/cmake-4.4.5-$TARGET.tar.xz"
+          python3 -c 'from buildsys.package import inspect; from pathlib import Path; import sys; inspect(Path(sys.argv[1]))' "$archive"
+          unpacked=$(python3 -c 'import sys,tarfile; a=tarfile.open(sys.argv[1]); print(sum(m.size for m in a if m.isfile()))' "$archive")
+          cmake=$(tar -xOf "$archive" usr/bin/cmake | wc -c)
+          ctest=$(tar -xOf "$archive" usr/bin/ctest | wc -c)
+          cpack=$(tar -xOf "$archive" usr/bin/cpack | wc -c)
+          bytes=$(stat -c '%s' "$archive")
+          sha=$(sha256sum "$archive" | cut -d' ' -f1)
+          jaq -n --arg target "$TARGET" --arg sha "$sha" --arg commit "$GITHUB_SHA" --argjson cmake "$cmake" --argjson ctest "$ctest" --argjson cpack "$cpack" --argjson unpacked "$unpacked" --argjson bytes "$bytes" '{target:$target,commit:$commit,archive_sha256:$sha,cmake_bytes:$cmake,ctest_bytes:$ctest,cpack_bytes:$cpack,unpacked_bytes:$unpacked,archive_bytes:$bytes}' > ".work/artifacts/$TARGET/size-baseline.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: complete-tools-size-${{ matrix.target }}
+          path: |
+            .work/artifacts/${{ matrix.target }}/cmake-4.4.5-${{ matrix.target }}.tar.xz
+            .work/artifacts/${{ matrix.target }}/size-baseline.json
+          if-no-files-found: error
