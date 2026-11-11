@@ -8,9 +8,9 @@
       "memory_status": "measured",
       "metrics": {
         "archive_bytes": {
-          "allowed_regression": 243755.04,
+          "value": 20740892,
           "spread": 0,
-          "value": 8125168
+          "allowed_regression": 622226.76
         },
         "executable_bytes": {
           "allowed_regression": 828825.12,
@@ -23,9 +23,9 @@
           "value": 0.44189624150749296
         },
         "unpacked_bytes": {
-          "allowed_regression": 1208945.88,
+          "value": 97780152,
           "spread": 0,
-          "value": 40298196
+          "allowed_regression": 2933404.56
         },
         "version_seconds": {
           "allowed_regression": 0.008492710185237229,
@@ -67,19 +67,19 @@
       "memory_status": "measured",
       "metrics": {
         "executable_bytes": {
-          "value": 29526136,
+          "value": 26534112,
           "spread": 0,
-          "allowed_regression": 885784.08
+          "allowed_regression": 796023.36
         },
         "unpacked_bytes": {
-          "value": 42196875,
+          "value": 94355337,
           "spread": 0,
-          "allowed_regression": 1265906.25
+          "allowed_regression": 2830660.11
         },
         "archive_bytes": {
-          "value": 8120432,
+          "value": 19012816,
           "spread": 0,
-          "allowed_regression": 243612.96
+          "allowed_regression": 570384.48
         },
         "fmt_initial_rss_kib": {
           "allowed_regression": 452.52,

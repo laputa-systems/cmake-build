@@ -1,5 +1,21 @@
 # Build system measurements
 
+## Complete-tools archive size
+
+The [native size baseline](https://github.com/laputa-systems/cmake-build/actions/runs/42929132999)
+built the three-tool candidate at commit `03d474e`. Its archives passed their
+basic relocation checks. They have not yet completed full release qualification.
+The previous prerelease included only `cmake`.
+
+| Target | cmake bytes | ctest bytes | cpack bytes | Unpacked bytes | Archive bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| x86-64 | 27,627,504 | 29,657,496 | 27,823,808 | 97,780,152 | 20,740,892 |
+| ARM64 | 26,534,112 | 28,467,776 | 26,682,056 | 94,355,337 | 19,012,816 |
+
+The size budgets use these measured archive and unpacked sizes with a 3%
+allowance. CMake's memory baselines remain unchanged. The x86-64 `cmake`
+executable is byte-identical to the previous prerelease executable.
+
 ## Bootstrap and executor
 
 On 2026-11-10, five interleaved x86_64 runs compared upstream CMake 4.4.5
