@@ -27,6 +27,10 @@ def contains(text: str, expected: str) -> None:
 
 
 contains(run('--version').stdout, 'cmake version 4.4.5')
+for name in ('ctest', 'cpack'):
+    version = subprocess.run([str(prefix / 'bin' / name), '--version'], cwd=work, env=env,
+                             text=True, capture_output=True, timeout=30, check=True)
+    contains(version.stdout, f'{name} version 4.4.5')
 contains(run('--help').stdout, 'Usage')
 contains(run('-E', 'echo', 'qualified').stdout, 'qualified')
 script = work / 'root.cmake'
