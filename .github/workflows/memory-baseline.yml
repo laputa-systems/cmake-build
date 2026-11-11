@@ -21,7 +21,7 @@ jobs:
             jaq: jaq-aarch64
             kache: kache-aarch64-unknown-linux-musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -68,7 +68,7 @@ jobs:
           python3 build.py benchmark --target "$TARGET"
           scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
           jaq -e --arg target "$TARGET" --arg scope "$scope" '.targets[$target].memory_status == "measured" and .targets[$target].rss_scope == $scope and .targets[$target].memory_repetitions == 5' release-budgets.json > /dev/null
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: memory-baseline-${{ matrix.target }}
           path: |

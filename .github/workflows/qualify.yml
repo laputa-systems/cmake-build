@@ -21,7 +21,7 @@ jobs:
             jaq: jaq-aarch64
             kache: kache-aarch64-unknown-linux-musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/native-setup
@@ -75,13 +75,13 @@ jobs:
           cp docs/performance.md "$destination/performance-$TARGET.md"
           cp docs/qualification.md "$destination/qualification-$TARGET.md"
           (cd "$destination" && LC_ALL=C sha256sum -- * > "SHA256SUMS-$TARGET.txt")
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cmake-prerelease-${{ matrix.target }}
           path: .work/release/${{ matrix.target }}/*
           if-no-files-found: error
           retention-days: 30
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: rejected-benchmark-${{ matrix.target }}
