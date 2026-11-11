@@ -22,6 +22,13 @@ the artifacts and archive-bound memory evidence again and creates a new
 prerelease tag and release with combined SHA-256 sums. It never rebuilds an
 artifact or updates an existing release.
 
+The [complete-tools qualification](https://github.com/laputa-systems/cmake-build/actions/runs/42930810892)
+passed on both native architectures at `40f84ae`. Its
+[prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-40f84aef2341-run42938731214-1)
+contains those archives and their detached evidence. The x86-64 archive matched
+two clean builds. The [ARM64 reproduction](https://github.com/laputa-systems/cmake-build/actions/runs/42938846057)
+is in progress.
+
 The [qualification run for `5932be3`](https://github.com/laputa-systems/cmake-build/actions/runs/42900481859)
 passed both native jobs and their corrected memory gates. The
 [prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-5932be3ecbc4-run42907504620-1)

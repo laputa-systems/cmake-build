@@ -1,6 +1,25 @@
 # Qualification
 
-## Published native qualification
+## Complete-tools prerelease
+
+The [native qualification run](https://github.com/laputa-systems/cmake-build/actions/runs/42930810892)
+qualified the exact archives at commit `40f84ae` on both native architectures.
+Both passed the ELF, basic, network, parity, project, size, and five-run memory
+checks. Each upstream subset ran 85 tests with one failure shared by the
+unmodified baseline.
+
+| Target | Archive bytes | Archive SHA-256 |
+| --- | ---: | --- |
+| x86-64 musl | 20,740,888 | `fc6ed71475af45e4db67895addffaffd291588d12c49190d734dcafa2b73d73b` |
+| ARM64 musl | 19,012,816 | `d05210064fb9a5a6bde7c663a4e9c1336bd9d53f6e3bc1b1d0b9fd14437b1057` |
+
+The x86-64 archive matched two independent clean builds. The full x86-64
+upstream suite ran with all three extracted executables: 667 of 674 tests
+passed. The seven failures match those listed for the earlier baseline below.
+The [ARM64 reproduction run](https://github.com/laputa-systems/cmake-build/actions/runs/42938846057)
+is in progress.
+
+## Earlier CMake-only native qualification
 
 The [native qualification run](https://github.com/laputa-systems/cmake-build/actions/runs/42900481859)
 qualified the exact archives at commit `5932be3` on x86-64 and ARM64 runners.

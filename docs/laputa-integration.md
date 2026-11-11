@@ -1,10 +1,9 @@
 # Laputa integration
 
 Laputa's existing `cmake` package requires `cmake`, `ctest`, `cpack`, and the
-unversioned module-tree path `usr/share/cmake/`. The next distribution is being
-prepared to provide all three tools and that resource path. Keep the existing
-package until the complete-tools archive is qualified and downstream consumers
-have been checked. The published prerelease below contains only `cmake`.
+unversioned module-tree path `usr/share/cmake/`. The complete-tools prerelease
+provides all three tools and that resource path. Keep the existing package
+until downstream consumers have been checked in Laputa's package environment.
 
 At Laputa commit `c1b407ad272f8ea64542d5e6475f4b45da8299a7`, package recipes
 for zlib, expat, freetype, harfbuzz, libevent, libpng, utf8proc, Vulkan
@@ -19,13 +18,13 @@ the source-built recipe for rollback until downstream compatibility is proven.
 
 ## Consuming a qualified archive
 
-The [qualified prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-5932be3ecbc4-run42907504620-1)
+The [qualified complete-tools prerelease](https://github.com/laputa-systems/cmake-build/releases/tag/cmake-4.4.5-40f84aef2341-run42938731214-1)
 contains these archives:
 
 | Target | Archive SHA-256 |
 | --- | --- |
-| `x86_64-unknown-linux-musl` | `cbab9ea823b0e1b609b7b3b273e6a9a8c89d3bfdb7aa382d380f880bf7f78e7c` |
-| `aarch64-unknown-linux-musl` | `66ec96c09705c67adfa83494bf512dc4b7eb5f6cb0f9d706d8499bb460a1c3a8` |
+| `x86_64-unknown-linux-musl` | `fc6ed71475af45e4db67895addffaffd291588d12c49190d734dcafa2b73d73b` |
+| `aarch64-unknown-linux-musl` | `d05210064fb9a5a6bde7c663a4e9c1336bd9d53f6e3bc1b1d0b9fd14437b1057` |
 
 Select the `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` archive
 for the package target. Pin its SHA-256 per architecture in the recipe's
@@ -35,15 +34,21 @@ updating the pin. Pin the release URL and the independently recorded digest.
 GitHub does not currently mark the prerelease immutable, so verify the pinned
 digest even when the release includes its own checksum file.
 
-The published CMake-only archive extracts to a relocatable `usr/` prefix with `usr/bin/cmake`,
-`usr/share/cmake-4.4/`, and `usr/share/doc/cmake-build/`. The executable finds
-its resources relative to its location. Laputa's current package proof instead
-requires `usr/share/cmake/Modules/CMake.cmake`; a separate package needs its own
-proof for the versioned resource path. Preserve the resource tree when staging.
-The complete-tools candidate adds a relative `usr/share/cmake` symlink to
-`cmake-4.4` for the existing proof. Its native qualification is pending.
+For the Laputa recipe, set the package version to `4.4.5` and select the
+archive matching the target architecture. Install its `usr/` tree into the
+package destination without rebuilding it. Retain the declared executables and
+run the existing package proof. Keep compiler and executor dependencies needed
+by downstream builds. The archive itself has no dynamic runtime dependency;
+HTTPS needs a system certificate store.
 
-The x86-64 product is static PIE and requires no runtime loader. The native
+The archive extracts to a relocatable `usr/` prefix with `usr/bin/cmake`,
+`usr/bin/ctest`, `usr/bin/cpack`, `usr/share/cmake-4.4/`, and
+`usr/share/doc/cmake-build/`. The executables find their resources relative to
+their location. The relative `usr/share/cmake` symlink points to `cmake-4.4`,
+so Laputa's existing module-tree proof can find `Modules/CMake.cmake`.
+Preserve the resource tree and symlink when staging the package.
+
+Both products are static PIE and require no runtime loader. The native
 ELF audit checks the target and runtime closure for each architecture. Curl
 uses Rustls and system certificate trust. HTTPS consumers need a system trust
 store; compiler and executor dependencies remain those of the downstream
@@ -55,13 +60,17 @@ The compiler archive digest remains the toolchain identity. This agreement
 is not proof that every Laputa consumer's compiler, sysroot, or ABI is
 compatible: run the consumer with its actual package environment.
 
-Keep the current recipe and its checksums available for rollback. Do not claim
-that the published CMake-only prerelease provides `ctest` or `cpack`. For each
+Keep the current recipe and its checksums available for rollback. For each
 selected consumer, compare provisioning cost and normal development work with
 the current package, then verify configure, graph generation, compilation,
 incremental rebuild, installation, exported metadata, and the consumer's own
 tests in an isolated environment. Check for host CMake and unapproved runtime
 libraries. This downstream proof has not yet run.
+
+An x86-64 check against the extracted archive exercised the version, module
+path, and a fresh configure modeled on the existing package proof. It used a
+shell stand-in for Laputa's `xsh` Ninja probe. The actual Laputa proof has not
+run.
 
 ## Proposed downstream proof
 
