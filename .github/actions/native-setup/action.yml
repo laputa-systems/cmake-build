@@ -41,11 +41,11 @@ runs:
         print(result.hexdigest())')
         test "${#digest}" -eq 64
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
-    - uses: actions/cache@v4
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .work/cache
         key: inputs-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
-    - uses: actions/cache@v4
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           .work/build/${{ inputs.target }}/phases/prepare
@@ -53,7 +53,7 @@ runs:
           .work/build/${{ inputs.target }}/phases/configure
           .work/build/${{ inputs.target }}/phases/cmake
         key: qualification-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
-    - uses: actions/cache@v4
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .work/rust/${{ inputs.target }}/phases
         key: rust-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}

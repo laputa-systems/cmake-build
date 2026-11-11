@@ -17,12 +17,20 @@ on:
 permissions:
   actions: read
   contents: read
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
 jobs:
   reproduce:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           persist-credentials: false
@@ -71,7 +79,7 @@ jobs:
           export TMPDIR="$PWD/.work/tmp"
           python3 build.py reproduce --target aarch64-unknown-linux-musl | tee .work/tmp/reproduce.log
           python3 -c 'from pathlib import Path; import re; log=Path(".work/tmp/reproduce.log").read_text(); expected=Path(".work/tmp/qualified-sha256").read_text().strip(); found=re.findall(r"^package: .* \(([0-9a-f]{64})\)$", log, re.MULTILINE); (found == [expected, expected] and "reproducibility: file trees and archive bytes are identical" in log) or (_ for _ in ()).throw(SystemExit("clean builds did not reproduce the qualified archive"))'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: arm-reproduction-evidence
           path: |
