@@ -4,12 +4,13 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 
 ## Status
 
-- **Goal:** ship the qualified CMake 4.4.5 archives for x86-64 and ARM64 musl.
+- **Goal:** ship qualified CMake 4.4.5 archives with `cmake`, `ctest`, and `cpack` for x86-64 and ARM64 musl.
 - **Prerelease:** commit `5932be3`, qualified on both native architectures in run `42900481859` and published in run `42907504620`. Each archive matched two clean builds on its native architecture. GitHub does not mark the prerelease immutable; pin its digest.
 - **Accepted:** the controller suite, ELF and TLS audits, relocation, real projects, upstream subset, native memory and size gates, and exact-archive qualification. Each final native upstream subset ran 85 tests, with one failure shared by the unmodified baseline. The full upstream run on the released x86-64 executable executed 674 tests; its seven failures had also occurred in the unmodified baseline.
 - **Measured:** five-run native reports compare the released executables with the pinned Kitware binary and unmodified static-musl baseline. The x86-64 section-garbage-collection study reduced executable size without a demonstrated runtime change. `-Oz` was rejected after a measured LLVM reconfiguration regression; the current provenance audit rejects ThinLTO bitcode members. Historical `wait4` RSS values are invalid and are labeled accordingly.
-- **Parked:** locale-specific fmt assertions need locale data. CPU call-stack sampling needs a suitable profiling tool. ThinLTO link time and memory remain unmeasured until bitcode provenance can be audited. The independent section-collection review returned no conclusion, and the full `ultrareview` was not run. The specified Laputa consumer proof has not been run, and the CMake-only distribution does not replace Laputa's complete `cmake`, `ctest`, and `cpack` package.
-- **Next:** use the integration handoff for a separately authorized Laputa consumer proof. Keep the existing full-tools package where its outputs are required.
+- **In progress:** add and qualify `ctest` and `cpack` with `cmake` and provide Laputa's unversioned resource path. The published prerelease remains CMake-only.
+- **Parked:** locale-specific fmt assertions need locale data. CPU call-stack sampling needs a suitable profiling tool. ThinLTO link time and memory remain unmeasured until bitcode provenance can be audited. The independent section-collection review returned no conclusion, and the full `ultrareview` was not run. The Laputa consumer proof has not been run.
+- **Next:** qualify and reproduce the complete-tools archive on both native architectures, then prepare a Laputa integration handoff.
 
 ## Charter
 
@@ -53,6 +54,8 @@ Build a small, fast, secure, relocatable distribution of real upstream CMake 4.4
 - **O7 Package evidence.** The archive contains `artifact.json` with build metadata and hashes for the other packaged files. A separate results record binds the final archive hash, size, and qualification results to the exact archive bytes.
 
 - **O8 Prerelease.** The owner authorized a native CI prerelease workflow and its dispatch on 2026-11-10. Publish only after both native qualification jobs succeed at the exact commit.
+
+- **O9 Laputa tools.** The owner requested the tools necessary for Laputa. Include `ctest` and `cpack` alongside `cmake`, with the same provenance, ELF, relocation, and native qualification guarantees. The previously published CMake-only prerelease does not satisfy this contract.
 
 ### Prescribed
 
@@ -106,7 +109,7 @@ Each decision gives its reason and, where one exists, the condition that would r
 - **P7 Configuration and targets.**
   - Settings: `CMAKE_BUILD_TYPE=Release`, `BUILD_CursesDialog=OFF`, `BUILD_QtDialog=OFF`, `SPHINX_*=OFF`, `CMAKE_USE_SYSTEM_LIBRARIES=OFF` (every bundled library is compiled by P4), `CMake_ENABLE_DEBUGGER=ON`.
   - The debugger stays because `cmake --debugger` is a `cmake` feature.
-  - Upstream tests need `ctest`. The default upstream build also builds `cpack`. Both are excluded at staging, not by patch.
+  - Upstream tests need `ctest`. The default upstream build also builds `cpack`. Stage and qualify both tools alongside `cmake`.
   - Remove targets only through upstream options. Patch only where upstream has no option, and give each patch an inventory entry.
   - Laputa's three musl patches (`laputa/packages/cmake/patches/`) are candidates, not defaults. Apply one only after the unpatched build fails on our P3 sysroot with the error it fixes, and record that error. The 2026-11-10 Baseline build needed none of them, and the `linux/fs.h` failure they work around came from a sysroot missing Linux headers.
 - **P8 Hardening and linkage.** The baseline, before phase E, is:
@@ -304,7 +307,7 @@ Each deliverable is met only when its command passes on the integrated `main`.
   - the release dispatch or creating tags;
   - changes to other repositories, including the Laputa recipe pins;
   - QEMU or binfmt emulation;
-  - shipping `ccmake`, `cmake-gui`, `cpack`, `ctest`, docs generators, tests, debug info, or caches;
+  - shipping `ccmake`, `cmake-gui`, docs generators, tests, debug info, or caches;
   - shipping a frozen Mozilla root store;
   - importing Alpine shared libraries into the product;
   - disabling TLS verification by default;
@@ -318,7 +321,7 @@ Each deliverable is met only when its command passes on the integrated `main`.
   - Laputa repository edits: handoff only.
 - **Contract changes for the owner:**
   - `cmCurl.cxx` trust selection now uses the system platform verifier when no CA file is found. Upstream instead silently ran with whatever curl's build-time default was, and with Rustls that fails closed (P5).
-  - The product omits `ctest`/`cpack` even though their modules ship.
+  - The product includes `ctest` and `cpack` to satisfy Laputa's package contract.
   - HTTPS requires Graviola's CPU floor (P5). Below it, `file(DOWNLOAD)` and other HTTPS operations fail with a TLS error, while the rest of `cmake` works.
   - rustls-ffi carries a local provider patch.
   - Any patch added under P7.

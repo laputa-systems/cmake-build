@@ -35,8 +35,7 @@ trees and archive bytes.
 
 Qualification checks executable, unpacked, and archive sizes against the
 target's committed budget before activation. It runs the project suite against
-the extracted archive, with `ctest` supplied separately from the build tree as
-a test helper. The upstream subset uses the extracted executable in an isolated
+the extracted archive, including its packaged `ctest`. The upstream subset uses the extracted executable in an isolated
 copy of the build tree, with the upstream test resources.
 
 `python3 build.py benchmark --target x86_64-unknown-linux-musl` runs five

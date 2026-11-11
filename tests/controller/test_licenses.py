@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from buildsys import licenses, stage
 from helpers import workspace
@@ -34,7 +35,8 @@ class LicenseStagingTests(unittest.TestCase):
         with workspace() as root:
             phase = root / 'phase'
             (phase / 'build/bin').mkdir(parents=True)
-            (phase / 'build/bin/cmake').write_bytes(b'cmake')
+            for name in ('cmake', 'ctest', 'cpack'):
+                (phase / 'build/bin' / name).write_bytes(name.encode())
             source = phase / 'source'
             for name in ('Help', 'Modules', 'Templates'):
                 (source / name).mkdir(parents=True)
@@ -48,6 +50,9 @@ class LicenseStagingTests(unittest.TestCase):
             output = root / 'output'
             output.mkdir()
             stage.stage(phase, output, 'target', '4.4.5', licenses, notice)
+            for name in ('cmake', 'ctest', 'cpack'):
+                self.assertEqual((output / 'bin' / name).read_bytes(), name.encode())
+            self.assertEqual((output / 'share/cmake').readlink(), Path('cmake-4.4'))
             docs = output / 'share/doc/cmake-build'
             self.assertEqual((docs / 'NOTICE').read_text(), 'third-party notice')
             self.assertEqual((docs / 'licenses/library/LICENSE').read_text(), 'license terms')

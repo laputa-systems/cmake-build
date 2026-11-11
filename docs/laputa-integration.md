@@ -1,10 +1,10 @@
 # Laputa integration
 
-Laputa's existing `cmake` package is the safe default when complete CMake tools
-are required. The qualified archive is suitable for a separate CMake-only
-build tool after consumer-specific validation. Do not replace the existing
-package wholesale: its declared payload and proof require `cmake`, `ctest`,
-and `cpack`, but this distribution contains only `cmake`.
+Laputa's existing `cmake` package requires `cmake`, `ctest`, `cpack`, and the
+unversioned module-tree path `usr/share/cmake/`. The next distribution is being
+prepared to provide all three tools and that resource path. Keep the existing
+package until the complete-tools archive is qualified and downstream consumers
+have been checked. The published prerelease below contains only `cmake`.
 
 At Laputa commit `c1b407ad272f8ea64542d5e6475f4b45da8299a7`, package recipes
 for zlib, expat, freetype, harfbuzz, libevent, libpng, utf8proc, Vulkan
@@ -14,15 +14,8 @@ package's payload and proof declarations. That search cannot establish what
 interactive users or commands launched by upstream build scripts require.
 `build-essential-native` also depends on the full `cmake` package.
 
-Three integration choices remain:
-
-- Use the CMake-only archive for a separate build-tool package or isolated
-  consumer workflow. Keep the existing package for complete tooling.
-- Produce separately qualified `ctest` and `cpack` packages from the same
-  toolchain if consumers need them and their ownership and upgrades are defined.
-- Keep Laputa's existing source-built package unchanged where the complete
-  contract is needed. This is the current recommendation until downstream
-  compatibility is proven.
+The intended integration consumes a qualified complete-tools archive. Preserve
+the source-built recipe for rollback until downstream compatibility is proven.
 
 ## Consuming a qualified archive
 
@@ -42,11 +35,13 @@ updating the pin. Pin the release URL and the independently recorded digest.
 GitHub does not currently mark the prerelease immutable, so verify the pinned
 digest even when the release includes its own checksum file.
 
-The archive extracts to a relocatable `usr/` prefix with `usr/bin/cmake`,
+The published CMake-only archive extracts to a relocatable `usr/` prefix with `usr/bin/cmake`,
 `usr/share/cmake-4.4/`, and `usr/share/doc/cmake-build/`. The executable finds
 its resources relative to its location. Laputa's current package proof instead
 requires `usr/share/cmake/Modules/CMake.cmake`; a separate package needs its own
 proof for the versioned resource path. Preserve the resource tree when staging.
+The complete-tools candidate adds a relative `usr/share/cmake` symlink to
+`cmake-4.4` for the existing proof. Its native qualification is pending.
 
 The x86-64 product is static PIE and requires no runtime loader. The native
 ELF audit checks the target and runtime closure for each architecture. Curl
@@ -60,8 +55,8 @@ The compiler archive digest remains the toolchain identity. This agreement
 is not proof that every Laputa consumer's compiler, sysroot, or ABI is
 compatible: run the consumer with its actual package environment.
 
-Keep the current recipe and its checksums available for rollback. A proposed
-CMake-only package must not claim to provide `ctest` or `cpack`. For each
+Keep the current recipe and its checksums available for rollback. Do not claim
+that the published CMake-only prerelease provides `ctest` or `cpack`. For each
 selected consumer, compare provisioning cost and normal development work with
 the current package, then verify configure, graph generation, compilation,
 incremental rebuild, installation, exported metadata, and the consumer's own
@@ -79,7 +74,7 @@ so the package proof does not replace a separate upstream test run.
 On each native architecture, prepare two isolated Laputa build environments
 with identical pinned sources, toolchains, executor settings, and resource
 limits. Keep the existing 4.4.4 recipe in one. In the other, use a separately
-approved CMake-only package based on the qualified 4.4.5 archive. Confirm that
+approved complete-tools package based on the newly qualified 4.4.5 archive. Confirm that
 neither environment finds a host CMake. This comparison includes a CMake version
 change and cannot by itself attribute a difference to build flags.
 

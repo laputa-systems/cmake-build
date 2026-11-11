@@ -137,7 +137,6 @@ def projects(*, root: Path, phase: Path, image: str, target: Target) -> None:
         qualification = Path(temporary)
         prefix = qualification / 'relocated cmake'
         shutil.copytree(phase, prefix, symlinks=True, ignore=shutil.ignore_patterns('phase.json', 'state.json'))
-        shutil.copy2(phase_root / 'cmake/build/bin/ctest', prefix / 'bin/ctest')
         result = sandbox.run_sealed(
             image, ['python3', '/suite/run.py'], target=target,
             mounts=[(qualification, '/qualification'), (prefix, '/qualification/relocated cmake'),

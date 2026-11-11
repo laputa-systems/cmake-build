@@ -1,4 +1,4 @@
-"""Stage the CMake executable and its relocatable resources."""
+"""Stage CMake tools and their relocatable resources."""
 
 from __future__ import annotations
 
@@ -12,15 +12,17 @@ class StageError(Exception):
 
 
 def stage(cmake_phase: Path, directory: Path, target: str, version: str, licenses: Path, notice: Path) -> None:
-    executable = cmake_phase / 'build/bin/cmake'
     source = cmake_phase / 'source'
-    if not executable.is_file():
-        raise StageError('built CMake executable is missing')
     binary = directory / 'bin'
     binary.mkdir()
-    shutil.copy2(executable, binary / 'cmake')
+    for name in ('cmake', 'ctest', 'cpack'):
+        executable = cmake_phase / 'build/bin' / name
+        if not executable.is_file():
+            raise StageError(f'built {name} executable is missing')
+        shutil.copy2(executable, binary / name)
     resources = directory / 'share' / f'cmake-{version.rsplit(".", 1)[0]}'
     resources.mkdir(parents=True)
+    (resources.parent / 'cmake').symlink_to(resources.name, target_is_directory=True)
     for name in ('Help', 'Modules', 'Templates'):
         shutil.copytree(source / name, resources / name, symlinks=True)
     notices = directory / 'share/doc/cmake-build'

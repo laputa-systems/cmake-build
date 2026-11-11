@@ -58,11 +58,13 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
     evidence = directory / "link-evidence.cmake"
     evidence.write_text(
         "function(cmake_build_link_evidence)\n"
-        "  if(NOT TARGET cmake)\n"
-        '    message(FATAL_ERROR "cmake target is missing")\n'
-        "  endif()\n"
-        '  target_link_options(cmake PRIVATE "LINKER:--gc-sections" "LINKER:-Map,${CMAKE_BINARY_DIR}/cmake.map" "LINKER:--why-extract=${CMAKE_BINARY_DIR}/cmake.extract")\n'
-        f'  set_property(TARGET cmake PROPERTY RULE_LAUNCH_LINK "python3 -m buildsys.elf {shlex.quote(str(tc / "bin"))}")\n'
+        "  foreach(tool cmake ctest cpack)\n"
+        "    if(NOT TARGET ${tool})\n"
+        '      message(FATAL_ERROR "${tool} target is missing")\n'
+        "    endif()\n"
+        '    target_link_options(${tool} PRIVATE "LINKER:--gc-sections" "LINKER:-Map,${CMAKE_BINARY_DIR}/${tool}.map" "LINKER:--why-extract=${CMAKE_BINARY_DIR}/${tool}.extract")\n'
+        f'    set_property(TARGET ${{tool}} PROPERTY RULE_LAUNCH_LINK "python3 -m buildsys.elf {shlex.quote(str(tc / "bin"))}")\n'
+        "  endforeach()\n"
         "endfunction()\n"
         "if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)\n"
         "  cmake_language(DEFER CALL cmake_build_link_evidence)\n"
@@ -76,6 +78,8 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
         "/usr/bin/cmake", f"--graphviz={graph}", "-S", str(source), "-B", str(build_tree),
         "-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}", f"-DCMAKE_TOOLCHAIN_FILE={bootstrap / 'toolchain.cmake'}",
         f"-DCMAKE_PROJECT_INCLUDE={evidence}", "-DCMAKE_BUILD_TYPE=Release",
+        f"-DCMAKE_C_FLAGS_RELEASE={shlex.join(['-O3', '-DNDEBUG', f'-ffile-prefix-map={source}=/usr/src/cmake'])}",
+        f"-DCMAKE_CXX_FLAGS_RELEASE={shlex.join(['-O3', '-DNDEBUG', f'-ffile-prefix-map={source}=/usr/src/cmake'])}",
         "-DBUILD_CursesDialog=OFF", "-DBUILD_QtDialog=OFF", "-DCMAKE_USE_SYSTEM_LIBRARIES=OFF",
         "-DCMake_ENABLE_DEBUGGER=ON", "-DCMAKE_USE_OPENSSL=OFF", "-DCURL_USE_RUSTLS=ON", "-DCURL_USE_LIBPSL=OFF",
         "-DCURL_CA_BUNDLE=none", "-DCURL_CA_PATH=none", f"-DRUSTLS_VERSION={rustls_version}",
@@ -111,11 +115,12 @@ def build(*, bootstrap: Path, prepared: Path, archive: Path, inventory: tuple[pa
     if not version_output.splitlines() or version_output.splitlines()[0] != f"cmake version {cmake_version}":
         raise CMakeBuildError(f"built CMake does not report version {cmake_version}")
     check_capabilities(_run([str(executable), "-E", "capabilities"], cwd=directory, env=env), cmake_version)
-    elf.audit(executable, target, tc / "bin")
+    for name in ("cmake", "ctest", "cpack"):
+        elf.audit(build_tree / "bin" / name, target, tc / "bin")
+        extract = build_tree / f"{name}.extract"
+        if not extract.is_file() or not extract.read_text().startswith("reference\textracted\tsymbol\n"):
+            raise CMakeBuildError(f"linker did not produce archive extraction evidence for {name}")
     link_map = build_tree / "cmake.map"
-    extract = build_tree / "cmake.extract"
-    if not extract.is_file() or not extract.read_text().startswith("reference\textracted\tsymbol\n"):
-        raise CMakeBuildError("linker did not produce archive extraction evidence")
     (directory / "dependencies.md").write_text(
         dependencies.inventory(source, graph, link_map, cmake_version, rustls_version)
     )

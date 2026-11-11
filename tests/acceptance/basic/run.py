@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 
 root = Path('/qualification')
@@ -31,13 +32,18 @@ contains(run('-E', 'echo', 'qualified').stdout, 'qualified')
 script = work / 'root.cmake'
 script.write_text('message(STATUS "ROOT=${CMAKE_ROOT}")\n')
 contains(run('-P', script).stdout, f'ROOT={prefix}/share/cmake-4.4')
+if not (prefix / 'share/cmake/Modules/CMake.cmake').is_file():
+    raise RuntimeError('Laputa module-tree path is missing')
 source = work / 'project'
 source.mkdir()
 (source / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 3.20)
-project(Relocation LANGUAGES C CXX)
+project(Relocation VERSION 1.2.3 LANGUAGES C CXX)
 add_executable(c_test main.c)
 add_executable(cxx_test main.cxx)
 install(TARGETS c_test cxx_test RUNTIME DESTINATION bin)
+enable_testing()
+add_test(NAME relocated-test COMMAND "${CMAKE_COMMAND}" -E echo relocated-test-passed)
+include(CPack)
 ''')
 (source / 'main.c').write_text('int main(void) { return 0; }\n')
 (source / 'main.cxx').write_text('int main() { return 0; }\n')
@@ -56,6 +62,21 @@ for generator, label in [('Ninja', 'ninja'), ('Unix Makefiles', 'make')]:
     run('--install', build)
     for name in ('c_test', 'cxx_test'):
         subprocess.run([str(install / 'bin' / name)], cwd=work, env=env, check=True, timeout=30)
+    if generator == 'Ninja':
+        test = subprocess.run([str(prefix / 'bin/ctest'), '--test-dir', str(build), '--output-on-failure'],
+                              cwd=work, env=env, text=True, capture_output=True, timeout=120, check=True)
+        contains(test.stdout, '100% tests passed')
+        contains(test.stdout, 'relocated-test')
+        packages = work / 'packages'
+        packages.mkdir()
+        subprocess.run([str(prefix / 'bin/cpack'), '--config', str(build / 'CPackConfig.cmake'),
+                        '-G', 'TGZ', '-B', str(packages)], cwd=work, env=env, check=True, timeout=120)
+        archives = list(packages.glob('*.tar.gz'))
+        if len(archives) != 1:
+            raise RuntimeError('CPack did not create exactly one TGZ archive')
+        with tarfile.open(archives[0], 'r:gz') as archive:
+            if not any(name.endswith('/bin/c_test') for name in archive.getnames()):
+                raise RuntimeError('CPack archive is missing the installed executable')
 
 missing = root / 'missing resource'
 shutil.copytree(prefix, missing, symlinks=True)

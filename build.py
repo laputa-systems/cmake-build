@@ -525,8 +525,9 @@ def test_command(args: argparse.Namespace, *, prepare_only: bool = False) -> int
                           "licenses": tree_digest(ROOT / "licenses"), "notice": digest_bytes(ROOT / "NOTICE")[0]}
         def stage_distribution(directory: Path) -> None:
             stage.stage(cmake_phase, directory, description.triple, source.version, ROOT / "licenses", ROOT / "NOTICE")
-            elf.strip_debug(cmake_phase / "build/bin/cmake", directory / "bin/cmake", description,
-                            phases.directory("prepare") / "toolchain/bin")
+            for name in ("cmake", "ctest", "cpack"):
+                elf.strip_debug(cmake_phase / "build/bin" / name, directory / "bin" / name, description,
+                                phases.directory("prepare") / "toolchain/bin")
         result = phases.run("stage", license_inputs, stage_distribution)
         print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
         return 0
