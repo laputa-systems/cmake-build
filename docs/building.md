@@ -55,8 +55,8 @@ the recorded baseline archive can establish it for review and commit.
 The native baseline workflow checks that historical archive against its own
 recorded size limits; release qualification continues to use the current
 candidate limits.
-Budget schema 2 rejects the earlier process-tree RSS baselines because they
-could include launcher memory. The recorded archive digest identifies the
+Memory baselines must carry the current RSS scope; earlier process-tree RSS
+baselines are rejected because they could include launcher memory. The recorded archive digest identifies the
 memory baseline; size limits can
 be tightened separately when a smaller qualified build is measured.
 The local `qualify` command enforces size limits. The native qualification

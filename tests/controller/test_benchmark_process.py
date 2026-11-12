@@ -6,8 +6,9 @@ import signal
 import sys
 import unittest
 
-from buildsys import benchmark_process
 from helpers import workspace
+
+from buildsys import benchmark_process
 
 
 @unittest.skipUnless(platform.system() == 'Linux', 'Linux process accounting is required')

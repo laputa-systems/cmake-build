@@ -4,16 +4,24 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import shutil
+import signal
 import subprocess
 import tempfile
 from pathlib import Path
 
-from .inputs import Cache, Input, canonical_json, digest_bytes, identity, safe_extract, tree_digest
+from . import sandbox, toolchain
+from .inputs import (
+    Cache,
+    Input,
+    canonical_json,
+    digest_bytes,
+    identity,
+    safe_extract,
+    tree_digest,
+)
 from .phases import PhaseCache
 from .targets import Target
-from . import sandbox, toolchain
 
 
 class RustError(Exception):

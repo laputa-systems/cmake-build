@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
-from buildsys import rust
+
 from helpers import workspace
+
+from buildsys import rust
 
 
 class KacheWrapperTests(unittest.TestCase):

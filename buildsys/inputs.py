@@ -16,7 +16,7 @@ from pathlib import Path
 from .targets import TARGETS
 
 SCHEMA_VERSION = 1
-BOOTSTRAP_SCHEMA_VERSION = 2
+BOOTSTRAP_SCHEMA_VERSION = 1
 ROLES = ("source", "build-source", "reference", "test")
 ALL_TARGETS = "all"
 _CHUNK = 1 << 20

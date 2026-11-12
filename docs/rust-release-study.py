@@ -1,6 +1,6 @@
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 from buildsys import sandbox
 from buildsys.inputs import load_bootstrap
@@ -19,7 +19,10 @@ scratch = work / 'work'
 scratch.mkdir()
 trace = scratch / 'trace'
 (trace / 'lib').mkdir(parents=True)
-tracer = Path(shutil.which('strace'))
+strace = shutil.which('strace')
+if strace is None:
+    raise SystemExit('strace is required')
+tracer = Path(strace)
 shutil.copy2(tracer, trace / 'strace')
 dependencies = subprocess.run(['ldd', str(tracer)], capture_output=True, text=True, check=True).stdout.splitlines()
 loaders = [Path(line.strip().split(' ', 1)[0]) for line in dependencies if line.strip().startswith('/') and '=>' not in line]

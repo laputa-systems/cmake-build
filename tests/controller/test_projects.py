@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from buildsys.qualify import QualificationError, _check_baseline_failures, _junit
 from helpers import workspace
+
+from buildsys.qualify import QualificationError, _check_baseline_failures, _junit
 
 
 class UpstreamReportTests(unittest.TestCase):

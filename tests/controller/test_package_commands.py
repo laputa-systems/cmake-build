@@ -8,9 +8,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from helpers import workspace
+
 import build
 from buildsys import package
-from helpers import workspace
 
 
 class PackageCommandTests(unittest.TestCase):
@@ -30,7 +31,7 @@ class PackageCommandTests(unittest.TestCase):
                 'archive': archive.name, 'commit': commit, 'size': archive.stat().st_size,
                 'sha256': package.digest(archive),
             }))
-            (root / 'release-budgets.json').write_text(json.dumps({'schema_version': 2, 'targets': {target: {
+            (root / 'release-budgets.json').write_text(json.dumps({'schema_version': 1, 'targets': {target: {
                 'metrics': {name: {'value': 100000, 'allowed_regression': 0}
                             for name in ('executable_bytes', 'unpacked_bytes', 'archive_bytes')}
             }}}))

@@ -37,7 +37,7 @@ def create(stage: Path, destination: Path, metadata: dict, epoch: int) -> None:
     if not isinstance(epoch, int) or epoch < 0:
         raise PackageError('invalid source date epoch')
     artifact_name = 'usr/share/doc/cmake-build/artifact.json'
-    entries = {'usr': ('directory', 0o755, None)}
+    entries: dict[str, tuple[str, int, bytes | str | None]] = {'usr': ('directory', 0o755, None)}
     pending = [(stage, 'usr')]
     while pending:
         directory, prefix = pending.pop()
@@ -65,6 +65,7 @@ def create(stage: Path, destination: Path, metadata: dict, epoch: int) -> None:
     for name, (kind, mode, data) in sorted(entries.items()):
         item = {'type': kind, 'mode': mode}
         if kind == 'file':
+            assert isinstance(data, bytes)
             item['size'] = len(data)
             item['sha256'] = hashlib.sha256(data).hexdigest()
         elif kind == 'symlink':
@@ -89,10 +90,12 @@ def create(stage: Path, destination: Path, metadata: dict, epoch: int) -> None:
                         info.type = tarfile.DIRTYPE
                     elif kind == 'symlink':
                         info.type = tarfile.SYMTYPE
+                        assert isinstance(data, str)
                         info.linkname = data
                     else:
+                        assert isinstance(data, bytes)
                         info.size = len(data)
-                    archive.addfile(info, io.BytesIO(data) if kind == 'file' else None)
+                    archive.addfile(info, io.BytesIO(data) if isinstance(data, bytes) else None)
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, destination)

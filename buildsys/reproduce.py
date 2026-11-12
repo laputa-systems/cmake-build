@@ -65,7 +65,7 @@ def run(root: Path, target: str, version: str, commit: str) -> list[str]:
         try:
             for index in (1, 2):
                 checkout = scratch / f'build-{index}'
-                result = subprocess.run(['git', 'worktree', 'add', '--detach', str(checkout), commit], cwd=root)
+                result = subprocess.run(['git', 'worktree', 'add', '--detach', str(checkout), commit], cwd=root, check=False)
                 if result.returncode:
                     raise ReproduceError(f'cannot create clean build worktree {checkout}')
                 created.append(checkout)
@@ -77,7 +77,7 @@ def run(root: Path, target: str, version: str, commit: str) -> list[str]:
                     destination = local / 'rust' / target / 'phases' / name
                     shutil.copytree(source, destination, symlinks=True, copy_function=os.link)
                 env = {**os.environ, 'TMPDIR': str(local / 'tmp')}
-                result = subprocess.run([sys.executable, 'build.py', 'package', '--target', target], cwd=checkout, env=env)
+                result = subprocess.run([sys.executable, 'build.py', 'package', '--target', target], cwd=checkout, env=env, check=False)
                 if result.returncode:
                     raise ReproduceError(f'clean build {index} failed ({result.returncode})')
                 archive = local / 'artifacts' / target / f'cmake-{version}-{target}.tar.xz'
@@ -94,6 +94,6 @@ def run(root: Path, target: str, version: str, commit: str) -> list[str]:
             return differences
         finally:
             for checkout in reversed(created):
-                result = subprocess.run(['git', 'worktree', 'remove', '--force', str(checkout)], cwd=root)
+                result = subprocess.run(['git', 'worktree', 'remove', '--force', str(checkout)], cwd=root, check=False)
                 if result.returncode:
                     raise ReproduceError(f'could not remove reproduction worktree {checkout}')

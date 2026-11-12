@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "targets": {
     "x86_64-unknown-linux-musl": {
       "archive_sha256": "b53ca751fd8c1f0c3b3918c7c9aed7f5a30a79b2bbf4f9289ec567ede5a0cc3e",

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import shutil
-import tempfile
 import difflib
 import json
-import os
 import re
 import shlex
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from . import sandbox, toolchain

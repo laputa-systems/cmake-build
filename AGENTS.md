@@ -6,6 +6,8 @@ Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl` and
 ## Commands
 
 ```sh
+make lint                                   # ruff and ty
+make fetch TARGET=x86_64-unknown-linux-musl   # also: build, package, verify (qualify), repro (reproduce), clean
 python3 build.py controller-test            # controller suite, exit 0 or 1
 python3 build.py controller-test -k tls     # module-name filter
 python3 build.py doctor --target x86_64-unknown-linux-musl
@@ -30,6 +32,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 
 ## Layout
 
+- `Makefile` — `build`, `verify`, `lint`, `clean`, `fetch`, `package`, and `repro` map to `build.py` phases; `TARGET` is a Rust target triple.
 - `build.py` — argument parsing and dispatch only.
 - `buildsys/targets.py` — the only architecture-specific data.
 - `buildsys/inputs.py` — lock schemas, content-addressed cache, safe extraction.

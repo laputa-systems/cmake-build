@@ -10,6 +10,7 @@ import ssl
 import subprocess
 import threading
 from pathlib import Path
+from typing import cast
 
 root = Path('/qualification')
 cmake = root / 'relocated cmake/bin/cmake'
@@ -21,7 +22,7 @@ env.update({'PATH': '/usr/bin:/bin', 'HOME': str(work), 'TMPDIR': str(work)})
 
 
 def make_cert(*args: str) -> None:
-    result = subprocess.run([openssl, *args], cwd=work, env=env, text=True, capture_output=True, timeout=30)
+    result = subprocess.run([openssl, *args], cwd=work, env=env, text=True, capture_output=True, timeout=30, check=False)
     if result.returncode:
         raise RuntimeError(f'certificate generation failed: {result.stderr}')
 
@@ -54,7 +55,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.flush()
         self.connection.unwrap()
 
-    def log_message(self, *args: object) -> None:
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 
@@ -71,7 +72,7 @@ class Proxy(socketserver.BaseRequestHandler):
         line = request.split(b'\r\n', 1)[0].decode('ascii')
         if line != f'CONNECT localhost:{server.server_port} HTTP/1.1':
             raise RuntimeError(f'unexpected proxy request: {line}')
-        self.server.connections += 1
+        cast('ProxyServer', self.server).connections += 1
         with socket.create_connection(('127.0.0.1', server.server_port), timeout=10) as upstream:
             self.request.sendall(b'HTTP/1.1 200 Connection established\r\n\r\n')
             sockets = (self.request, upstream)
@@ -114,7 +115,7 @@ def download(name: str, *, host: str = 'localhost', path: str = '/payload', ca: 
     if ca:
         values['CMAKE_TLS_CAINFO'] = str(work / ca)
     result = subprocess.run([str(cmake), *(f'-D{key}={value}' for key, value in values.items()), '-P', str(script)],
-                            cwd=work, env={**env, **(environment or {})}, text=True, capture_output=True, timeout=45)
+                            cwd=work, env={**env, **(environment or {})}, text=True, capture_output=True, timeout=45, check=False)
     passed = result.returncode == 0 and 'DOWNLOAD_STATUS=0' in result.stderr and destination.is_file() and destination.read_bytes() == body
     if success:
         correct = passed

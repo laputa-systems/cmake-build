@@ -16,7 +16,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine, trace_paths
+from buildsys.sysroot import (
+    SysrootError,
+    check_link_trace,
+    check_machine,
+    elf_machine,
+    trace_paths,
+)
 from buildsys.targets import target as describe_target
 
 DYNAMIC_C = """

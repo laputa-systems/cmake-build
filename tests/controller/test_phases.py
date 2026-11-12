@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import unittest
 import json
+import unittest
+
+from helpers import workspace
 
 from buildsys.phases import PhaseCache, PhaseError
-from helpers import workspace
 
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64

@@ -3,17 +3,19 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import runpy
 import struct
 import subprocess
 import unittest
-import runpy
-import os
 from pathlib import Path
 from unittest.mock import patch
 
+from helpers import workspace
+
 import build
-from buildsys.inputs import Cache, Input, InputError, load_bootstrap
 from buildsys import sandbox
+from buildsys.inputs import Cache, Input, InputError, load_bootstrap
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
 from buildsys.targets import target
 from buildsys.toolchain import (
@@ -23,7 +25,6 @@ from buildsys.toolchain import (
     ToolchainError,
     verify,
 )
-from helpers import workspace
 
 X86 = target("x86_64-unknown-linux-musl")
 ARM = target("aarch64-unknown-linux-musl")
@@ -60,9 +61,8 @@ class ReferenceImageTests(unittest.TestCase):
         created = subprocess.CompletedProcess([], 0, "container-id\n", "")
         inspection = subprocess.CompletedProcess([], 0, json.dumps([{"HostConfig": {"NetworkMode": "none"}}]), "")
         removed = subprocess.CompletedProcess([], 0, "", "")
-        with patch.object(sandbox, "_docker", side_effect=[created, inspection, removed]) as docker:
-            with self.assertRaisesRegex(sandbox.SandboxError, "not bridge"):
-                sandbox.run_networked("image", ["test"], target=X86, mounts=[])
+        with patch.object(sandbox, "_docker", side_effect=[created, inspection, removed]) as docker, self.assertRaisesRegex(sandbox.SandboxError, "not bridge"):
+            sandbox.run_networked("image", ["test"], target=X86, mounts=[])
         self.assertEqual(docker.call_args_list[-1].args, ("rm", "--force", "container-id"))
 
     def test_container_cleanup_failure_is_reported(self) -> None:
@@ -70,17 +70,15 @@ class ReferenceImageTests(unittest.TestCase):
         inspection = subprocess.CompletedProcess([], 0, json.dumps([{"HostConfig": {"NetworkMode": "bridge"}}]), "")
         started = subprocess.CompletedProcess([], 0, "ok", "")
         removed = subprocess.CompletedProcess([], 1, "", "remove failed")
-        with patch.object(sandbox, "_docker", side_effect=[created, inspection, started, removed]):
-            with self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
-                sandbox.run_networked("image", ["test"], target=X86, mounts=[])
+        with patch.object(sandbox, "_docker", side_effect=[created, inspection, started, removed]), self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
+            sandbox.run_networked("image", ["test"], target=X86, mounts=[])
 
     def test_reference_runtime_copy_failure_removes_container(self) -> None:
         created = subprocess.CompletedProcess([], 0, "container-id\n", "")
         failed = subprocess.CompletedProcess([], 1, "", "copy failed")
         removed = subprocess.CompletedProcess([], 0, "", "")
-        with workspace() as directory, patch.object(sandbox, "_docker", side_effect=[created, failed, removed]) as docker:
-            with self.assertRaisesRegex(sandbox.SandboxError, "copy failed"):
-                sandbox.copy_reference_runtime("image", X86, directory / "runtime")
+        with workspace() as directory, patch.object(sandbox, "_docker", side_effect=[created, failed, removed]) as docker, self.assertRaisesRegex(sandbox.SandboxError, "copy failed"):
+            sandbox.copy_reference_runtime("image", X86, directory / "runtime")
         self.assertEqual(docker.call_args_list[-1].args, ("rm", "--force", "container-id"))
 
 
@@ -217,9 +215,8 @@ class OfflineTests(unittest.TestCase):
             def fetch_during_build(*args):
                 caches[0].fetch(item)
 
-            with patch.object(build, "BUILD_ROOT", directory / "build"), patch.object(build, "Cache", side_effect=cache_factory), patch.object(Cache, "require", return_value=directory / "input"), patch.object(build.toolchain, "install", return_value=directory / "tc"), patch.object(build.toolchain, "verify", return_value={}), patch.object(build.sysroot, "build", side_effect=fetch_during_build), contextlib.redirect_stderr(io.StringIO()) as error:
-                with self.assertRaises(SystemExit):
-                    build._prepare_inside(X86)
+            with patch.object(build, "BUILD_ROOT", directory / "build"), patch.object(build, "Cache", side_effect=cache_factory), patch.object(Cache, "require", return_value=directory / "input"), patch.object(build.toolchain, "install", return_value=directory / "tc"), patch.object(build.toolchain, "verify", return_value={}), patch.object(build.sysroot, "build", side_effect=fetch_during_build), contextlib.redirect_stderr(io.StringIO()) as error, self.assertRaises(SystemExit):
+                build._prepare_inside(X86)
             self.assertIn("offline phase cannot fetch", error.getvalue())
 
     def test_offline_cache_refuses_fetch(self) -> None:
@@ -240,9 +237,8 @@ class OfflineTests(unittest.TestCase):
 
 class NetworkBoundaryTests(unittest.TestCase):
     def test_prepare_rejects_networked_container(self) -> None:
-        with patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                build.main(["prepare", "--target", X86.triple, "--in-container"])
+        with patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            build.main(["prepare", "--target", X86.triple, "--in-container"])
 
     def test_host_control_connects_and_container_connections_are_denied(self) -> None:
         probe = sandbox._probe

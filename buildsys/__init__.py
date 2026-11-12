@@ -15,13 +15,13 @@ from .phases import PhaseCache, PhaseError, PhaseResult
 from .targets import TARGETS, Target, UnsupportedTargetError, native_target, target
 
 __all__ = [
+    "TARGETS",
     "Cache",
     "Input",
     "InputError",
     "PhaseCache",
     "PhaseError",
     "PhaseResult",
-    "TARGETS",
     "Target",
     "UnsupportedTargetError",
     "canonical_json",

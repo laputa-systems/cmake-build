@@ -7,8 +7,8 @@ import os
 import shlex
 import shutil
 import tempfile
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 
 from . import dependencies, elf, patches, toolchain
 from .rust import _run

@@ -6,10 +6,10 @@ import os
 import shlex
 from pathlib import Path
 
-from .inputs import safe_extract
-from .targets import Target
-from .rust import _run as run_process
 from . import toolchain
+from .inputs import safe_extract
+from .rust import _run as run_process
+from .targets import Target
 
 _BOOTSTRAP_CMAKE = Path("/usr/bin/cmake")
 

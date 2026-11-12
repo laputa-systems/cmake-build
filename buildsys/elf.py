@@ -16,7 +16,7 @@ class AuditError(Exception):
     pass
 
 
-def _tool(tool: Path, *arguments: str) -> str:
+def _tool(tool: Path, *arguments: str | Path) -> str:
     result = subprocess.run([str(tool), *map(str, arguments)], text=True, capture_output=True, check=False)
     if result.returncode:
         raise AuditError(f'{tool.name} failed ({result.returncode}): {result.stderr.strip()}')

@@ -6,15 +6,16 @@ import tarfile
 import unittest
 from pathlib import Path
 
+from helpers import archive, workspace, write_lock
+
 from buildsys.inputs import (
     Cache,
     Input,
     InputError,
-    load_sources,
     load_bootstrap,
+    load_sources,
     safe_extract,
 )
-from helpers import archive, workspace, write_lock
 
 SHA_A = "a" * 64
 GOOD_SHA = hashlib.sha256(b"good").hexdigest()
@@ -60,7 +61,7 @@ class LockTests(unittest.TestCase):
                     path.write_text(json.dumps(lock))
                     with self.assertRaisesRegex(InputError, "reference_image"):
                         load_bootstrap(path)
-            lock["schema_version"] = 1
+            lock["schema_version"] = 2
             path.write_text(json.dumps(lock))
             with self.assertRaisesRegex(InputError, "unsupported schema_version"):
                 load_bootstrap(path)

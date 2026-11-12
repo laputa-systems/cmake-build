@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
 
 from .inputs import canonical_json, identity, tree_digest
 
@@ -69,7 +69,7 @@ class PhaseCache:
         self,
         name: str,
         inputs: Mapping[str, str],
-        action: Callable[[Path], None],
+        action: Callable[[Path], object],
     ) -> PhaseResult:
         fingerprint = self.fingerprint(name, inputs)
         directory = self.directory(name)

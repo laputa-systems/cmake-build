@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "alpine": {
     "release": "3.25.0_alpha20260805",
     "image": "alpine",

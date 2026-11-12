@@ -14,8 +14,8 @@ payload.mkdir()
 (payload / 'message.txt').write_text('CMake archive parity\n')
 
 
-def run(*args: str, cwd: Path = work) -> None:
-    result = subprocess.run([str(cmake), *map(str, args)], cwd=cwd, env=env, text=True, capture_output=True, timeout=120)
+def run(*args: str | Path, cwd: Path = work) -> None:
+    result = subprocess.run([str(cmake), *map(str, args)], cwd=cwd, env=env, text=True, capture_output=True, timeout=120, check=False)
     if result.returncode:
         raise RuntimeError(f'{args}: exit {result.returncode}\n{result.stdout}\n{result.stderr}')
 
