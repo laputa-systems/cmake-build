@@ -9,8 +9,10 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from buildlib.hashing import digest_file
+
 from . import rust, sandbox, toolchain
-from .inputs import Cache, Input, digest_bytes, safe_extract
+from .inputs import Cache, Input, safe_extract
 from .phases import PhaseCache
 from .rust import RustError, _cargo_config, _phase_digest, _run, _rust_environment
 from .targets import Target
@@ -68,13 +70,13 @@ def check_host_vendored(root: Path, native: Target, components: list[Input], sou
         raise TlsError("bootstrap lock lacks or duplicates a Rust or host runtime component")
     for item in (source, *(names[name] for name in ("rustc", "cargo", "rust-std", "rust-src"))):
         cache.require(item)
-    implementation = digest_bytes(Path(rust.__file__))[0]
+    implementation = digest_file(Path(rust.__file__))[0]
     tool_inputs = {name: names[name].sha256 for name in ("rustc", "cargo", "rust-std", "rust-src")}
     tool_inputs["implementation"] = implementation
     tool_digest = _phase_digest(tools)
     _phase_digest(vendored)
     phase_cache = PhaseCache(root / "phases")
-    vendor_inputs = {"tools": tool_digest, "source": source.sha256, "patch": digest_bytes(patch)[0], "implementation": implementation}
+    vendor_inputs = {"tools": tool_digest, "source": source.sha256, "patch": digest_file(patch)[0], "implementation": implementation}
     for directory, inputs in ((tools, tool_inputs), (vendored, vendor_inputs)):
         record = json.loads((directory / "phase.json").read_text())
         if record.get("inputs") != dict(sorted(inputs.items())) or record.get("fingerprint") != phase_cache.fingerprint(directory.name, inputs):
@@ -108,7 +110,7 @@ def build_client(cache: Cache, source: Input, prepared: Path, archive: Path, tar
     toolchain.verify(tc, target, environ={**os.environ, "PATH": f"{tc / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"})
     phases = PhaseCache(root / "phases")
     inputs = {"prepare": _phase_digest(prepared), "source": source.sha256, "image": sandbox._locked_image_fingerprint(target),
-              "toolchain": digest_bytes(Path(toolchain.__file__))[0], "implementation": digest_bytes(Path(__file__))[0]}
+              "toolchain": digest_file(Path(toolchain.__file__))[0], "implementation": digest_file(Path(__file__))[0]}
     env = {**os.environ, **toolchain.environment(tc, target), "TMPDIR": str(scratch)}
     env["CFLAGS"] = shlex.join(toolchain.flags(target, sysroot))
     env["CXXFLAGS"] = shlex.join(toolchain.cxx_flags(target, sysroot))
@@ -127,7 +129,7 @@ def build_client(cache: Cache, source: Input, prepared: Path, archive: Path, tar
     boot = phases.run("tls-bootstrap", inputs, bootstrap)
     boot_digest = _phase_digest(boot.directory)
     curl_inputs = {"bootstrap": boot_digest, "rustls": _phase_digest(archive.parents[3]), "image": inputs["image"],
-                   "client": digest_bytes(client)[0], "implementation": inputs["implementation"]}
+                   "client": digest_file(client)[0], "implementation": inputs["implementation"]}
 
     def curl(directory: Path) -> None:
         source_root = next((boot.directory / "source").iterdir())

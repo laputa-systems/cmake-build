@@ -93,7 +93,7 @@ class ElfAuditTests(unittest.TestCase):
 
     def test_rejects_contaminated_elf_files(self) -> None:
         elf.audit(self.root / 'clean', self.target, self.tools)
-        for name, message in [('execstack', 'GNU stack'), ('rpath', 'RPATH'), ('libstdcpp', 'dynamic dependency')]:
+        for name, message in [('execstack', 'executable stack'), ('rpath', 'RPATH'), ('libstdcpp', 'dynamic dependency')]:
             with self.subTest(name=name), self.assertRaisesRegex(elf.AuditError, message):
                 elf.audit(self.root / name, self.target, self.tools)
         binary = (self.root / 'clean').read_bytes()

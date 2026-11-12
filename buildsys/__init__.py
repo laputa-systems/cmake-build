@@ -1,5 +1,6 @@
 """Build-system controller for the CMake musl distribution."""
 
+from .buildlib_wheel import WHEEL
 from .inputs import (
     Cache,
     Input,
@@ -16,6 +17,7 @@ from .targets import TARGETS, Target, UnsupportedTargetError, native_target, tar
 
 __all__ = [
     "TARGETS",
+    "WHEEL",
     "Cache",
     "Input",
     "InputError",

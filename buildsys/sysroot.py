@@ -8,7 +8,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .inputs import digest_bytes, safe_extract
+from buildlib.hashing import digest_file
+
+from .inputs import safe_extract
 from .targets import Target
 
 
@@ -209,7 +211,7 @@ def verify(destination: Path, target: Target, toolchain: Path) -> dict:
     return {
         "root": str(destination),
         "loader": str(loader),
-        "loader_sha256": digest_bytes(loader)[0],
+        "loader_sha256": digest_file(loader)[0],
         "soname": _soname(toolchain, loader),
         "comment": _comment(toolchain, loader),
     }

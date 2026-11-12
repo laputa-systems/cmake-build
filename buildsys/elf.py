@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from buildlib.elf import ELFError, hardening_violations
+
 from .targets import Target
 
 
@@ -25,30 +27,24 @@ def _tool(tool: Path, *arguments: str | Path) -> str:
 
 def audit(binary: Path, target: Target, tools: Path) -> None:
     try:
+        problems = hardening_violations(binary, machine=target.elf_machine)
+    except ELFError as error:
+        raise AuditError(f'invalid ELF {binary}: {error}') from error
+    if problems:
+        raise AuditError(f'ELF hardening: {"; ".join(problems)}')
+    try:
         report = json.loads(_tool(tools / 'llvm-readelf', '-h', '-l', '-d', '-S', '--elf-output-style=JSON', binary))
         if len(report) != 1:
             raise AuditError('expected exactly one ELF')
         document = report[0]
-        header = document['ElfHeader']
         headers = [item['ProgramHeader'] for item in document['ProgramHeaders']]
         dynamic = document.get('DynamicSection', [])
         sections = {item['Section']['Name']['Name'] for item in document['Sections']}
     except (ValueError, KeyError, TypeError) as error:
         raise AuditError(f'invalid ELF report for {binary}') from error
-    if header['Machine']['Value'] != target.elf_machine:
-        raise AuditError('ELF machine does not match the target')
-    if not header['Type'].startswith('SharedObject'):
-        raise AuditError('ELF must be PIE')
     kinds = {item['Type']['Name']: item for item in headers}
-    stack = kinds.get('PT_GNU_STACK')
-    if stack is None or stack['Flags']['Value'] & 1:
-        raise AuditError('ELF has an executable or missing GNU stack')
-    if 'PT_GNU_RELRO' not in kinds:
-        raise AuditError('ELF lacks GNU RELRO')
     entries = {item['Type']: item for item in dynamic}
     flags = {flag for item in dynamic for flag in item.get('Flags', [])}
-    if 'BIND_NOW' not in flags and 'NOW' not in flags:
-        raise AuditError('ELF lacks immediate binding')
     if 'PIE' not in flags:
         raise AuditError('ELF is not marked PIE')
     if 'RPATH' in entries or 'RUNPATH' in entries:

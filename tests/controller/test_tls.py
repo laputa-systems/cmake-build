@@ -21,7 +21,7 @@ from buildsys.tls import TlsError, build_client, check_host_vendored, check_tree
 class DependencyTests(unittest.TestCase):
     def test_client_rebuilds_when_builder_image_changes(self) -> None:
         description = target("x86_64-unknown-linux-musl")
-        source = Input("cmake-source", "4.4.5", "https://example.invalid/cmake", "a" * 64, "source", "all", 1)
+        source = Input(name="cmake-source", version="4.4.5", urls=("https://example.invalid/cmake",), sha256="a" * 64, role="source", target="all", size=1)
         with workspace() as directory:
             root = directory / "build"
             staticlib = directory / "rust/phases/staticlib"
@@ -147,7 +147,7 @@ class DependencyTests(unittest.TestCase):
 
     def test_vendor_rejects_incomplete_toolchain_lock(self) -> None:
         with workspace() as directory, self.assertRaisesRegex(RustError, "component lock is incomplete"):
-            source = Input("source", "1", "https://example.invalid", "a" * 64, "source", "all", 1)
+            source = Input(name="source", version="1", urls=("https://example.invalid",), sha256="a" * 64, role="source", target="all", size=1)
             vendor(Cache(directory / "cache"), [], source, Path("patch"), directory, directory)
 
     def test_graviola_closure_accepts_certificate_path_probe(self) -> None:

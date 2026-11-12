@@ -12,12 +12,13 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from buildlib.hashing import digest_file
+
 from .inputs import (
     BootstrapLock,
     Cache,
     Input,
     canonical_json,
-    digest_bytes,
     identity,
 )
 from .targets import Target
@@ -131,7 +132,7 @@ def image_fingerprint(lock: BootstrapLock, target: Target, dockerfile: Path) -> 
     material = {
         "base": lock.image_index_digest,
         "platform": target.docker_platform,
-        "dockerfile": digest_bytes(dockerfile)[0],
+        "dockerfile": digest_file(dockerfile)[0],
         "packages": packages,
         "keys": sorted((item.name, item.sha256) for item in lock.keys),
     }

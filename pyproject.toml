@@ -3,7 +3,7 @@ name = "cmake-build"
 version = "0.0.0"
 description = "Reproducible relocatable CMake distribution for musl Linux"
 requires-python = ">=3.15"
-dependencies = []
+dependencies = ["laputa-buildlib==0.1.0"]
 
 [dependency-groups]
 dev = [

@@ -5,29 +5,30 @@ import math
 import statistics
 from pathlib import Path
 
+from buildlib import hashing, locks
+from buildlib.locks import LockError
+
 
 class BudgetError(Exception):
     pass
 
 
-SCHEMA_VERSION = 1
 RSS_SCOPE = 'cmake-image-v1'
 
 
-def _targets(document: dict) -> dict:
-    if (not isinstance(document, dict) or type(document.get('schema_version')) is not int
-        or document['schema_version'] != SCHEMA_VERSION or not isinstance(document.get('targets'), dict)):
-        raise BudgetError('release budgets have an invalid schema')
-    return document['targets']
-
-
-def load(path: Path) -> dict:
+def read(path: Path) -> dict:
     try:
-        document = json.loads(path.read_text())
-    except (OSError, ValueError) as error:
+        locks.load_budgets(path)
+        return json.loads(Path(path).read_text())
+    except (LockError, OSError, ValueError) as error:
         raise BudgetError(f'cannot read release budgets: {error}') from error
-    _targets(document)
-    return document
+
+
+def _entry(document: dict, target: str) -> dict:
+    entry = document.get('targets', {}).get(target)
+    if not isinstance(entry, dict) or not isinstance(entry.get('metrics'), dict):
+        raise BudgetError(f'release budgets lack target {target}')
+    return entry
 
 
 def _metric_values(metrics: dict, target: str, name: str) -> tuple[float, float]:
@@ -41,9 +42,7 @@ def _metric_values(metrics: dict, target: str, name: str) -> tuple[float, float]
 
 
 def check_size(document: dict, target: str, tree: Path, archive: Path) -> dict[str, int]:
-    entry = _targets(document).get(target)
-    if not isinstance(entry, dict) or not isinstance(entry.get('metrics'), dict):
-        raise BudgetError(f'release budgets lack target {target}')
+    entry = _entry(document, target)
     limits = {}
     for name in ('executable_bytes', 'unpacked_bytes', 'archive_bytes'):
         limits[name] = sum(_metric_values(entry['metrics'], target, name))
@@ -83,9 +82,7 @@ def memory_baseline(records: list[dict]) -> dict[str, dict]:
 
 
 def check_memory(document: dict, target: str, records: list[dict]) -> dict[str, float]:
-    entry = _targets(document).get(target)
-    if not isinstance(entry, dict) or not isinstance(entry.get('metrics'), dict):
-        raise BudgetError(f'release budgets lack target {target}')
+    entry = _entry(document, target)
     if entry.get('rss_scope') != RSS_SCOPE:
         raise BudgetError(f'{target} memory baseline has an incompatible RSS scope')
     measurements = {}
@@ -100,9 +97,7 @@ def check_memory(document: dict, target: str, records: list[dict]) -> dict[str, 
 
 
 def validate_memory_source(document: dict, target: str, archive_sha256: str, archive_size: int) -> str:
-    entry = _targets(document).get(target)
-    if not isinstance(entry, dict) or not isinstance(entry.get('metrics'), dict):
-        raise BudgetError(f'release budgets lack target {target}')
+    entry = _entry(document, target)
     status = entry.get('memory_status')
     if status == 'measured':
         if entry.get('rss_scope') != RSS_SCOPE:
@@ -111,9 +106,7 @@ def validate_memory_source(document: dict, target: str, archive_sha256: str, arc
             raise BudgetError(f'{target} memory baseline has insufficient repetitions')
         baseline_sha = entry.get('archive_sha256')
         baseline_size = entry.get('memory_archive_bytes')
-        if (not isinstance(baseline_sha, str) or len(baseline_sha) != 64
-            or any(character not in '0123456789abcdef' for character in baseline_sha)
-            or type(baseline_size) is not int or baseline_size <= 0):
+        if not hashing.is_sha256(baseline_sha) or type(baseline_size) is not int or baseline_size <= 0:
             raise BudgetError(f'{target} memory baseline has invalid archive identity')
         for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang'):
             _metric_values(entry['metrics'], target, f'{workload}_initial_rss_kib')

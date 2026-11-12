@@ -11,8 +11,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from buildlib.hashing import digest_file
+
 from . import sandbox, toolchain
-from .inputs import Cache, digest_bytes, load_bootstrap, load_sources, safe_extract
+from .inputs import Cache, load_bootstrap, load_sources, safe_extract
 from .phases import PhaseCache
 from .targets import Target
 
@@ -129,7 +131,7 @@ def projects(*, root: Path, phase: Path, image: str, target: Target) -> None:
         if item is None:
             raise QualificationError(f'project source {name} is missing from the lock')
         archive = cache.require(item)
-        result = phases.run(f'project-{name}', {'source': item.sha256, 'implementation': digest_bytes(Path(__file__))[0]},
+        result = phases.run(f'project-{name}', {'source': item.sha256, 'implementation': digest_file(Path(__file__))[0]},
                             lambda directory, archive=archive: safe_extract(archive, directory / 'source'))
         inputs.append((result.directory / 'source', f'/inputs/{name}'))
     with tempfile.TemporaryDirectory(prefix='project-qualification-', dir=scratch) as temporary:
@@ -186,7 +188,7 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
     scratch = root / '.work/tmp'
     scratch.mkdir(parents=True, exist_ok=True)
     phases = root / '.work/build' / target.triple / 'phases'
-    executable_digest = digest_bytes(phase / 'bin/cmake')[0]
+    executable_digest = digest_file(phase / 'bin/cmake')[0]
     with tempfile.TemporaryDirectory(prefix='upstream-qualification-', dir=scratch) as temporary:
         directory = Path(temporary)
         base = Path('/src/.work/build') / target.triple / 'phases/prepare'
@@ -201,7 +203,7 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
             shutil.copytree(phases / name, copied, symlinks=True)
             if name == 'cmake':
                 shutil.copy2(phase / 'bin/cmake', copied / 'build/bin/cmake')
-                if digest_bytes(copied / 'build/bin/cmake')[0] != executable_digest:
+                if digest_file(copied / 'build/bin/cmake')[0] != executable_digest:
                     raise QualificationError('upstream test executable differs from the candidate')
             results = directory / f'{name}-results'
             results.mkdir()
