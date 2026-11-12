@@ -1,13 +1,19 @@
-"""Target descriptions: the one place architecture-specific data lives."""
+"""Target descriptions: the Linux musl targets this repository builds, taken from buildlib."""
 
 from __future__ import annotations
 
 import platform
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
+from buildlib import targets as shared
+from buildlib.targets import UnsupportedTargetError
 
-class UnsupportedTargetError(Exception):
-    """No target description exists for this machine or triple."""
+CPU_BASELINES: Mapping[str, str] = MappingProxyType({
+    "x86_64-unknown-linux-musl": "x86-64",
+    "aarch64-unknown-linux-musl": "armv8-a",
+})
 
 
 @dataclass(frozen=True)
@@ -17,38 +23,29 @@ class Target:
     alpine_arch: str
     docker_platform: str
     musl_loader: str
-    cpu_baseline: str
     elf_machine: int
-
-    def __post_init__(self) -> None:
-        if not all((self.triple, self.machine, self.alpine_arch, self.docker_platform)):
-            raise UnsupportedTargetError(f"{self.triple}: incomplete target description")
-        if not self.musl_loader.startswith("/lib/ld-musl-"):
-            raise UnsupportedTargetError(f"{self.triple}: bad musl loader {self.musl_loader!r}")
+    cpu_baseline: str
 
 
-TARGETS: dict[str, Target] = {
-    "x86_64-unknown-linux-musl": Target(
-        triple="x86_64-unknown-linux-musl",
-        machine="x86_64",
-        alpine_arch="x86_64",
-        docker_platform="linux/amd64",
-        musl_loader="/lib/ld-musl-x86_64.so.1",
-        cpu_baseline="x86-64",
-        elf_machine=62,
-    ),
-    "aarch64-unknown-linux-musl": Target(
-        triple="aarch64-unknown-linux-musl",
-        machine="aarch64",
-        alpine_arch="aarch64",
-        docker_platform="linux/arm64",
-        musl_loader="/lib/ld-musl-aarch64.so.1",
-        cpu_baseline="armv8-a",
-        elf_machine=183,
-    ),
-}
+def _adopt(item: shared.Target) -> Target:
+    baseline = CPU_BASELINES.get(item.triple)
+    if (baseline is None or item.docker_platform is None or item.alpine_arch is None
+            or item.musl_loader is None or item.elf_machine is None):
+        raise UnsupportedTargetError(f"target not implemented: {item.triple} (supported: {sorted(CPU_BASELINES)})")
+    return Target(
+        triple=item.triple,
+        machine=item.machine,
+        alpine_arch=item.alpine_arch,
+        docker_platform=item.docker_platform,
+        musl_loader=item.musl_loader,
+        elf_machine=item.elf_machine,
+        cpu_baseline=baseline,
+    )
 
-_MACHINE_ALIASES = {"amd64": "x86_64", "arm64": "aarch64"}
+
+TARGETS: Mapping[str, Target] = MappingProxyType(
+    {triple: _adopt(shared.target_for_triple(triple)) for triple in CPU_BASELINES}
+)
 
 
 def target(triple: str) -> Target:
@@ -61,9 +58,4 @@ def target(triple: str) -> Target:
 
 
 def native_target() -> Target:
-    machine = platform.machine()
-    machine = _MACHINE_ALIASES.get(machine, machine)
-    for candidate in TARGETS.values():
-        if candidate.machine == machine:
-            return candidate
-    raise UnsupportedTargetError(f"this machine ({machine}) has no target description")
+    return target(shared.native_target("Linux", platform.machine()).triple)

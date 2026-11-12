@@ -24,6 +24,31 @@ their size and SHA-256 on both download and reuse. The build runs in the pinned
 Alpine container with networking disabled. The network suite uses an isolated
 local server and a separate explicit internet check.
 
+## Shared build library
+
+Lock loading, input fetching, target descriptions, archive writing, and the ELF
+hardening check come from `laputa-buildlib`, which is standard-library-only. It
+is pinned twice, to the same wheel: `pyproject.toml` and `uv.lock` for `make
+lint`, and the `buildlib-wheel` input in `sources.lock.json` for everything that
+runs `build.py`. Plain `python3`, the offline Alpine builder containers (Python
+3.14), the CI jobs, and the benchmark runtime have no uv environment, so
+importing `buildsys` verifies the cached wheel by size and SHA-256, downloads
+it into `.work/cache` when absent, and puts the file on `sys.path`
+(`buildsys/buildlib_wheel.py`). `fetch` on the host therefore populates the
+cache before any sealed container starts. The benchmark container sees only
+`buildsys/`, so `benchmark` also mounts `sources.lock.json` and a copy of the
+wheel at the paths the module expects. A controller test keeps the two pins
+equal. Change the version in `pyproject.toml`, run `uv lock`, and update the
+`buildlib-wheel` entry from the new `uv.lock` hash and the wheel size.
+
+Archives are written by `buildlib.release.create_archive`, which sorts entries
+by relative path. For the same stage tree and source date the archive bytes
+equal those of the earlier writer; the archive file mode is now 0644 instead of
+0600. Moving the pinned wheel into the build inputs changes the `build_inputs`
+list in `artifact.json`, so archives built before this change do not match
+earlier qualification, reproduction, or memory-baseline evidence, and the
+implementation digests in phase fingerprints change.
+
 `build` enables a persistent developer C/C++ cache in `.work/compiler-cache/`.
 Qualification uses a separate uncached C/C++ build phase. All completed phases
 are reused only when both their input fingerprints and output tree digests

@@ -8,7 +8,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from helpers import workspace
+from helpers import file_sha256, workspace
 
 import build
 from buildsys import package
@@ -29,7 +29,7 @@ class PackageCommandTests(unittest.TestCase):
             package.create(stage, archive, {'target': 'fixture'}, 1)
             (directory / 'candidate.json').write_text(json.dumps({
                 'archive': archive.name, 'commit': commit, 'size': archive.stat().st_size,
-                'sha256': package.digest(archive),
+                'sha256': file_sha256(archive),
             }))
             (root / 'release-budgets.json').write_text(json.dumps({'schema_version': 1, 'targets': {target: {
                 'metrics': {name: {'value': 100000, 'allowed_regression': 0}

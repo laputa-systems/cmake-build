@@ -210,7 +210,7 @@ class OfflineTests(unittest.TestCase):
                 caches.append(cache)
                 return cache
 
-            item = Input(name="source", version="1", url="https://example.invalid/source", sha256="a" * 64, role="source", target=X86.triple, size=4)
+            item = Input(name="source", version="1", urls=("https://example.invalid/source",), sha256="a" * 64, role="source", target=X86.triple, size=4)
 
             def fetch_during_build(*args):
                 caches[0].fetch(item)
@@ -224,7 +224,7 @@ class OfflineTests(unittest.TestCase):
             item = Input(
                 name="source",
                 version="1.0",
-                url="https://example.invalid/source",
+                urls=("https://example.invalid/source",),
                 sha256="a" * 64,
                 role="source",
                 target="x86_64-unknown-linux-musl",

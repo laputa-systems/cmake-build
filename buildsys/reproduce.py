@@ -8,7 +8,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .inputs import digest_bytes, safe_extract
+from buildlib.hashing import digest_file
+
+from .inputs import safe_extract
 
 
 class ReproduceError(Exception):
@@ -46,7 +48,7 @@ def compare_trees(first: Path, second: Path) -> list[str]:
             differences.append(f'{name}: mode differs')
         elif stat.S_ISLNK(a) and os.readlink(before) != os.readlink(after):
             differences.append(f'{name}: symlink target differs')
-        elif stat.S_ISREG(a) and digest_bytes(before)[0] != digest_bytes(after)[0]:
+        elif stat.S_ISREG(a) and digest_file(before)[0] != digest_file(after)[0]:
             differences.append(f'{name}: content differs')
         elif not (stat.S_ISLNK(a) or stat.S_ISREG(a) or stat.S_ISDIR(a)):
             differences.append(f'{name}: unsupported file type')
@@ -85,7 +87,7 @@ def run(root: Path, target: str, version: str, commit: str) -> list[str]:
                 trees.append(unpacked)
                 archives.append(archive)
             differences = compare_trees(*trees)
-            if digest_bytes(archives[0])[0] != digest_bytes(archives[1])[0]:
+            if digest_file(archives[0])[0] != digest_file(archives[1])[0]:
                 differences.append('archive bytes differ')
             for index, tree in enumerate(trees, 1):
                 executable = tree / 'usr/bin/cmake'

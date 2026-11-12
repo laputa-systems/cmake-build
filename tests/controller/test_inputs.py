@@ -39,7 +39,7 @@ def source(sha: str = GOOD_SHA, size: int | None = 4, name: str = "source") -> I
     return Input(
         name=name,
         version="1.0",
-        url="https://example.invalid/source.tar.gz",
+        urls=("https://example.invalid/source.tar.gz",),
         sha256=sha,
         role="source",
         target="x86_64-unknown-linux-musl",
@@ -63,7 +63,7 @@ class LockTests(unittest.TestCase):
                         load_bootstrap(path)
             lock["schema_version"] = 2
             path.write_text(json.dumps(lock))
-            with self.assertRaisesRegex(InputError, "unsupported schema_version"):
+            with self.assertRaisesRegex(InputError, "schema_version must be 1"):
                 load_bootstrap(path)
 
     def test_bootstrap_rust_component_requires_size(self) -> None:
@@ -88,7 +88,7 @@ class LockTests(unittest.TestCase):
             broken = entry()
             del broken["sha256"]
             lock = write_lock(directory / "lock.json", [broken])
-            with self.assertRaisesRegex(InputError, "missing sha256"):
+            with self.assertRaisesRegex(InputError, "sha256 must be 64 lowercase hex"):
                 load_sources(lock)
 
     def test_missing_size_is_rejected(self) -> None:
@@ -136,7 +136,7 @@ class CacheTests(unittest.TestCase):
             cache = Cache(directory / "cache")
             stored = cache.store(payload, source())
             stored.write_bytes(b"evil")
-            with self.assertRaisesRegex(InputError, "cache object digest"):
+            with self.assertRaisesRegex(InputError, "cache object .*sha256 .* != pinned"):
                 cache.require(source())
 
     def test_fetches_verified_fresh_input(self) -> None:
@@ -146,7 +146,7 @@ class CacheTests(unittest.TestCase):
             item = Input(
                 name="source",
                 version="1.0",
-                url=served.as_uri(),
+                urls=(served.as_uri(),),
                 sha256=GOOD_SHA,
                 role="source",
                 target="x86_64-unknown-linux-musl",
@@ -163,14 +163,14 @@ class CacheTests(unittest.TestCase):
             item = Input(
                 name="source",
                 version="1.0",
-                url=served.as_uri(),
+                urls=(served.as_uri(),),
                 sha256=SHA_A,
                 role="source",
                 target="x86_64-unknown-linux-musl",
                 size=4,
             )
             cache = Cache(directory / "cache")
-            with self.assertRaisesRegex(InputError, "digest .* != pinned"):
+            with self.assertRaisesRegex(InputError, "served sha256 .*pinned"):
                 cache.fetch(item)
             self.assertFalse((cache.root / "objects" / f"{SHA_A}.blob").exists())
 

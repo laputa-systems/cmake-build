@@ -2,7 +2,7 @@ import json
 import tarfile
 import unittest
 
-from helpers import workspace
+from helpers import file_sha256, workspace
 
 from buildsys import package
 
@@ -36,7 +36,7 @@ class PackageTest(unittest.TestCase):
             assert member is not None
             artifact = json.load(member)
             self.assertEqual(artifact['target'], 'example')
-            self.assertEqual(artifact['files']['usr/bin/cmake']['sha256'], package.digest(self.stage / 'bin/cmake'))
+            self.assertEqual(artifact['files']['usr/bin/cmake']['sha256'], file_sha256(self.stage / 'bin/cmake'))
             self.assertEqual(artifact['files']['usr/share/link']['target'], '../bin/cmake')
             self.assertNotIn('usr/share/doc/cmake-build/artifact.json', artifact['files'])
 

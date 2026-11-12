@@ -34,8 +34,9 @@ An unmeasured memory baseline can be established only with its recorded archive.
 
 - `Makefile` — `build`, `verify`, `lint`, `clean`, `fetch`, `package`, and `repro` map to `build.py` phases; `TARGET` is a Rust target triple.
 - `build.py` — argument parsing and dispatch only.
-- `buildsys/targets.py` — the only architecture-specific data.
-- `buildsys/inputs.py` — lock schemas, content-addressed cache, safe extraction.
+- `buildsys/targets.py` — the supported Linux targets taken from `buildlib`, plus their CPU baselines.
+- `buildsys/inputs.py` — repository rules over `buildlib` lock loading, content-addressed cache, safe extraction.
+- `buildsys/buildlib_wheel.py` — puts the locked `laputa-buildlib` wheel from the input cache on `sys.path`; every context imports `buildlib` through `buildsys`.
 - `buildsys/phases.py` — input-fingerprinted phase records.
 - `sources.lock.json` — upstream sources, toolchains, and reference binaries.
 - `bootstrap.lock.json` — pinned Alpine and Debian image indexes, apks, and Rust components.

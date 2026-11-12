@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import shutil
@@ -22,6 +23,10 @@ def workspace():
         yield directory
     finally:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def write_lock(path: Path, entries: list[dict]) -> Path:

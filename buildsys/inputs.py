@@ -8,18 +8,18 @@ import os
 import shutil
 import tarfile
 import tempfile
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from buildlib import hashing, locks
+from buildlib.hashing import digest_file
+from buildlib.locks import FetchError, Input, LockError
+
+from .buildlib_wheel import object_path
 from .targets import TARGETS
 
-SCHEMA_VERSION = 1
-BOOTSTRAP_SCHEMA_VERSION = 1
 ROLES = ("source", "build-source", "reference", "test")
 ALL_TARGETS = "all"
-_CHUNK = 1 << 20
 
 
 class InputError(Exception):
@@ -34,108 +34,22 @@ def identity(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def digest_bytes(path: Path) -> tuple[str, int]:
-    digest = hashlib.sha256()
-    size = 0
-    with Path(path).open("rb") as handle:
-        while chunk := handle.read(_CHUNK):
-            digest.update(chunk)
-            size += len(chunk)
-    return digest.hexdigest(), size
-
-
-def _valid_sha256(value: object) -> bool:
-    return (
-        isinstance(value, str)
-        and len(value) == 64
-        and all(character in "0123456789abcdef" for character in value)
-    )
-
-
-@dataclass(frozen=True)
-class Input:
-    name: str
-    version: str
-    url: str
-    sha256: str
-    role: str
-    target: str
-    size: int | None = None
-    license: str | None = None
-    purpose: str | None = None
-
-    def __post_init__(self) -> None:
-        for field in ("name", "version", "url", "sha256", "role", "target"):
-            value = getattr(self, field)
-            if not isinstance(value, str) or not value:
-                raise InputError(f"{self.name}: {field} must be a nonempty string")
-        if not _valid_sha256(self.sha256):
-            raise InputError(f"{self.name}: sha256 must be lowercase hex")
-        if self.size is not None and (type(self.size) is not int or self.size < 0):
-            raise InputError(f"{self.name}: size must be a nonnegative integer")
-        if self.role not in ROLES:
-            raise InputError(f"{self.name}: unknown role {self.role!r}")
-        if self.target != ALL_TARGETS and self.target not in TARGETS:
-            raise InputError(f"{self.name}: unknown target {self.target!r}")
-
-
-
-def _read_json(path: Path, schema_version: int = SCHEMA_VERSION) -> dict:
-    try:
-        document = json.loads(Path(path).read_text())
-    except (OSError, json.JSONDecodeError) as error:
-        raise InputError(f"cannot read lock {path}: {error}") from error
-    if not isinstance(document, dict):
-        raise InputError(f"{path}: expected a JSON object")
-    if document.get("schema_version") != schema_version:
-        raise InputError(f"{path}: unsupported schema_version {document.get('schema_version')!r}")
-    return document
-
-
-def _entry(entry: object, source: str, index: int) -> dict:
-    if not isinstance(entry, dict):
-        raise InputError(f"{source}: entry #{index} is not an object")
-    return entry
-
-
-def _input(entry: dict, source: str, index: int, *, require_size: bool) -> Input:
-    required = ("name", "version", "url", "sha256", "role", "target")
-    for field in required:
-        if field not in entry:
-            raise InputError(f"{source}: entry #{index} missing {field}")
-    item = Input(
-        name=entry["name"],
-        version=entry["version"],
-        url=entry["url"],
-        sha256=entry["sha256"],
-        role=entry["role"],
-        target=entry["target"],
-        size=entry.get("size"),
-        license=entry.get("license"),
-        purpose=entry.get("purpose"),
-    )
-    if require_size and item.size is None:
+def _repository_input(item: Input, source: str) -> Input:
+    if item.role not in ROLES:
+        raise InputError(f"{item.name}: unknown role {item.role!r}")
+    if item.target != ALL_TARGETS and item.target not in TARGETS:
+        raise InputError(f"{item.name}: unknown target {item.target!r}")
+    if item.size is None:
         raise InputError(f"{source}: {item.name} must pin a size")
     return item
 
 
 def load_sources(path: Path) -> list[Input]:
-    path = Path(path)
-    document = _read_json(path)
-    entries = document.get("inputs")
-    if not isinstance(entries, list):
-        raise InputError(f"{path}: expected 'inputs' list")
-    inputs: list[Input] = []
-    seen: set[str] = set()
-    for index, raw in enumerate(entries):
-        item = _input(_entry(raw, str(path), index), str(path), index, require_size=True)
-        if item.role == "build-source" and item.size is None:
-            raise InputError(f"{path}: {item.name} must pin a size")
-        if item.name in seen:
-            raise InputError(f"{path}: duplicate input {item.name}")
-        seen.add(item.name)
-        inputs.append(item)
-    return inputs
+    try:
+        lock = locks.load_sources(path)
+    except LockError as error:
+        raise InputError(str(error)) from error
+    return [_repository_input(item, str(path)) for item in lock.inputs]
 
 
 @dataclass(frozen=True)
@@ -149,12 +63,46 @@ class BootstrapLock:
     keys: list[Input]
 
 
+def _entry(entry: object, source: str, index: int) -> dict:
+    if not isinstance(entry, dict):
+        raise InputError(f"{source}: entry #{index} is not an object")
+    return entry
+
+
+def _bootstrap_input(entry: dict, source: str, index: int) -> Input:
+    for field in ("name", "version", "url", "sha256", "role", "target"):
+        if field not in entry:
+            raise InputError(f"{source}: entry #{index} missing {field}")
+        if not isinstance(entry[field], str) or not entry[field]:
+            raise InputError(f"{entry['name']}: {field} must be a nonempty string")
+    if not hashing.is_sha256(entry["sha256"]):
+        raise InputError(f"{entry['name']}: sha256 must be lowercase hex")
+    size = entry.get("size")
+    if size is not None and (type(size) is not int or size < 0):
+        raise InputError(f"{entry['name']}: size must be a nonnegative integer")
+    item = Input(
+        name=entry["name"],
+        version=entry["version"],
+        sha256=entry["sha256"],
+        urls=(entry["url"],),
+        size=size,
+        role=entry["role"],
+        target=entry["target"],
+        license=entry.get("license"),
+        purpose=entry.get("purpose"),
+    )
+    return _repository_input(item, source)
+
+
 def load_bootstrap(path: Path) -> BootstrapLock:
     path = Path(path)
-    document = _read_json(path, BOOTSTRAP_SCHEMA_VERSION)
+    try:
+        document = locks.load_bootstrap(path)
+    except LockError as error:
+        raise InputError(str(error)) from error
     reference_image = document.get("reference_image")
     prefix = "debian@sha256:"
-    if not isinstance(reference_image, str) or not reference_image.startswith(prefix) or not _valid_sha256(reference_image[len(prefix):]):
+    if not isinstance(reference_image, str) or not reference_image.startswith(prefix) or not hashing.is_sha256(reference_image[len(prefix):]):
         raise InputError(f"{path}: reference_image must pin a Debian image index by sha256")
     alpine = document.get("alpine")
     if not isinstance(alpine, dict):
@@ -179,7 +127,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     keys: list[Input] = []
     for index, raw in enumerate(alpine.get("keys", [])):
         entry = _entry(raw, f"{path}:alpine.keys", index)
-        keys.append(_input(entry, f"{path}:alpine.keys", index, require_size=True))
+        keys.append(_bootstrap_input(entry, f"{path}:alpine.keys", index))
     for triple, section in targets.items():
         if triple not in TARGETS:
             raise InputError(f"{path}: unknown target section {triple}")
@@ -190,7 +138,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             raise InputError(f"{path}: {triple}.packages must be a list")
         for index, raw in enumerate(packages):
             entry = _entry(raw, f"{path}:{triple}.packages", index)
-            item = _input(entry, f"{path}:{triple}.packages", index, require_size=True)
+            item = _bootstrap_input(entry, f"{path}:{triple}.packages", index)
             if item.target not in (triple, ALL_TARGETS):
                 raise InputError(f"{path}: {item.name} target {item.target} is not {triple}")
         rust = section.get("rust")
@@ -201,7 +149,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
                 entry = _entry(raw, f"{path}:{triple}.rust.components", index)
                 if "role" not in entry:
                     entry = {**entry, "role": "build-source", "target": ALL_TARGETS}
-                _input(entry, f"{path}:{triple}.rust.components", index, require_size=True)
+                _bootstrap_input(entry, f"{path}:{triple}.rust.components", index)
     return BootstrapLock(
         alpine_release=alpine["release"],
         image_index_digest=alpine["image_index_digest"],
@@ -219,7 +167,7 @@ def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
     if section is None:
         return inputs
     inputs.extend(
-        _input(entry, "bootstrap", index, require_size=True)
+        _bootstrap_input(entry, "bootstrap", index)
         for index, entry in enumerate(section.get("packages", []))
     )
     rust = section.get("rust")
@@ -230,9 +178,7 @@ def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
             entry.setdefault("name", f"{name_prefix}-{index}")
             if "version" not in entry:
                 entry["version"] = rust.get("channel", "unknown")
-            inputs.append(
-                _input(entry, "bootstrap", index, require_size=True)
-            )
+            inputs.append(_bootstrap_input(entry, "bootstrap", index))
     return inputs
 
 
@@ -244,25 +190,23 @@ class Cache:
         self.offline = offline
 
     def _object(self, item: Input) -> Path:
-        return self.root / "objects" / f"{item.sha256}.blob"
+        return object_path(self.root, item.sha256)
 
     def require(self, item: Input) -> Path:
         path = self._object(item)
         if path.is_symlink() or not path.is_file():
             raise InputError(f"{item.name}: absent from cache ({path})")
-        found, size = digest_bytes(path)
-        if found != item.sha256:
-            raise InputError(f"{item.name}: cache object digest {found} != pinned {item.sha256}")
-        if item.size is not None and size != item.size:
-            raise InputError(f"{item.name}: cache size {size} != pinned {item.size}")
+        try:
+            locks.verify_file(path, item)
+        except FetchError as error:
+            raise InputError(f"cache object {error}") from error
         return path
 
     def store(self, source: Path, item: Input) -> Path:
-        found, size = digest_bytes(source)
-        if found != item.sha256:
-            raise InputError(f"{item.name}: digest {found} != pinned {item.sha256}")
-        if item.size is not None and size != item.size:
-            raise InputError(f"{item.name}: size {size} != pinned {item.size}")
+        try:
+            locks.verify_file(source, item)
+        except FetchError as error:
+            raise InputError(str(error)) from error
         target = self._object(item)
         try:
             return self.require(item)
@@ -272,8 +216,10 @@ class Cache:
         temporary = target.with_suffix(".part")
         try:
             shutil.copyfile(source, temporary)
-            if digest_bytes(temporary) != (found, size):
-                raise InputError(f"{item.name}: bytes changed during publication")
+            try:
+                locks.verify_file(temporary, item)
+            except FetchError as error:
+                raise InputError(f"{item.name}: bytes changed during publication: {error}") from error
             os.replace(temporary, target)
         finally:
             temporary.unlink(missing_ok=True)
@@ -286,20 +232,10 @@ class Cache:
             return self.require(item)
         except InputError:
             pass
-        self.root.mkdir(parents=True, exist_ok=True)
-        staged = self.root / f".{item.sha256}.download"
         try:
-            request = urllib.request.Request(item.url, headers={"User-Agent": "cmake-build/1"})
-            try:
-                with urllib.request.urlopen(request, timeout=timeout) as response, staged.open(
-                    "wb"
-                ) as out:
-                    shutil.copyfileobj(response, out, _CHUNK)
-            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
-                raise InputError(f"{item.name}: cannot download {item.url}: {error}") from error
-            return self.store(staged, item)
-        finally:
-            staged.unlink(missing_ok=True)
+            return locks.fetch_input(item, self._object(item), timeout=timeout)
+        except FetchError as error:
+            raise InputError(str(error)) from error
 
 
 def _reject(name: str, reason: str) -> None:
@@ -378,7 +314,7 @@ def tree_digest(root: Path, *, exclude: set[str] | None = None) -> str:
                 visit(entry, path)
             elif entry.is_file():
                 record("file", path, "x" if os.access(entry, os.X_OK) else "-")
-                record(digest_bytes(entry)[0])
+                record(digest_file(entry)[0])
             else:
                 record("special", path)
 

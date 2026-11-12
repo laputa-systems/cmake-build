@@ -10,12 +10,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from buildlib.hashing import digest_file
+
 from . import sandbox, toolchain
 from .inputs import (
     Cache,
     Input,
     canonical_json,
-    digest_bytes,
     identity,
     safe_extract,
     tree_digest,
@@ -45,10 +46,10 @@ def install_wrapper(source: Path, scratch: Path) -> Path:
 
 
 def wrapper_identity(wrapper: Path) -> str:
-    parts = {"client": digest_bytes(wrapper)[0]}
+    parts = {"client": digest_file(wrapper)[0]}
     engine = wrapper.with_name("kache-engine")
     if engine.is_file():
-        parts["engine"] = digest_bytes(engine)[0]
+        parts["engine"] = digest_file(engine)[0]
     return identity(canonical_json(parts).encode())
 
 
@@ -112,7 +113,7 @@ def install_tools(cache: Cache, components: list[Input], root: Path, scratch: Pa
     scratch.mkdir(parents=True, exist_ok=True)
     phases = PhaseCache(root / "phases")
     inputs = {name: item.sha256 for name, item in names.items()}
-    inputs["implementation"] = digest_bytes(Path(__file__))[0]
+    inputs["implementation"] = digest_file(Path(__file__))[0]
 
     def install(directory: Path) -> None:
         with tempfile.TemporaryDirectory(prefix="rust-install-", dir=scratch) as temporary:
@@ -135,8 +136,8 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
     vendor_inputs = {
         "tools": tool_record["output_digest"],
         "source": source.sha256,
-        "patch": digest_bytes(patch)[0],
-        "implementation": digest_bytes(Path(__file__))[0],
+        "patch": digest_file(patch)[0],
+        "implementation": digest_file(Path(__file__))[0],
     }
 
     def download(directory: Path) -> None:
@@ -190,7 +191,7 @@ def build_static(root: Path, prepared: Path, target: Target, kache: Path, scratc
         "prepare": _phase_digest(prepared),
         "image": sandbox._locked_image_fingerprint(target),
         "kache": wrapper_identity(kache),
-        "implementation": digest_bytes(Path(__file__))[0],
+        "implementation": digest_file(Path(__file__))[0],
     }
     phases = PhaseCache(root / "phases")
 

@@ -46,7 +46,7 @@ from buildsys.inputs import (
     InputError,
     bootstrap_inputs,
     canonical_json,
-    digest_bytes,
+    digest_file,
     identity,
     load_bootstrap,
     load_sources,
@@ -175,7 +175,7 @@ def fetch(args: argparse.Namespace) -> int:
         except InputError:
             cache.fetch(item)
             outcome = "downloaded"
-        size = item.size if item.size is not None else digest_bytes(cache.require(item))[1]
+        size = item.size if item.size is not None else digest_file(cache.require(item))[1]
         total += size
         print(f"{item.name} {item.version} {outcome} {size} B")
     print(f"{len(selected)} inputs, {total} B, cache {CACHE}")
@@ -227,9 +227,9 @@ def _required_inputs(
 
 def _controller_digest() -> str:
     material = {
-        "build.py": digest_bytes(ROOT / "build.py")[0],
+        "build.py": digest_file(ROOT / "build.py")[0],
         "buildsys": tree_digest(ROOT / "buildsys", exclude={"__pycache__"}),
-        "dockerfile": digest_bytes(DOCKERFILE)[0],
+        "dockerfile": digest_file(DOCKERFILE)[0],
         "provenance": tree_digest(PROVENANCE.parent, exclude={"__pycache__"}),
         "native_fixture": tree_digest(ROOT / "tests/fixtures/native"),
     }
@@ -545,7 +545,7 @@ def test_command(args: argparse.Namespace, *, prepare_only: bool = False) -> int
         record = json.loads((cmake_phase / "phase.json").read_text())
         source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
         license_inputs = {"cmake": record["output_digest"], "controller": _controller_digest(),
-                          "licenses": tree_digest(ROOT / "licenses"), "notice": digest_bytes(ROOT / "NOTICE")[0]}
+                          "licenses": tree_digest(ROOT / "licenses"), "notice": digest_file(ROOT / "NOTICE")[0]}
         def stage_distribution(directory: Path) -> None:
             stage.stage(cmake_phase, directory, description.triple, source.version, ROOT / "licenses", ROOT / "NOTICE")
             for name in ("cmake", "ctest", "cpack"):
@@ -650,8 +650,8 @@ def _package_inside(description, commit: str) -> Path:
     build_inputs = [{"name": item.name, "version": item.version, "sha256": item.sha256} for item in locked]
     wrapper = WORK / "tmp/build-kache"
     engine = wrapper.with_name("kache-engine")
-    wrapper_info = {"client_sha256": digest_bytes(wrapper)[0],
-                    "engine_sha256": digest_bytes(engine)[0] if engine.is_file() else None}
+    wrapper_info = {"client_sha256": digest_file(wrapper)[0],
+                    "engine_sha256": digest_file(engine)[0] if engine.is_file() else None}
     metadata = {
         "schema_version": 1,
         "source": {"version": source.version, "sha256": source.sha256, "commit": commit, "patch_set": patch_identity},
@@ -667,7 +667,7 @@ def _package_inside(description, commit: str) -> Path:
     destination = WORK / "artifacts" / description.triple / f"cmake-{source.version}-{description.triple}.tar.xz"
     package.create(stage_phase, destination, metadata, epoch)
     package.inspect(destination)
-    sha256 = package.digest(destination)
+    sha256 = digest_file(destination)[0]
     candidate = {"archive": destination.name, "sha256": sha256, "size": destination.stat().st_size, "commit": commit}
     temporary = destination.with_name("candidate.json.tmp")
     temporary.write_text(json.dumps(candidate, sort_keys=True, indent=2) + "\n")
@@ -721,9 +721,9 @@ def qualify_command(args: argparse.Namespace) -> int:
             or re.fullmatch(r"[0-9a-f]{64}", candidate["sha256"]) is None
             or candidate.get("size") != archive.stat().st_size):
         _fail("candidate record does not match the archive or repository commit")
-    if package.digest(archive) != candidate["sha256"]:
+    if digest_file(archive)[0] != candidate["sha256"]:
         _fail("candidate archive has been modified")
-    size_budgets = budgets.load(ROOT / "release-budgets.json")
+    size_budgets = budgets.read(ROOT / "release-budgets.json")
     test_command(argparse.Namespace(target=description.triple, suite="upstream", in_container=False), prepare_only=True)
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     image = sandbox.image_tag(lock, description, DOCKERFILE)

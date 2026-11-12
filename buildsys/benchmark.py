@@ -11,11 +11,13 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from buildlib.hashing import digest_file, sha256_file
+
 from . import budgets, package, sandbox, stage
+from .buildlib_wheel import cache_root
 from .inputs import (
     Cache,
     bootstrap_inputs,
-    digest_bytes,
     load_bootstrap,
     load_sources,
     safe_extract,
@@ -150,7 +152,7 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     generation = active.resolve().parent
     archive = generation / 'artifact.tar.xz'
     results = json.loads((generation / 'results.json').read_text())
-    archive_sha256 = package.digest(archive)
+    archive_sha256 = sha256_file(archive)
     if results.get('archive_sha256') != archive_sha256 or results.get('archive_size') != archive.stat().st_size:
         raise BenchmarkError('qualified archive digest or size does not match results')
     try:
@@ -163,8 +165,8 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     ) or not qualification.get('upstream'):
         raise BenchmarkError('archive lacks qualification for the requested target')
     budget_path = root / 'release-budgets.json'
-    budget_document = budgets.load(budget_path)
-    budget_digest = digest_bytes(budget_path)[0]
+    budget_document = budgets.read(budget_path)
+    budget_digest = digest_file(budget_path)[0]
     budgets.validate_memory_source(budget_document, target.triple, archive_sha256, archive.stat().st_size)
     reference_phase = phases / 'reference'
     if not (reference_phase / 'build/bin/cmake').is_file():
@@ -245,8 +247,12 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
         names = ('fmt-source', 'zstd-source', 'libjpeg-turbo-source', 'llvm-project-source')
         input_cache = Cache(root / '.work/cache', offline=True)
         phase_cache = PhaseCache(phases)
+        controller = directory / 'controller'
+        Cache(cache_root(controller)).store(input_cache.require(locked['buildlib-wheel']), locked['buildlib-wheel'])
         mounts = [(workspace, '/benchmark'), (root / 'tests/benchmark', '/suite'),
                   (root / 'buildsys', '/controller/buildsys'),
+                  (root / 'sources.lock.json', '/controller/sources.lock.json'),
+                  (controller / '.work', '/controller/.work'),
                   (candidate, '/variants/product'), (baseline, '/variants/musl'),
                   (official_entries[0], '/variants/kitware'), (runtime, '/opt/alpine'),
                   (runtime / 'lib' / Path(target.musl_loader).name, target.musl_loader),
@@ -259,14 +265,14 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
             item = next(item for item in sources if item.name == name)
             source_archive = input_cache.require(item)
             source_phase = phase_cache.run(
-                f'project-{name}', {'source': item.sha256, 'implementation': digest_bytes(root / 'buildsys/qualify.py')[0]},
+                f'project-{name}', {'source': item.sha256, 'implementation': digest_file(root / 'buildsys/qualify.py')[0]},
                 lambda output, source_archive=source_archive: safe_extract(source_archive, output / 'source'))
             source = source_phase.directory / 'source'
             mounts.append((source, f'/inputs/{name}'))
-        runner_sha256 = digest_bytes(root / 'tests/benchmark/run.py')[0]
-        implementation_sha256 = digest_bytes(Path(__file__))[0]
+        runner_sha256 = digest_file(root / 'tests/benchmark/run.py')[0]
+        implementation_sha256 = digest_file(Path(__file__))[0]
         rss_implementation = root / 'buildsys/benchmark_process.py'
-        rss_implementation_sha256 = digest_bytes(rss_implementation)[0]
+        rss_implementation_sha256 = digest_file(rss_implementation)[0]
         result = sandbox.run_sealed(lock.reference_image, ['/opt/alpine/usr/python3', '/suite/run.py', str(repetitions)],
                                     target=target, mounts=mounts,
                                     env={'PYTHONHOME': '/opt/alpine/usr', 'TMPDIR': '/benchmark'},
@@ -274,13 +280,13 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
                                     read_only=frozenset(destination for _, destination in mounts if destination != '/benchmark'))
         if result.returncode:
             raise BenchmarkError(f'benchmark failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}')
-        if (digest_bytes(root / 'tests/benchmark/run.py')[0] != runner_sha256
-            or digest_bytes(Path(__file__))[0] != implementation_sha256
-            or digest_bytes(rss_implementation)[0] != rss_implementation_sha256):
+        if (digest_file(root / 'tests/benchmark/run.py')[0] != runner_sha256
+            or digest_file(Path(__file__))[0] != implementation_sha256
+            or digest_file(rss_implementation)[0] != rss_implementation_sha256):
             raise BenchmarkError('benchmark implementation changed during measurement')
-        if digest_bytes(budget_path)[0] != budget_digest:
+        if digest_file(budget_path)[0] != budget_digest:
             raise BenchmarkError('release budgets changed during measurement')
-        if package.digest(archive) != archive_sha256:
+        if sha256_file(archive) != archive_sha256:
             raise BenchmarkError('qualified archive changed during measurement')
         data = json.loads((workspace / 'results.json').read_text())
         if data.get('rss_scope') != budgets.RSS_SCOPE:
