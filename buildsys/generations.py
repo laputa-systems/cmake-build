@@ -5,11 +5,12 @@ import json
 import os
 import shutil
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
+from buildsys.inputs import safe_extract, tree_digest
 
 from . import package
-from buildsys.inputs import safe_extract, tree_digest
 
 
 class GenerationError(Exception):

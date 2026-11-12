@@ -1,7 +1,8 @@
 import unittest
 
-from buildsys import reproduce
 from helpers import workspace
+
+from buildsys import reproduce
 
 
 class ReproduceTest(unittest.TestCase):

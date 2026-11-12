@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-import unittest
-import os
 import signal
 import socket
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from helpers import ROOT, workspace
+
 from buildsys import rust, sandbox, tls
-from buildsys.inputs import Cache, Input
+from buildsys.inputs import Cache, Input, bootstrap_inputs, load_bootstrap, load_sources
 from buildsys.phases import PhaseCache
 from buildsys.rust import RustError, _phase_digest, build_static, vendor
-from buildsys.targets import target
-from buildsys.tls import TlsError, build_client, check_tree, check_host_vendored
-from buildsys.targets import native_target
-from buildsys.inputs import bootstrap_inputs, load_bootstrap, load_sources
-from helpers import ROOT, workspace
+from buildsys.targets import native_target, target
+from buildsys.tls import TlsError, build_client, check_host_vendored, check_tree
 
 
 class DependencyTests(unittest.TestCase):
@@ -115,9 +113,8 @@ class DependencyTests(unittest.TestCase):
                             ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"], ROOT / ".work/tmp")
 
     def test_static_build_rejects_networked_container(self) -> None:
-        with workspace() as directory, patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]):
-            with self.assertRaisesRegex(RustError, "sealed container"):
-                build_static(directory, directory, target("x86_64-unknown-linux-musl"), directory, directory)
+        with workspace() as directory, patch.object(sandbox, "in_container", return_value=True), patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]), self.assertRaisesRegex(RustError, "sealed container"):
+            build_static(directory, directory, target("x86_64-unknown-linux-musl"), directory, directory)
 
     def test_rejects_tampered_vendor_phase(self) -> None:
         with workspace() as directory:

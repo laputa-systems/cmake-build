@@ -4,8 +4,9 @@ import hashlib
 import unittest
 from pathlib import Path
 
-from buildsys.patches import PatchError, verify_inventory
 from helpers import workspace
+
+from buildsys.patches import PatchError, verify_inventory
 
 
 def inventory(directory: Path, rows: list[tuple[int, str, bytes]]) -> None:

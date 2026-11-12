@@ -76,7 +76,7 @@ def run(command: list[str], *, cwd: Path, env: dict[str, str], output: Path) -> 
                 _trace(_TRACE_ME, 0)
                 os.kill(os.getpid(), signal.SIGSTOP)
                 os.execvpe(command[0], command, env)
-            except BaseException as error:
+            except BaseException as error:  # noqa: BLE001 - a forked child must exit instead of unwinding into the parent
                 os.write(2, f'benchmark process setup failed: {error}\n'.encode(errors='replace'))
                 os._exit(127)
         reaped = False

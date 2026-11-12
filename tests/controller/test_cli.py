@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import json
@@ -10,13 +11,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import build
 from helpers import ROOT, workspace
+
+import build
 
 
 class CliTests(unittest.TestCase):
     def test_preparing_upstream_does_not_run_it_before_archive_extraction(self) -> None:
-        args = SimpleNamespace(target='x86_64-unknown-linux-musl', suite='upstream', in_container=False)
+        args = argparse.Namespace(target='x86_64-unknown-linux-musl', suite='upstream', in_container=False)
         with patch.object(build, 'build_command'), patch.object(build, 'load_bootstrap'), \
                 patch.object(build.sandbox, 'image_tag', return_value='image'), \
                 patch.object(build.sandbox, 'run_sealed', return_value=SimpleNamespace(returncode=0, stdout='', stderr='')), \
@@ -88,15 +90,13 @@ class CliTests(unittest.TestCase):
                 (provenance / "__pycache__/run.pyc").write_bytes(b"changed")
                 self.assertEqual(before, build._controller_digest())
     def test_internal_vendoring_rejects_host_execution(self) -> None:
-        with patch.object(build.sandbox, "in_container", return_value=False), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                build.main(["fetch", "--target", "x86_64-unknown-linux-musl", "--vendor-in-container"])
+        with patch.object(build.sandbox, "in_container", return_value=False), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            build.main(["fetch", "--target", "x86_64-unknown-linux-musl", "--vendor-in-container"])
 
     def test_every_command_is_registered(self) -> None:
         parser = build._parser()
-        with self.assertRaises(SystemExit):
-            with contextlib.redirect_stderr(io.StringIO()):
-                parser.parse_args(["--help"])
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            parser.parse_args(["--help"])
         output = subprocess.run(
             [sys.executable, "build.py", "--help"],
             cwd=ROOT,

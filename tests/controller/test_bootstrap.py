@@ -4,9 +4,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from helpers import workspace
+
 from buildsys import bootstrap
 from buildsys.targets import target
-from helpers import workspace
 
 
 class BootstrapTests(unittest.TestCase):

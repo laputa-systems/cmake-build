@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 root = Path('/qualification')
@@ -14,8 +15,8 @@ work.mkdir(parents=True, exist_ok=True)
 env = {**os.environ, 'PATH': '/usr/bin:/bin', 'HOME': str(work), 'TMPDIR': str(work)}
 
 
-def run(command: list[str], *, cwd: Path = work, timeout: int = 1800) -> str:
-    result = subprocess.run(list(map(str, command)), cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout)
+def run(command: Sequence[str | Path], *, cwd: Path = work, timeout: int = 1800) -> str:
+    result = subprocess.run(list(map(str, command)), cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout, check=False)
     if result.returncode:
         raise RuntimeError(f'{command}: exit {result.returncode}\n{result.stdout[-6000:]}\n{result.stderr[-6000:]}')
     return result.stdout + result.stderr

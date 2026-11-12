@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import shlex
+import tempfile
 import tomllib
 from pathlib import Path
 
+from . import rust, sandbox, toolchain
 from .inputs import Cache, Input, digest_bytes, safe_extract
 from .phases import PhaseCache
 from .rust import RustError, _cargo_config, _phase_digest, _run, _rust_environment
 from .targets import Target
-from . import rust, sandbox, toolchain
 
 
 class TlsError(Exception):

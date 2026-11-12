@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, '/controller')
-from buildsys.benchmark import interleaved_orders
 from buildsys import benchmark_process, budgets
+from buildsys.benchmark import interleaved_orders
 
 root = Path('/benchmark')
 repetitions = int(sys.argv[1])

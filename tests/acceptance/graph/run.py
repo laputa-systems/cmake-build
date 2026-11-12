@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,8 +15,8 @@ shutil.copytree('/suite', source)
 env = {**os.environ, 'PATH': '/usr/bin:/bin', 'HOME': str(work), 'TMPDIR': str(work)}
 
 
-def run(*args: str, cwd: Path = work, environment: dict[str, str] = env) -> str:
-    result = subprocess.run([str(cmake), *map(str, args)], cwd=cwd, env=environment, text=True, capture_output=True, timeout=300)
+def run(*args: str | Path, cwd: Path = work, environment: dict[str, str] = env) -> str:
+    result = subprocess.run([str(cmake), *map(str, args)], cwd=cwd, env=environment, text=True, capture_output=True, timeout=300, check=False)
     if result.returncode:
         raise RuntimeError(f'{args}: exit {result.returncode}\n{result.stdout}\n{result.stderr}')
     return result.stdout

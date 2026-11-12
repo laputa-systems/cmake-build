@@ -7,6 +7,14 @@ certificate trust. It contains `usr/bin/cmake`, `usr/bin/ctest`, and
 The earlier published prerelease contains only `cmake`.
 
 ```sh
+make fetch TARGET=x86_64-unknown-linux-musl
+make verify TARGET=x86_64-unknown-linux-musl
+make repro TARGET=x86_64-unknown-linux-musl
+```
+
+The targets call the `build.py` phases directly:
+
+```sh
 python3 build.py fetch --target x86_64-unknown-linux-musl
 python3 build.py qualify --target x86_64-unknown-linux-musl
 python3 build.py reproduce --target x86_64-unknown-linux-musl

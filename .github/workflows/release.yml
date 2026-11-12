@@ -1,13 +1,10 @@
-name: prerelease
+name: release
+
 on:
   workflow_dispatch:
-    inputs:
-      sha:
-        description: Full commit SHA qualified on both native runners
-        required: true
-        type: string
-permissions:
-  contents: read
+
+permissions: {}
+
 concurrency:
   group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
   cancel-in-progress: true
@@ -17,16 +14,64 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  prerelease:
+  preflight:
+    name: Validate release ref
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    outputs:
+      default_branch: ${{ steps.ref.outputs.default_branch }}
+    steps:
+      - name: Require the default branch
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          default_branch=$(gh api "repos/$REPOSITORY" --jq '.default_branch')
+          if [[ "$EVENT_NAME" != workflow_dispatch || "$REF" != "refs/heads/$default_branch" ]]; then
+            echo "Release dispatch rejected: expected workflow_dispatch on refs/heads/$default_branch, got $EVENT_NAME on $REF" >&2
+            exit 1
+          fi
+          echo "default_branch=$default_branch" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Create pre-release
+    needs: preflight
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
       actions: read
       contents: write
     steps:
+      - name: Recheck release ref and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ needs.preflight.outputs.default_branch }}
+          RELEASE_TAG: release-${{ github.sha }}
+        run: |
+          default_branch=$(gh api "repos/$REPOSITORY" --jq '.default_branch')
+          if [[ "$EVENT_NAME" != workflow_dispatch || "$REF" != "refs/heads/$default_branch" || "$DEFAULT_BRANCH" != "$default_branch" ]]; then
+            echo "Release publication rejected: expected workflow_dispatch on refs/heads/$default_branch, got $EVENT_NAME on $REF" >&2
+            exit 1
+          fi
+          if response=$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" 2>&1); then
+            echo "Release publication rejected: tag $RELEASE_TAG already exists; inspect it before proceeding" >&2
+            exit 1
+          else
+            if [[ "$response" != *"HTTP 404"* ]]; then
+              printf 'Could not verify that tag %s is absent: %s\n' "$RELEASE_TAG" "$response" >&2
+              exit 1
+            fi
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Install pinned report parser
         run: |
@@ -40,17 +85,16 @@ jobs:
         id: qualified
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ inputs.sha }}
         run: |
           set -euo pipefail
-          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          gh run list --repo "$GITHUB_REPOSITORY" --workflow qualify.yml --commit "$RELEASE_SHA" --status success --limit 20 --json databaseId,headSha,conclusion > .work/runs.json
-          jaq -r --arg sha "$RELEASE_SHA" '.[] | select(.headSha == $sha and .conclusion == "success") | .databaseId' .work/runs.json > .work/run-ids
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow qualify.yml --commit "$GITHUB_SHA" --status success --limit 20 --json databaseId,headSha,conclusion > .work/runs.json
+          jaq -r --arg sha "$GITHUB_SHA" '.[] | select(.headSha == $sha and .conclusion == "success") | .databaseId' .work/runs.json > .work/run-ids
           found=''
           while IFS= read -r run_id; do
             gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion,jobs > .work/run.json
-            if jaq -e --arg sha "$RELEASE_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify x86_64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success")' .work/run.json >/dev/null; then
+            if jaq -e --arg sha "$GITHUB_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify x86_64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success")' .work/run.json >/dev/null; then
               found="$run_id"
               break
             fi
@@ -65,48 +109,91 @@ jobs:
           set -euo pipefail
           mkdir -p .work/download
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'cmake-prerelease-*' --dir .work/download
-      - name: Verify and stage prerelease assets
-        env:
-          RELEASE_SHA: ${{ inputs.sha }}
+      - name: Verify and stage release assets
         run: |
           set -euo pipefail
+          export LC_ALL=C
           mkdir -p .work/release
+          version=$(jaq -r '.inputs[] | select(.name == "cmake-source") | .version' sources.lock.json)
+          test -n "$version"
+          lock_sha=$(sha256sum sources.lock.json | cut -d' ' -f1)
+          budget_sha=$(sha256sum release-budgets.json | cut -d' ' -f1)
+          rss_scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
             folder=".work/download/cmake-prerelease-$target"
-            archive="$folder/cmake-4.4.5-$target.tar.xz"
+            asset="cmake-$version-$target"
+            archive="$folder/$asset.tar.xz"
             metadata="$folder/artifact-$target.json"
             results="$folder/results-$target.json"
             memory="$folder/memory-$target.json"
             sha=$(sha256sum "$archive" | cut -d' ' -f1)
             size=$(stat -c '%s' "$archive")
             jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" >/dev/null
-            budget_sha=$(sha256sum release-budgets.json | cut -d' ' -f1)
-            rss_scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
             jaq -e --arg sha "$sha" --arg target "$target" --arg budget "$budget_sha" --arg scope "$rss_scope" --argjson size "$size" '.target == $target and .archive_sha256 == $sha and .archive_size == $size and .budget_sha256 == $budget and .rss_scope == $scope and .repetitions >= 5 and .result == "passed" and (.measurements | keys == ["fmt_initial_rss_kib", "libjpeg-turbo_initial_rss_kib", "llvm-clang_initial_rss_kib", "zstd_initial_rss_kib"] and all(.[]; type == "number" and . > 0))' "$memory" >/dev/null
             python3 -c 'from pathlib import Path; from buildsys.package import inspect; import sys; inspect(Path(sys.argv[1]))' "$archive"
             tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > .work/embedded.json
             cmp -s "$metadata" .work/embedded.json
-            jaq -e --arg sha "$RELEASE_SHA" --arg target "$target" '.source.commit == $sha and .source.version == "4.4.5" and .target.triple == $target and .build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' "$metadata" >/dev/null
+            jaq -e --arg sha "$GITHUB_SHA" --arg version "$version" --arg target "$target" '.source.commit == $sha and .source.version == $version and .target.triple == $target and .build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' "$metadata" >/dev/null
+            jaq -n --arg version "$version" --arg target "$target" --arg revision "$GITHUB_SHA" --arg lock "$lock_sha" '{schema_version: 1, product: "cmake", version: $version, target: $target, source_revision: $revision, sources_lock_sha256: $lock}' > ".work/release/$asset.manifest.json"
             cp "$archive" "$metadata" "$results" "$memory" "$folder/qualification-$target.md" "$folder/performance-$target.md" .work/release/
           done
-          (cd .work/release && LC_ALL=C sha256sum -- * > SHA256SUMS)
-      - name: Publish unique prerelease
+          cd .work/release
+          sha256sum -- * > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Create release tag at triggering SHA
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ inputs.sha }}
-          RUN_ID: ${{ steps.qualified.outputs.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: release-${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ needs.preflight.outputs.default_branch }}
         run: |
-          set -euo pipefail
-          tag="cmake-4.4.5-${RELEASE_SHA:0:12}-run${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          for endpoint in "releases/tags/$tag" "git/ref/tags/$tag"; do
-            if gh api "repos/$GITHUB_REPOSITORY/$endpoint" > .work/tag-check.out 2> .work/tag-check.err; then
-              printf 'release tag already exists: %s\n' "$tag" >&2
-              exit 1
-            fi
-            case "$(< .work/tag-check.err)" in
-              *'HTTP 404'*) ;;
-              *) cat .work/tag-check.err >&2; exit 1 ;;
-            esac
-          done
-          printf 'Qualified commit: `%s`\n\nQualification run: %s/%s/actions/runs/%s\n' "$RELEASE_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN_ID" > .work/release-notes.md
-          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_SHA" --title "CMake 4.4.5 prerelease ${RELEASE_SHA:0:12}" --notes-file .work/release-notes.md --prerelease --latest=false .work/release/*
+          default_branch=$(gh api "repos/$REPOSITORY" --jq '.default_branch')
+          if [[ "$EVENT_NAME" != workflow_dispatch || "$REF" != "refs/heads/$default_branch" || "$DEFAULT_BRANCH" != "$default_branch" ]]; then
+            echo "Release publication rejected: expected workflow_dispatch on refs/heads/$default_branch, got $EVENT_NAME on $REF" >&2
+            exit 1
+          fi
+          if response=$(gh api "repos/$REPOSITORY/git/ref/tags/$RELEASE_TAG" 2>&1); then
+            echo "Release publication rejected: tag $RELEASE_TAG already exists; inspect it before proceeding" >&2
+            exit 1
+          elif [[ "$response" != *"HTTP 404"* ]]; then
+            printf 'Could not verify that tag %s is absent: %s\n' "$RELEASE_TAG" "$response" >&2
+            exit 1
+          fi
+          if response=$(gh api "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA" 2>&1); then
+            echo "Created $RELEASE_TAG at $GITHUB_SHA"
+          else
+            printf 'Could not create release tag %s at %s: %s\n' "$RELEASE_TAG" "$GITHUB_SHA" "$response" >&2
+            exit 1
+          fi
+      - name: Write release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          previous=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 \
+            --json tagName --jq '.[0].tagName // ""')
+          if [[ -z "$previous" ]]; then
+            printf 'Initial release at %s.\n' "$GITHUB_SHA" > "$notes"
+            exit 0
+          fi
+          compare="repos/$GITHUB_REPOSITORY/compare/$previous...$GITHUB_SHA"
+          status=$(gh api "$compare" --jq '.status')
+          if [[ "$status" != ahead ]]; then
+            printf 'Release notes rejected: %s is %s relative to %s, expected ahead\n' "$GITHUB_SHA" "$status" "$previous" >&2
+            exit 1
+          fi
+          {
+            printf '## Changes since %s\n\n' "$previous"
+            gh api --paginate "$compare?per_page=100" --jq '.commits[] | "- \(.sha[0:12]) \(.commit.message | split("\n")[0])"'
+            printf '\n**Full changelog**: %s/%s/compare/%s...%s\n' \
+              "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$previous" "$GITHUB_SHA"
+          } > "$notes"
+      - name: Create pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: release-${{ github.sha }}
+        run: |
+          version=$(jaq -r '.inputs[] | select(.name == "cmake-source") | .version' sources.lock.json)
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "CMake $version ${GITHUB_SHA:0:12}" --prerelease --verify-tag --notes-file "$RUNNER_TEMP/release-notes.md" .work/release/*

@@ -8,7 +8,7 @@ import threading
 root = pathlib.Path(os.environ['TLS_FIXTURE_DIR'])
 root.mkdir(parents=True)
 def openssl(*args):
-    result = subprocess.run(['openssl', *args], cwd=root, capture_output=True, text=True, timeout=15)
+    result = subprocess.run(['openssl', *args], cwd=root, capture_output=True, text=True, timeout=15, check=False)
     if result.returncode:
         raise RuntimeError(f"openssl {args[0]} failed: {result.stderr}")
 openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2', '-subj', '/CN=Test CA', '-addext', 'basicConstraints=critical,CA:TRUE')
@@ -34,7 +34,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b'ok')
         self.wfile.flush()
         self.connection.unwrap()
-    def log_message(self, *args):
+    def log_message(self, format, *args):
         pass
 
 def check(cert, version, host, mode, ca, expected, env=None):
@@ -50,7 +50,7 @@ def check(cert, version, host, mode, ca, expected, env=None):
     if ca is not None:
         command.append(str(root / ca))
     environment = {key: value for key, value in os.environ.items() if key not in ('SSL_CERT_FILE', 'SSL_CERT_DIR')}
-    result = subprocess.run(command, env={**environment, 'NO_PROXY': '*', 'no_proxy': '*', **(env or {})}, capture_output=True, text=True, timeout=15)
+    result = subprocess.run(command, env={**environment, 'NO_PROXY': '*', 'no_proxy': '*', **(env or {})}, capture_output=True, text=True, timeout=15, check=False)
     server.shutdown()
     server.server_close()
     worker.join()

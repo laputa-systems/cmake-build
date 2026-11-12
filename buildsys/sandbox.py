@@ -16,7 +16,6 @@ from .inputs import (
     BootstrapLock,
     Cache,
     Input,
-    InputError,
     canonical_json,
     digest_bytes,
     identity,

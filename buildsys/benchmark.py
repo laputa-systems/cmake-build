@@ -12,7 +12,15 @@ from collections import defaultdict
 from pathlib import Path
 
 from . import budgets, package, sandbox, stage
-from .inputs import Cache, bootstrap_inputs, digest_bytes, load_bootstrap, load_sources, safe_extract, tree_digest
+from .inputs import (
+    Cache,
+    bootstrap_inputs,
+    digest_bytes,
+    load_bootstrap,
+    load_sources,
+    safe_extract,
+    tree_digest,
+)
 from .phases import PhaseCache
 from .targets import Target
 

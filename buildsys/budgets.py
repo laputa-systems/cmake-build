@@ -10,7 +10,7 @@ class BudgetError(Exception):
     pass
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 RSS_SCOPE = 'cmake-image-v1'
 
 

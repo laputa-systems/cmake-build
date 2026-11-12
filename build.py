@@ -9,8 +9,8 @@ import platform
 import re
 import shutil
 import subprocess
-import tempfile
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -18,8 +18,31 @@ from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from buildsys import (
+    benchmark,
+    bootstrap,
+    budgets,
+    cmake,
+    dependencies,
+    elf,
+    generations,
+    licenses,
+    package,
+    patches,
+    qualify,
+    reference,
+    reproduce,
+    rust,
+    sandbox,
+    stage,
+    sysroot,
+    tls,
+    toolchain,
+)
 from buildsys.inputs import (
+    BootstrapLock,
     Cache,
+    Input,
     InputError,
     bootstrap_inputs,
     canonical_json,
@@ -31,11 +54,11 @@ from buildsys.inputs import (
 )
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
-from buildsys import benchmark, bootstrap, budgets, cmake, dependencies, elf, generations, licenses, package, patches, qualify, reference, reproduce, rust, sandbox, stage, sysroot, tls, toolchain
 from buildsys.targets import (
-    TARGETS,
     UnsupportedTargetError,
     native_target,
+)
+from buildsys.targets import (
     target as describe_target,
 )
 
@@ -195,8 +218,8 @@ def _toolchain_directory(description) -> Path:
 
 
 def _required_inputs(
-    sources, lock, description
-) -> tuple[dict[str, object], list[object]]:
+    sources: list[Input], lock: BootstrapLock, description
+) -> tuple[dict[str, Input], list[Input]]:
     selected = [item for item in sources if item.target in ("all", description.triple)]
     extras = bootstrap_inputs(lock, description.triple)
     return {item.name: item for item in selected}, extras
@@ -569,7 +592,10 @@ def _package_inside(description, commit: str) -> Path:
     toolchain_input = next(item for item in load_sources(SOURCES_LOCK) if item.name == f"llvm-toolchain-{description.machine}")
     source_archive = Cache(CACHE, offline=True).require(source)
     with tarfile.open(source_archive, "r:gz") as archive:
-        epoch = archive.next().mtime
+        first = archive.next()
+        if first is None:
+            _fail("cmake source archive is empty")
+        epoch = int(first.mtime)
     phases = _target_root(description) / "phases"
     cmake_phase = phases / "cmake"
     cmake_record = json.loads((cmake_phase / "phase.json").read_text())
@@ -781,9 +807,7 @@ def _controller_test(args: argparse.Namespace) -> int:
         counted = re.search(r"^Ran (\d+) tests? in ", result.stderr, re.MULTILINE)
         count = int(counted.group(1)) if counted else 0
         executed += count
-        if count == 0:
-            failed.append(module)
-        elif result.returncode != 0:
+        if count == 0 or result.returncode != 0:
             failed.append(module)
         if result.returncode != 0 or count == 0:
             print(f"--- {module} (exit {result.returncode}, {count} tests)")

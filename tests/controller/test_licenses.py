@@ -3,8 +3,9 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from buildsys import licenses, stage
 from helpers import workspace
+
+from buildsys import licenses, stage
 
 
 class LicenseStagingTests(unittest.TestCase):

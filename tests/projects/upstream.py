@@ -19,7 +19,7 @@ expression = '|'.join(f'({pattern})' for pattern in patterns)
 report = root / 'upstream.xml'
 command = [str(ctest), '--test-dir', str(build), '--output-on-failure', '--no-tests=error',
            '--parallel', '8', '--timeout', '1200', '--output-junit', str(report), '-R', expression]
-result = subprocess.run(command, cwd=root, env=os.environ, text=True, capture_output=True, timeout=1200)
+result = subprocess.run(command, cwd=root, env=os.environ, text=True, capture_output=True, timeout=1200, check=False)
 output = result.stdout + result.stderr
 (root / 'upstream.txt').write_text(output)
 match = re.search(r'(?:\d+% tests passed(?:, \d+ tests failed)? out of )(\d+)', output)

@@ -139,7 +139,7 @@ Each decision gives its reason and, where one exists, the condition that would r
 - **P13 CI shape.** Mirror python-build `.github/workflows/build.yml`:
   - `controller.yml` runs `controller-test` on push and PR.
   - `qualify.yml` uses `workflow_dispatch` only, with native jobs on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs `python3 build.py qualify --target <triple>` in the P2 container and uploads its archive, `artifact.json`, and qualification report.
-  - `release.yml` uses `workflow_dispatch` with a full commit `sha`. It requires both native qualification jobs at that SHA and verifies archive-bound results and memory evidence. It publishes a new prerelease with `SHA256SUMS` and never rebuilds or overwrites an existing release. GitHub does not mark the prerelease immutable; consumers must pin its digest.
+  - `release.yml` uses `workflow_dispatch` on the default branch and tags `release-<sha>`. It requires both native qualification jobs at that SHA and verifies archive-bound results and memory evidence. It publishes a new prerelease with `SHA256SUMS` and never rebuilds or overwrites an existing release. GitHub does not mark the prerelease immutable; consumers must pin its digest.
 
   No emulation is used anywhere. CI cache keys include the full input fingerprint.
 
@@ -295,7 +295,7 @@ Each deliverable is met only when its command passes on the integrated `main`.
 
 ## Needs environment
 
-- **Release publication:** the owner runs `gh workflow run release.yml -f tag=v4.4.5-<rev> -f sha=<qualified sha>` after both `qualify.yml` jobs are green at that SHA.
+- **Release publication:** the owner runs `gh workflow run release.yml` on the default branch after both `qualify.yml` jobs are green at that SHA.
 - **aarch64 qualification**, only if GitHub's `ubuntu-24.04-arm` runner is unavailable to the repo: the owner runs `gh workflow run qualify.yml -f target=aarch64-unknown-linux-musl` when it becomes available. Until then aarch64 is `unqualified`.
 - **HTTPS on a CPU below Graviola's floor** (pre-Broadwell x86_64, or a Raspberry Pi 4): the owner runs `cmake -P tests/acceptance/network/https-download.cmake` from the extracted archive. Expected result: a TLS error and exit status 1, not a crash. Until then this is `not executed`.
 - **aarch64 performance numbers:** only from the native runner. If it can't produce stable timings, they stay `not measured`.

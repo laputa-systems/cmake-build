@@ -14,8 +14,8 @@ work.mkdir(parents=True, exist_ok=True)
 env = {**os.environ, 'PATH': '/usr/bin:/bin', 'HOME': str(work), 'TMPDIR': str(work)}
 
 
-def run(*args: str, ok: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([str(cmake), *map(str, args)], cwd=work, env=env, text=True, capture_output=True, timeout=300)
+def run(*args: str | Path, ok: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run([str(cmake), *map(str, args)], cwd=work, env=env, text=True, capture_output=True, timeout=300, check=False)
     if (result.returncode == 0) != ok:
         raise RuntimeError(f'{args}: exit {result.returncode}\n{result.stdout}\n{result.stderr}')
     return result
@@ -85,13 +85,13 @@ for generator, label in [('Ninja', 'ninja'), ('Unix Makefiles', 'make')]:
 missing = root / 'missing resource'
 shutil.copytree(prefix, missing, symlinks=True)
 (missing / 'share/cmake-4.4/Modules/CMakeDetermineCCompiler.cmake').unlink()
-result = subprocess.run([str(missing / 'bin/cmake'), '-S', str(source), '-B', str(work / 'missing-build'), '-DCMAKE_TOOLCHAIN_FILE=/tools/toolchain.cmake'], cwd=work, env=env, text=True, capture_output=True, timeout=120)
+result = subprocess.run([str(missing / 'bin/cmake'), '-S', str(source), '-B', str(work / 'missing-build'), '-DCMAKE_TOOLCHAIN_FILE=/tools/toolchain.cmake'], cwd=work, env=env, text=True, capture_output=True, timeout=120, check=False)
 if result.returncode == 0 or 'CMakeDetermineCCompiler.cmake' not in result.stdout + result.stderr:
     raise RuntimeError('missing compiler module did not produce a missing-resource error')
 broken = root / 'broken relocation'
 shutil.copytree(prefix, broken, symlinks=True)
 (broken / 'share').rename(root / 'moved share')
-result = subprocess.run([str(broken / 'bin/cmake'), '-P', str(script)], cwd=work, env=env, text=True, capture_output=True, timeout=120)
+result = subprocess.run([str(broken / 'bin/cmake'), '-P', str(script)], cwd=work, env=env, text=True, capture_output=True, timeout=120, check=False)
 if result.returncode == 0:
     raise RuntimeError('broken relocation unexpectedly succeeded')
 print('basic qualification: CLI, C/C++ builds, generators, relocation and negative controls passed')

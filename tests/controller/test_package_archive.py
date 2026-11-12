@@ -2,8 +2,9 @@ import json
 import tarfile
 import unittest
 
-from buildsys import package
 from helpers import workspace
+
+from buildsys import package
 
 
 class PackageTest(unittest.TestCase):
@@ -31,7 +32,9 @@ class PackageTest(unittest.TestCase):
             self.assertEqual([m.name for m in members], sorted(m.name for m in members))
             self.assertTrue(all(m.uid == m.gid == 0 and m.mtime == 1234567890 for m in members))
             self.assertEqual(archive.getmember('usr/bin/cmake').mode, 0o755)
-            artifact = json.load(archive.extractfile('usr/share/doc/cmake-build/artifact.json'))
+            member = archive.extractfile('usr/share/doc/cmake-build/artifact.json')
+            assert member is not None
+            artifact = json.load(member)
             self.assertEqual(artifact['target'], 'example')
             self.assertEqual(artifact['files']['usr/bin/cmake']['sha256'], package.digest(self.stage / 'bin/cmake'))
             self.assertEqual(artifact['files']['usr/share/link']['target'], '../bin/cmake')
