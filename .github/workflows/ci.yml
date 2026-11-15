@@ -1,4 +1,4 @@
-name: controller
+name: ci
 on:
   push:
     branches: [main]
