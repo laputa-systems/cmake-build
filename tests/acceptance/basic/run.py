@@ -6,6 +6,8 @@ import subprocess
 import tarfile
 from pathlib import Path
 
+from help_contract import check as check_help_contract
+
 root = Path('/qualification')
 prefix = root / 'relocated cmake'
 cmake = prefix / 'bin/cmake'
@@ -32,6 +34,7 @@ for name in ('ctest', 'cpack'):
                              text=True, capture_output=True, timeout=30, check=True)
     contains(version.stdout, f'{name} version 4.4.5')
 contains(run('--help').stdout, 'Usage')
+check_help_contract(cmake)
 contains(run('-E', 'echo', 'qualified').stdout, 'qualified')
 script = work / 'root.cmake'
 script.write_text('message(STATUS "ROOT=${CMAKE_ROOT}")\n')
