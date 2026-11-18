@@ -138,6 +138,20 @@ candidate. The strict inventory fell from 42 to 31, with 27 missing
 generic arguments and four unsound returns still open. Ruff and the
 normal ty check pass.
 
+The artifact reader at `a8dd64b7` accepted a one-byte member whose
+inventory declared `true` or `1.0` as its size. Python compares those
+values equal to integer `1`. Both sealed repack fixtures now fail
+with the inventory diagnostic. An initial JSON null manifest also
+previously hid a second manifest and now fails at the invalid record.
+Valid tar members retain the same
+metadata, and directory, file and symlink records carry their own
+types. The benchmark consumer checks the target and build metadata
+shapes before using them.
+
+All 14 package controller tests and both linters passed. The full
+strict inventory fell from 31 to 27, leaving 23 generic arguments
+and four unsound returns. No native release ran for this slice.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

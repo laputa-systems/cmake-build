@@ -1,3 +1,4 @@
+import io
 import json
 import tarfile
 import unittest
@@ -44,6 +45,42 @@ class PackageTest(unittest.TestCase):
         (self.stage / 'share/escape').symlink_to('../../../outside')
         with self.assertRaises(package.PackageError):
             package.create(self.stage, self.root / 'invalid.tar.xz', {}, 0)
+
+    def test_inventory_requires_an_integer_size(self):
+        (self.stage / 'share/tiny').write_bytes(b'x')
+        original = self.root / 'original.tar.xz'
+        changed = self.root / 'changed.tar.xz'
+        package.create(self.stage, original, {}, 0)
+        package.inspect(original)
+        for invalid_size in (True, 1.0):
+            with self.subTest(size=invalid_size):
+                with tarfile.open(original, 'r:xz') as source, tarfile.open(changed, 'w:xz') as destination:
+                    for member in source:
+                        contents = source.extractfile(member) if member.isfile() else None
+                        if member.name == package.ARTIFACT:
+                            assert contents is not None
+                            artifact = json.load(contents)
+                            artifact['files']['usr/share/tiny']['size'] = invalid_size
+                            body = json.dumps(artifact).encode()
+                            member.size = len(body)
+                            contents = io.BytesIO(body)
+                        destination.addfile(member, contents)
+                with self.assertRaisesRegex(package.PackageError, 'package inventory does not match its contents'):
+                    package.inspect(changed)
+
+    def test_an_initial_null_manifest_does_not_hide_a_duplicate(self):
+        original = self.root / 'original.tar.xz'
+        changed = self.root / 'changed.tar.xz'
+        package.create(self.stage, original, {}, 0)
+        with tarfile.open(original, 'r:xz') as source, tarfile.open(changed, 'w:xz') as destination:
+            for member in source:
+                if member.name == package.ARTIFACT:
+                    null = tarfile.TarInfo(member.name)
+                    null.size = 4
+                    destination.addfile(null, io.BytesIO(b'null'))
+                destination.addfile(member, source.extractfile(member) if member.isfile() else None)
+        with self.assertRaisesRegex(package.PackageError, 'package inventory does not match its contents'):
+            package.inspect(changed)
 
 
 if __name__ == '__main__':
