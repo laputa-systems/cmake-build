@@ -152,6 +152,16 @@ All 14 package controller tests and both linters passed. The full
 strict inventory fell from 31 to 27, leaving 23 generic arguments
 and four unsound returns. No native release ran for this slice.
 
+The command controller now carries the concrete target through its
+paths and package metadata, uses text-mode child process results, and
+types the qualification callback's output. A fake command that
+returned a string previously escaped `main()` as its result. It now
+produces the controller's error status and a diagnostic. The nine CLI
+and seven generation tests passed with Ruff and ty.
+
+The strict inventory fell from 27 to 21 at this boundary, with 20
+missing generic arguments and one unsound return still open.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

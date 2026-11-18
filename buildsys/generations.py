@@ -19,7 +19,7 @@ class GenerationError(Exception):
     pass
 
 
-def qualify(store: Path, archive: Path, expected_digest: str, run: Callable[[Path], dict]) -> Path:
+def qualify[Result](store: Path, archive: Path, expected_digest: str, run: Callable[[Path], dict[str, Result]]) -> Path:
     store.mkdir(parents=True, exist_ok=True)
     with (store / '.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
