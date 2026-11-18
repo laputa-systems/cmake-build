@@ -48,6 +48,9 @@ class SizeBudgetTests(unittest.TestCase):
                 budgets.check_size({'schema_version': 1, 'targets': {}}, 'test', root, root / 'archive')
             with self.assertRaises(budgets.BudgetError):
                 budgets.check_size({'schema_version': 9, 'targets': {}}, 'test', root, root / 'archive')
+            for targets in (None, [], 'unavailable'):
+                with self.subTest(targets=targets), self.assertRaisesRegex(budgets.BudgetError, '^release budgets lack target test$'):
+                    budgets.check_size({'schema_version': 1, 'targets': targets}, 'test', root, root / 'archive')
 
     def test_memory_regression_requires_five_samples_and_exceeds_observed_spread(self) -> None:
         workloads = ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
