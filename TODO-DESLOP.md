@@ -431,6 +431,23 @@ and select `buildsys.inputs.x__bootstrap_input__mutmut_*` under Mutmut
 `mutants/buildsys/inputs.py.meta`. Other input functions and the
 whole-change workflow still need qualification.
 
+**Persisted phase tree identity**
+
+At `a645b17`, the original input and phase tests caught 44 of 72
+`tree_digest` identities. The new fixture caught 70 with the same
+production code and selected keys. It verifies a fixed digest for a
+directory, regular and executable files, a symbolic link and a FIFO.
+It builds the same tree in two orders and omits a metadata file that
+sorts before every included root entry.
+
+Use the sealed input trial setup with `tests/controller/test_inputs.py`
+and `tests/controller/test_phases.py` as the pytest selection. Run
+`mutmut run --max-children 1 'buildsys.inputs.x_tree_digest__mutmut_*'`
+on Python 3.15.2 with Mutmut 3.8.1 and pytest 9.2.0. Compare the selected
+keys and outcomes in `mutants/buildsys/inputs.py.meta`. The only survivors,
+10 and 12, sort by the full path instead of its name. All compared paths
+are children of the same directory on the supported POSIX platforms.
+
 ## Tickets
 
 
