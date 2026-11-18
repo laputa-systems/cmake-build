@@ -56,8 +56,8 @@ class PhaseCache:
         if not path.is_file():
             return None
         try:
-            document = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
         if not isinstance(document, dict):
             return None

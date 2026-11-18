@@ -58,6 +58,26 @@ class PhaseTests(unittest.TestCase):
             self.assertFalse(result.reused)
             self.assertEqual(len(runs), 2)
 
+    def test_invalid_utf8_phase_record_is_rebuilt(self) -> None:
+        with workspace() as directory:
+            cache = PhaseCache(directory / "phases")
+            inputs = {"source": DIGEST_A}
+            calls = []
+
+            def action(path):
+                calls.append(len(calls) + 1)
+                (path / "output").write_text(str(calls[-1]))
+
+            first = cache.run("configure", inputs, action)
+            (first.directory / "phase.json").write_bytes(bytes([255]))
+            recovered = cache.run("configure", inputs, action)
+            reused = cache.run("configure", inputs, action)
+            self.assertFalse(recovered.reused)
+            self.assertTrue(reused.reused)
+            self.assertEqual(recovered.fingerprint, first.fingerprint)
+            self.assertEqual((recovered.directory / "output").read_text(), "2")
+            self.assertEqual(calls, [1, 2])
+
     def test_interrupted_phase_is_never_complete(self) -> None:
         with workspace() as directory:
             cache = PhaseCache(directory / "phases")
