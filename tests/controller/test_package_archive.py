@@ -24,9 +24,9 @@ class PackageTest(unittest.TestCase):
     def test_deterministic_archive_and_inventory(self):
         first = self.root / 'first.tar.xz'
         second = self.root / 'second.tar.xz'
-        package.create(self.stage, first, {'target': 'example'}, 1234567890)
+        package.create(self.stage, first, {'target': 'example', 'features': {'b': False, 'a': True}}, 1234567890)
         (self.stage / 'bin/cmake').chmod(0o777)
-        package.create(self.stage, second, {'target': 'example'}, 1234567890)
+        package.create(self.stage, second, {'features': {'a': True, 'b': False}, 'target': 'example'}, 1234567890)
         self.assertEqual(first.read_bytes(), second.read_bytes())
         self.assertEqual(package.inspect(first)['target'], 'example')
         with tarfile.open(first, 'r:xz') as archive:
@@ -73,8 +73,11 @@ class PackageTest(unittest.TestCase):
         stale_manifest = self.stage / package.ARTIFACT.removeprefix('usr/')
         stale_manifest.parent.mkdir(parents=True)
         stale_manifest.write_text('stale')
+        executable = self.stage / 'share/plugin'
+        executable.write_text('program')
+        executable.chmod(0o601)
 
-        destination = self.root / 'nested' / 'cmake.tar.xz'
+        destination = self.root / 'nested' / 'target' / 'cmake.tar.xz'
         package.create(self.stage, destination, {'target': 'candidate'}, 0)
         artifact = package.inspect(destination)
         self.assertEqual(artifact['target'], 'candidate')
@@ -83,6 +86,7 @@ class PackageTest(unittest.TestCase):
             self.assertNotIn('usr/state.json', archive.getnames())
             for filename in ('usr/share/phase.json', 'usr/share/state.json'):
                 self.assertEqual(archive.getmember(filename).mode, 0o644)
+            self.assertEqual(archive.getmember('usr/share/plugin').mode, 0o755)
 
     def test_inventory_requires_an_integer_size(self):
         (self.stage / 'share/tiny').write_bytes(b'x')
