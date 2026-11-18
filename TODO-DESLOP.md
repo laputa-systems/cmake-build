@@ -474,6 +474,14 @@ destination parent is created, and verify that an existing output
 survives a refused extraction. Forty-five extraction identities
 remain open. All 33 input tests and both linters passed.
 
+The publication failure fixture lets extraction finish, refuses the
+final rename, and verifies that staging is on the destination's
+filesystem and is removed. Retrying the same archive publishes the
+expected bytes. At `f5e5d4d`, the same 48 `safe_extract` identities
+moved from 34 to 36 caught. All nine extraction cases and both
+linters passed. Use the input recipe above and select
+`buildsys.inputs.x_safe_extract__mutmut_*` to reproduce.
+
 ## Tickets
 
 

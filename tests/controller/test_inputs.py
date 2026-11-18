@@ -443,6 +443,25 @@ class ExtractTests(unittest.TestCase):
             self.assertEqual(original.read_bytes(), b"existing")
             self.assertEqual(set(directory.iterdir()), {bundle, destination})
 
+    def test_failed_archive_publication_cleans_staging_and_allows_retry(self) -> None:
+        with workspace() as directory:
+            bundle = archive(directory / "bundle.tar.gz", [("file", b"data", None)])
+            destination = directory / "out"
+
+            def refuse(staging: Path, target: Path) -> None:
+                self.assertEqual(staging.parent, destination.parent)
+                self.assertEqual(target, destination)
+                self.assertEqual((staging / "file").read_bytes(), b"data")
+                raise OSError("publication refused")
+
+            with (
+                patch("buildsys.inputs.os.replace", side_effect=refuse),
+                self.assertRaisesRegex(OSError, "publication refused"),
+            ):
+                safe_extract(bundle, destination)
+            self.assertEqual(list(directory.iterdir()), [bundle])
+            self.assertEqual((safe_extract(bundle, destination) / "file").read_bytes(), b"data")
+
     def test_traversal_archive(self) -> None:
         with workspace() as directory:
             bundle = archive(directory / "bad.tar.gz", [("../evil", b"data", None)])
