@@ -253,6 +253,21 @@ corresponding fixture checks. The native release and the wider
 controller mutation scope retain their separate verification.
 
 
+**Package archive tests**
+
+The macOS ARM64 archive suite exercised the same 327 `buildsys.package.*`
+mutations at `5f81386`. Mutmut 3.8.1 with Python 3.15.2 and pytest 9.2.0
+used the same copied controller and verified Buildlib wheel as the phase
+trial, with `tests/controller/test_package_archive.py` as its selection.
+The baseline caught 260 and missed 67. The eight-case candidate caught
+284 and missed 43. The identity list and outcomes are recorded by
+mutmut in `mutants/buildsys/package.py.meta`.
+
+The new cases check staging and generated inventory ownership,
+normalization of payload modes, root record exclusion, special-file
+rejection, same-size payload changes and unreadable manifests. The
+remaining archive mutations and whole-change gate stay in DSLP-4.
+
 **Native controller cache**
 
 [CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
