@@ -328,6 +328,34 @@ archive fixture. The Linux profiling script passes its `Event` fields by
 reference to the kernel. Keep these uses during the remaining structural
 review under DSLP-5.
 
+
+**Whole-change mutation trial**
+
+The complete `buildsys.inputs.*` scope contains 568 identities at
+`a6ac0d1`. With `test_inputs.py` alone, mutmut caught 432, missed 126
+and marked ten identities as unexercised. The ten belong to
+`canonical_json` and `identity`. Adding their consumers in
+`test_phases.py` produced 446 caught and 122 surviving with every
+identity exercised. Use the pinned macOS ARM64, Python 3.15.2 and
+mutmut 3.8.1 setup from the phase trial.
+
+Buildlib `1497970` parses NUL-delimited Git changes and reconciles the
+mutmut metadata and generated spans. A local CMake selector using those
+readers selected inputs, phases and archive work for a change to
+`buildsys/phases.py` mixed with deletion of
+`test_deterministic_archive_and_inventory`. The production control
+assigned `self.root / name` to a local before returning it. Removing
+the test reopened exactly three package mutation identities,
+`buildsys.package.x_create__mutmut_34`, `__mutmut_37` and
+`__mutmut_41`. The same package scope moved from 291 to 288 caught.
+The docs-only control selected nothing. The unknown-production and
+missing-result controls failed.
+
+Use whole modules with the fixtures that exercise their callers.
+Keep the full native controller check for platform-dependent behavior.
+The remaining survivor dispositions, complete path selection and hosted
+controls remain open under DSLP-4.
+
 ## Tickets
 
 
