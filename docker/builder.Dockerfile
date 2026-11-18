@@ -1,6 +1,5 @@
-FROM alpine@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
+FROM alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
-COPY keys/ /etc/apk/keys/
 COPY apks/ /tmp/apks/
 
 RUN set -eux; \

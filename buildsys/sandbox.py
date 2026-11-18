@@ -134,7 +134,6 @@ def image_fingerprint(lock: BootstrapLock, target: Target, dockerfile: Path) -> 
         "platform": target.docker_platform,
         "dockerfile": digest_file(dockerfile)[0],
         "packages": packages,
-        "keys": sorted((item.name, item.sha256) for item in lock.keys),
     }
     return identity(canonical_json(material).encode())
 
@@ -159,13 +158,10 @@ def _context(
 ) -> None:
     shutil.rmtree(context, ignore_errors=True)
     (context / "apks").mkdir(parents=True)
-    (context / "keys").mkdir(parents=True)
     shutil.copyfile(dockerfile, context / "Dockerfile")
     for item in _lock_packages(lock, target.triple):
         destination = context / "apks" / Path(item.url).name
         shutil.copyfile(cache.require(item), destination)
-    for item in lock.keys:
-        shutil.copyfile(cache.require(item), context / "keys" / Path(item.url).name)
 
 
 def build_image(
