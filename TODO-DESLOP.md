@@ -386,6 +386,35 @@ Run `mutmut run --max-children 1 'buildsys.inputs.*Cache*store*'` in both
 copies with the same locked wheel. Compare store identities in
 `mutants/buildsys/inputs.py.meta`.
 
+**Sealed controller branch coverage**
+
+[Run 44403063173](https://github.com/laputa-systems/cmake-build/actions/runs/44403063173)
+exercised the ordinary 137 tests in 21 modules without failures on
+native x86-64 Alpine 3.24.2 with Python 3.14.10. The tracked controller
+inputs match `096a0df`. Coverage.py 7.17.3 combined data from the parent
+and subprocesses, and the report includes the cache publication line
+executed in the input-test child.
+
+| Scope | Covered statements | Covered branches |
+| --- | ---: | ---: |
+| `build.py` and `buildsys/`, 26 files | 1,995 / 3,161 | 534 / 972 |
+| `build.py` | 275 / 601 | 59 / 162 |
+| `buildsys/inputs.py` | 239 / 250 | 97 / 110 |
+| `buildsys/phases.py` | 71 / 71 | 18 / 18 |
+| `buildsys/package.py` | 118 / 125 | 44 / 50 |
+| `buildsys/sandbox.py` | 136 / 181 | 15 / 30 |
+
+Reproduce with the [pinned trial workflow](https://github.com/laputa-systems/cmake-build/blob/c1b6397b72c671e5bfeff61a32e0f82cb7ac961e/.github/workflows/native-coverage-trial.yml).
+Prepare the verified native build, then verify and unpack the upstream
+pure-Python wheel into the temporary Python user site. Start the regular
+controller command under branch coverage in the network-sealed builder,
+combine the subprocess data, and inspect the JSON report. The wheel's
+SHA-256 is `21745c08f2835b847a16887b748d3084dddeb0571ae2a0d62e33644413568b99`.
+The configured mirror rejected reads of the pure-Python and CPython 3.14
+musl variants with HTTP 404. The retained coverage entry point needs a
+compatible mirrored wheel. The separate native artifact qualification
+and the wider mutation work remain open as recorded above.
+
 ## Tickets
 
 
@@ -394,7 +423,7 @@ copies with the same locked wheel. Compare store identities in
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** The bootstrap parser's 172 selected identities are covered. The wider controller and whole-change mutation lane remain open.
+- **Problem:** The native branch coverage baseline and scoped input, phase and package mutation results are recorded above. A compatible mirrored coverage wheel, remaining critical decisions and the retained whole-change lane remain open.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
