@@ -248,6 +248,7 @@ class CacheTests(unittest.TestCase):
             ready = Barrier(2)
 
             def publish(temporary: Path, target: Path) -> None:
+                self.assertTrue(temporary.is_relative_to(target.parent))
                 ready.wait(timeout=5)
                 replace(temporary, target)
 

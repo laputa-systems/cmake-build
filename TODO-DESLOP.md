@@ -372,6 +372,20 @@ the same verified object and leave only that object behind. A second fixture
 changes the source during the copy and verifies refusal, staging cleanup and
 a successful retry. The input and phase suite passed 35 tests and 38 subtests.
 
+The rename fixture also checks that staged files are under the destination's
+object directory. Removing that directory argument leaked staging to the
+default temporary filesystem on two Mutmut identities. With the same
+`613bf9d` production source, Mutmut 3.8.1 and pytest 9.2.0 moved from
+32 catches and six survivors to 34 catches and four survivors across
+the same 38 `Cache.store` identities. The four remaining edits only
+change the prefix of the private temporary directory.
+
+Use the input trial layout with `only_mutate = ["buildsys/inputs.py"]`
+and `pytest_add_cli_args_test_selection = ["tests/controller/test_inputs.py::CacheTests"]`.
+Run `mutmut run --max-children 1 'buildsys.inputs.*Cache*store*'` in both
+copies with the same locked wheel. Compare store identities in
+`mutants/buildsys/inputs.py.meta`.
+
 ## Tickets
 
 
