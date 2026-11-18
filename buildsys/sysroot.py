@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 from buildlib.hashing import digest_file
 
@@ -16,6 +17,14 @@ from .targets import Target
 
 class SysrootError(Exception):
     """The sysroot could not be built or does not match the target."""
+
+
+class VerificationReport(TypedDict):
+    root: str
+    loader: str
+    loader_sha256: str
+    soname: str
+    comment: list[str]
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
@@ -203,7 +212,7 @@ def check_link_trace(
         raise SysrootError(f"{raw}: resolved outside the pinned toolchain")
 
 
-def verify(destination: Path, target: Target, toolchain: Path) -> dict:
+def verify(destination: Path, target: Target, toolchain: Path) -> VerificationReport:
     destination = Path(destination)
     loader = destination / target.musl_loader.lstrip("/")
     if not loader.is_file():

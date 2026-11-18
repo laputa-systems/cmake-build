@@ -51,7 +51,7 @@ class SealedResult:
     stdout: str
     stderr: str
     network_mode: str
-    networks: dict
+    networks: dict[str, object]
 
 
 def in_container() -> bool:

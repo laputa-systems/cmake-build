@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 from .inputs import safe_extract
 from .targets import Target
@@ -68,7 +69,18 @@ def _run(command: list[str], *, env: dict[str, str] | None = None) -> str:
     return result.stdout
 
 
-def verify(toolchain: Path, target: Target, *, environ: dict[str, str] | None = None) -> dict:
+class VerificationReport(TypedDict):
+    release: str
+    release_target_commit: str
+    clang: str
+    lld: str
+    target: str
+    tools: dict[str, str]
+
+
+def verify(
+    toolchain: Path, target: Target, *, environ: dict[str, str] | None = None
+) -> VerificationReport:
     toolchain = Path(toolchain)
     environment = dict(os.environ if environ is None else environ)
     bin_directory = toolchain / "bin"

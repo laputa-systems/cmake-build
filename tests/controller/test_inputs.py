@@ -21,8 +21,8 @@ SHA_A = "a" * 64
 GOOD_SHA = hashlib.sha256(b"good").hexdigest()
 
 
-def entry(**overrides: object) -> dict:
-    value = {
+def entry(**overrides: object) -> dict[str, object]:
+    value: dict[str, object] = {
         "name": "source",
         "version": "1.0",
         "url": "https://example.invalid/source.tar.gz",
@@ -97,6 +97,19 @@ class LockTests(unittest.TestCase):
             path.write_text(json.dumps(lock))
             with self.assertRaisesRegex(InputError, "must pin a size"):
                 load_bootstrap(path)
+
+    def test_bootstrap_rejects_invalid_optional_input_metadata(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        current = (root / "bootstrap.lock.json").read_text()
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            for field in ("license", "purpose"):
+                with self.subTest(field=field):
+                    lock = json.loads(current)
+                    lock["targets"]["x86_64-unknown-linux-musl"]["packages"][0][field] = 123
+                    path.write_text(json.dumps(lock))
+                    with self.assertRaisesRegex(InputError, f"{field} must be a string"):
+                        load_bootstrap(path)
 
     def test_accepts_complete_entry(self) -> None:
         with workspace() as directory:
