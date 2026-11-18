@@ -234,6 +234,24 @@ to `Measurement["max_rss_kib"]` failed with `invalid-assignment`.
 The focused controller cases exercise malformed wheel pins and optional
 bootstrap metadata. DSLP-4 retains the wider controller mutation work.
 
+The bootstrap parser Tests slice uses `test_inputs.py` at controller
+base `d1678b5`. On macOS ARM64 with Python 3.15.2, mutmut 3.8.1 ran
+the same 172 `buildsys.inputs.*load_bootstrap*` identities with one
+child, pytest 9.2.0, `timeout_constant = 5.0` and
+`timeout_multiplier = 15.0`. The original tests caught 132 and missed
+40. The candidate caught all 172. Generate the trial from `buildsys/`,
+`build.py`, both lock files and the controller fixtures, using
+`test_inputs.py` as the pytest selection and the SHA-verified Buildlib
+wheel cache. Inspect the selected exit codes in
+`mutants/buildsys/inputs.py.meta`.
+
+Coverage.py 7.17.3 reported 221 → 235 of 254 statements and
+80 → 93 of 110 branches in `buildsys/inputs.py`. The same module
+passed 24 ordinary tests. Reversing the input order, rewriting explicit
+Rust roles and discarding the Alpine object diagnostic failed the
+corresponding fixture checks. The native release and the wider
+controller mutation scope retain their separate verification.
+
 ## Tickets
 
 
@@ -242,7 +260,7 @@ bootstrap metadata. DSLP-4 retains the wider controller mutation work.
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** Coverage and mutation results are unmeasured; no deslop mutation lane exists.
+- **Problem:** The bootstrap parser's 172 selected identities are covered. The wider controller and whole-change mutation lane remain open.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M

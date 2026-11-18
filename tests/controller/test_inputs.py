@@ -12,6 +12,7 @@ from buildsys.inputs import (
     Cache,
     Input,
     InputError,
+    bootstrap_inputs,
     load_bootstrap,
     load_sources,
     safe_extract,
@@ -19,6 +20,9 @@ from buildsys.inputs import (
 
 SHA_A = "a" * 64
 GOOD_SHA = hashlib.sha256(b"good").hexdigest()
+BOOTSTRAP_LOCK = Path(__file__).resolve().parents[2] / "bootstrap.lock.json"
+X86 = "x86_64-unknown-linux-musl"
+ARM = "aarch64-unknown-linux-musl"
 
 
 def entry(**overrides: object) -> dict[str, object]:
@@ -48,6 +52,74 @@ def source(sha: str = GOOD_SHA, size: int | None = 4, name: str = "source") -> I
 
 
 class LockTests(unittest.TestCase):
+    def test_bootstrap_exposes_the_pinned_image_and_ordered_inputs(self) -> None:
+        document = json.loads(BOOTSTRAP_LOCK.read_text())
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+        alpine = document["alpine"]
+        self.assertEqual(lock.alpine_release, alpine["release"])
+        self.assertEqual(lock.image_index_digest, alpine["image_index_digest"])
+        self.assertEqual(lock.image_manifest_reference, alpine["image_manifest_reference"])
+        self.assertEqual(lock.repositories, alpine["repositories"])
+        for triple in (X86, ARM):
+            with self.subTest(triple=triple):
+                section = document["targets"][triple]
+                entries = [*section["packages"], *section["rust"]["components"]]
+                self.assertEqual(
+                    [(item.name, item.url, item.sha256) for item in bootstrap_inputs(lock, triple)],
+                    [(entry["name"], entry["url"], entry["sha256"]) for entry in entries],
+                )
+
+    def test_bootstrap_accepts_omitted_packages_and_unlabeled_rust_inputs(self) -> None:
+        document = json.loads(BOOTSTRAP_LOCK.read_text())
+        section = document["targets"][X86]
+        del section["packages"]
+        rust = section["rust"]["components"][0]
+        del rust["role"], rust["target"]
+        explicit = section["rust"]["components"][1]
+        explicit["role"], explicit["target"] = "source", X86
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            path.write_text(json.dumps(document))
+            inputs = bootstrap_inputs(load_bootstrap(path), X86)
+        self.assertEqual([item.name for item in inputs], [item["name"] for item in section["rust"]["components"]])
+        self.assertEqual((inputs[0].role, inputs[0].target), ("build-source", "all"))
+        self.assertEqual((inputs[1].role, inputs[1].target), ("source", X86))
+
+    def test_bootstrap_reports_the_location_of_malformed_records(self) -> None:
+        cases = (
+            (("alpine",), None, "expected 'alpine' object"),
+            (("alpine", "release"), "", "alpine.release must be a nonempty string"),
+            (("alpine", "image_manifest_reference"), 9, "image_manifest_reference must be a nonempty string"),
+            (("alpine", "image_index_digest"), SHA_A, "image_index_digest must be a sha256 index digest"),
+            (("alpine", "image_index_digest"), "sha256:bad", "image_index_digest must be a sha256 index digest"),
+            (("alpine", "repositories"), [], "alpine.repositories must be an object"),
+            (("targets",), [], "expected 'targets' object"),
+            (("targets", "riscv64-unknown-linux-musl"), {}, "unknown target section riscv64"),
+            (("targets", X86), [], f"target section {X86} is not an object"),
+            (("targets", X86, "packages"), None, rf"{X86}\.packages must be a list"),
+            (("targets", X86, "packages", 1), None, rf"{X86}\.packages: entry #1 is not an object"),
+            (("targets", X86, "packages", 1), {"name": "incomplete"}, rf"{X86}\.packages: entry #1 missing version"),
+            (("targets", X86, "packages", 0, "target"), ARM, f"target {ARM} is not {X86}"),
+            (("targets", X86, "rust"), [], rf"{X86}\.rust\.components must be a list"),
+            (("targets", X86, "rust", "components"), None, rf"{X86}\.rust\.components must be a list"),
+            (("targets", X86, "rust", "components", 1), 9, rf"{X86}\.rust\.components: entry #1 is not an object"),
+            (("targets", X86, "rust", "components", 1), {"name": "incomplete"},
+             rf"{X86}\.rust\.components: entry #1 missing version"),
+        )
+        current = BOOTSTRAP_LOCK.read_text()
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            for location, value, message in cases:
+                with self.subTest(location=location, value=value):
+                    document = json.loads(current)
+                    record = document
+                    for key in location[:-1]:
+                        record = record[key]
+                    record[location[-1]] = value
+                    path.write_text(json.dumps(document))
+                    with self.assertRaisesRegex(InputError, message):
+                        load_bootstrap(path)
+
     def test_bootstrap_requires_stable_alpine_release_and_matching_package_urls(self) -> None:
         root = Path(__file__).resolve().parents[2]
         current = (root / "bootstrap.lock.json").read_text()
