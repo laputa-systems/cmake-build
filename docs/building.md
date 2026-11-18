@@ -59,6 +59,9 @@ are reused only when both their input fingerprints and output tree digests
 match. `package` creates a candidate archive and detached candidate record.
 `qualify` checks that archive, runs the project and upstream suites, and tests
 the extracted bytes before atomically selecting the qualified generation.
+Requalifying an existing archive atomically replaces its result record after
+validating the stored archive and tree. A failed replacement leaves the
+previous result record and active generation in place.
 `reproduce` creates two separate clean build roots and compares their file
 trees and archive bytes.
 

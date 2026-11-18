@@ -43,12 +43,14 @@ def qualify(store: Path, archive: Path, expected_digest: str, run: Callable[[Pat
             if tree_digest(tree) != before or sha256_file(copied) != expected_digest:
                 raise GenerationError('qualification changed the candidate')
             unpacked_size = sum(path.stat().st_size for path in tree.rglob('*') if path.is_file() and not path.is_symlink())
-            (candidate / 'results.json').write_text(json.dumps({'archive_sha256': expected_digest, 'archive_size': copied.stat().st_size,
+            results_path = candidate / 'results.json'
+            results_path.write_text(json.dumps({'archive_sha256': expected_digest, 'archive_size': copied.stat().st_size,
                                                                'unpacked_size': unpacked_size, 'qualification': results}, sort_keys=True, indent=2) + '\n')
             final = store / expected_digest
             if final.exists():
                 if sha256_file(final / 'artifact.tar.xz') != expected_digest or tree_digest(final / 'tree') != before:
                     raise GenerationError('existing generation is inconsistent')
+                os.replace(results_path, final / 'results.json')
             else:
                 os.replace(candidate, final)
             link = store / f'.active-{os.getpid()}'

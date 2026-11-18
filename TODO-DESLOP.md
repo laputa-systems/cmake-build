@@ -25,6 +25,16 @@ fails with `qualified archive digest or size does not match results`. The
 fixture reaches this check by substituting the Linux host predicate and does
 not proceed past admission.
 
+
+DSLP-6 closes the reproduced generation reuse issue. A successful rerun
+atomically replaces the result record after checking the stored archive and
+tree. A forced replacement failure preserved the exact old record and the
+active generation. The real benchmark admission progressed to its budget
+read after recovering the corrupt size. Seven focused generation tests and
+both linters passed. The unsealed macOS base and candidate had the same three
+controller modules failing on host or cache prerequisites. The sealed Linux
+controller job covers those modules.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
@@ -62,14 +72,3 @@ not proceed past admission.
 - **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
 - **Fix with:** deslop
 - **Effort:** M
-
-
-### DSLP-6 · P2 · Refresh qualification evidence when reusing a generation
-
-- **Area:** generation activation
-- **Where:** buildsys/generations.py:39; buildsys/benchmark.py:154; tests/controller/test_package_generations.py
-- **Problem:** A sealed fixture changed archive_size in an existing generation's results.json after successful qualification. Requalifying the exact archive returned the same active generation and preserved the wrong size. The actual benchmark admission emitted qualified archive digest or size does not match results before executing any workload.
-- **Recommendation:** Once a rerun validates the archive and extracted tree, atomically store its fresh results before activating the generation. Verify successful reuse, preservation on a failed rerun and subsequent benchmark admission. Keep the present result schema.
-- **Fix with:** durable-state
-- **Effort:** S
-

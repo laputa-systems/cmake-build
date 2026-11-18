@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 from helpers import file_sha256, workspace
 
@@ -39,6 +40,38 @@ class GenerationTest(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             generations.qualify(self.store, self.archive, second_digest, interrupt)
         self.assertEqual((self.store / 'active/usr/bin/cmake').read_bytes(), b'first')
+
+    def test_same_archive_requalification_refreshes_active_results(self):
+        digest = file_sha256(self.archive)
+        generation = generations.qualify(self.store, self.archive, digest, lambda tree: {'basic': 'passed'})
+        result = generation / 'results.json'
+        first = json.loads(result.read_text())
+        result.write_text(json.dumps(first | {'archive_size': 0}))
+        refreshed = {'basic': 'passed', 'projects': 'passed'}
+        self.assertEqual(generations.qualify(self.store, self.archive, digest, lambda tree: refreshed), generation)
+        self.assertEqual(json.loads(result.read_text()), first | {'qualification': refreshed})
+        self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
+
+    def test_failed_results_replacement_preserves_the_active_generation(self):
+        digest = file_sha256(self.archive)
+        generation = generations.qualify(self.store, self.archive, digest, lambda tree: {'basic': 'passed'})
+        result = generation / 'results.json'
+        previous = result.read_bytes()
+        atomic_replace = generations.os.replace
+
+        def fail_result_replace(source, destination):
+            if destination == result:
+                raise OSError('fixture replacement failure')
+            atomic_replace(source, destination)
+
+        with (
+            patch.object(generations.os, 'replace', side_effect=fail_result_replace),
+            self.assertRaisesRegex(OSError, 'fixture replacement failure'),
+        ):
+            generations.qualify(self.store, self.archive, digest, lambda tree: {'projects': 'passed'})
+        self.assertEqual(result.read_bytes(), previous)
+        self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
 
     def test_tampered_archive_does_not_activate(self):
         expected = file_sha256(self.archive)
