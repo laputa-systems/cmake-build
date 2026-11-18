@@ -253,7 +253,7 @@ corresponding fixture checks. The native release and the wider
 controller mutation scope retain their separate verification.
 
 
-### Native controller cache
+**Native controller cache**
 
 [CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
 `tests/controller/` out of the native phase cache key. Recompute the key
