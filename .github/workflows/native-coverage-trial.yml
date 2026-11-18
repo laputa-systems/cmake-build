@@ -1,0 +1,77 @@
+name: Native controller coverage trial
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/native-setup
+        with:
+          target: x86_64-unknown-linux-musl
+          jaq: jaq-x86_64
+          kache: kache-x86_64-unknown-linux-musl
+      - name: Prepare audited native build
+        run: |
+          export TMPDIR="$PWD/.work/tmp"
+          python3 build.py build --target x86_64-unknown-linux-musl --qualification-build
+      - name: Measure parent and child controller branches in the sealed builder
+        run: |
+          export TMPDIR="$PWD/.work/tmp"
+          wheel=.work/tmp/coverage-7.17.3-py3-none-any.whl
+          curl --proto '=https' -fsSLo "$wheel"             https://files.pythonhosted.org/packages/d1/8e/f7d7e69e2ad34ce08595b787eb578f669c00fd57d432ed4c7cfd71666f36/coverage-7.17.3-py3-none-any.whl
+          printf '%s  %s\n' 21745c08f2835b847a16887b748d3084dddeb0571ae2a0d62e33644413568b99 "$wheel" | sha256sum -c -
+          cat > .work/tmp/coverage.rc <<'CONFIG'
+          [run]
+          branch = true
+          source = build, buildsys
+          patch = subprocess
+          CONFIG
+          cat > .work/tmp/native-coverage.sh <<'SCRIPT'
+          set -eu
+          test "$(cat /etc/alpine-release)" = 3.24.2
+          python3 --version
+          export PYTHONUSERBASE=/src/.work/tmp/coverage-user
+          export COVERAGE_RCFILE=/src/.work/tmp/coverage.rc
+          export COVERAGE_FILE=/src/.work/tmp/controller-coverage-data
+          python3 -c 'import site,zipfile; zipfile.ZipFile(".work/tmp/coverage-7.17.3-py3-none-any.whl").extractall(site.getusersitepackages())'
+          python3 -m coverage run build.py controller-test
+          python3 -m coverage combine
+          python3 -m coverage json -o .work/tmp/controller-coverage.json
+          SCRIPT
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+
+          import build
+
+          target = build.describe_target("x86_64-unknown-linux-musl")
+          image = build.sandbox.image_tag(build.load_bootstrap(build.BOOTSTRAP_LOCK), target, build.DOCKERFILE)
+          result = build.sandbox.run_sealed(
+              image, ["sh", ".work/tmp/native-coverage.sh"],
+              target=target, mounts=[(Path.cwd(), "/src")],
+              env={
+                  "TMPDIR": "/src/.work/tmp",
+                  "PYTHONPATH": "/src",
+                  "PATH": "/src/.work/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              },
+              timeout=300,
+          )
+          print(result.stdout, end="")
+          print(result.stderr, end="", file=sys.stderr)
+          sys.exit(result.returncode)
+          PY
+          .work/tools/jaq -e '.meta.branch_coverage and (.files["buildsys/inputs.py"].executed_lines | index(218) != null)' .work/tmp/controller-coverage.json
+          .work/tools/jaq '{files: (.files | length), totals: .totals}' .work/tmp/controller-coverage.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-controller-branch-coverage
+          path: .work/tmp/controller-coverage.json
+          include-hidden-files: true
