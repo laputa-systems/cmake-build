@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tarfile
 import unittest
 
@@ -41,10 +42,47 @@ class PackageTest(unittest.TestCase):
             self.assertEqual(artifact['files']['usr/share/link']['target'], '../bin/cmake')
             self.assertNotIn('usr/share/doc/cmake-build/artifact.json', artifact['files'])
 
-    def test_rejects_symlink_escape_and_special_files(self):
+    def test_rejects_a_symlink_outside_the_package(self):
         (self.stage / 'share/escape').symlink_to('../../../outside')
-        with self.assertRaises(package.PackageError):
+        with self.assertRaisesRegex(package.PackageError, 'escaping symlink usr/share/escape'):
             package.create(self.stage, self.root / 'invalid.tar.xz', {}, 0)
+
+    def test_rejects_special_files_without_creating_an_archive(self):
+        os.mkfifo(self.stage / 'share/pipe')
+        destination = self.root / 'invalid.tar.xz'
+        with self.assertRaisesRegex(package.PackageError, 'unsupported file type: usr/share/pipe'):
+            package.create(self.stage, destination, {}, 0)
+        self.assertFalse(destination.exists())
+
+    def test_requires_a_real_staging_directory_and_generates_its_own_inventory(self):
+        alias = self.root / 'alias'
+        alias.symlink_to(self.stage, target_is_directory=True)
+        destination = self.root / 'invalid.tar.xz'
+        for stage in (alias, self.root / 'missing'):
+            with self.subTest(stage=stage), self.assertRaisesRegex(package.PackageError, 'staging directory'):
+                package.create(stage, destination, {}, 0)
+        with self.assertRaisesRegex(package.PackageError, 'metadata must not supply its own file inventory'):
+            package.create(self.stage, destination, {'files': {}}, 0)
+        self.assertFalse(destination.exists())
+
+    def test_replaces_stale_artifact_metadata_and_omits_only_root_phase_records(self):
+        for filename in ('phase.json', 'state.json', 'share/phase.json', 'share/state.json'):
+            path = self.stage / filename
+            path.write_text('record')
+            path.chmod(0o600)
+        stale_manifest = self.stage / package.ARTIFACT.removeprefix('usr/')
+        stale_manifest.parent.mkdir(parents=True)
+        stale_manifest.write_text('stale')
+
+        destination = self.root / 'nested' / 'cmake.tar.xz'
+        package.create(self.stage, destination, {'target': 'candidate'}, 0)
+        artifact = package.inspect(destination)
+        self.assertEqual(artifact['target'], 'candidate')
+        with tarfile.open(destination, 'r:xz') as archive:
+            self.assertNotIn('usr/phase.json', archive.getnames())
+            self.assertNotIn('usr/state.json', archive.getnames())
+            for filename in ('usr/share/phase.json', 'usr/share/state.json'):
+                self.assertEqual(archive.getmember(filename).mode, 0o644)
 
     def test_inventory_requires_an_integer_size(self):
         (self.stage / 'share/tiny').write_bytes(b'x')
@@ -66,6 +104,26 @@ class PackageTest(unittest.TestCase):
                             contents = io.BytesIO(body)
                         destination.addfile(member, contents)
                 with self.assertRaisesRegex(package.PackageError, 'package inventory does not match its contents'):
+                    package.inspect(changed)
+
+    def test_detects_payload_changes_and_incomplete_manifests(self):
+        original = self.root / 'original.tar.xz'
+        changed = self.root / 'changed.tar.xz'
+        package.create(self.stage, original, {}, 0)
+        for name, data, error in (
+            ('usr/bin/cmake', b'cmakE', 'package inventory does not match its contents'),
+            (package.ARTIFACT, b'{}', 'package inventory does not match its contents'),
+            (package.ARTIFACT, b'{', 'invalid package:'),
+        ):
+            with self.subTest(member=name, data=data):
+                with tarfile.open(original, 'r:xz') as source, tarfile.open(changed, 'w:xz') as destination:
+                    for member in source:
+                        contents = source.extractfile(member) if member.isfile() else None
+                        if member.name == name:
+                            member.size = len(data)
+                            contents = io.BytesIO(data)
+                        destination.addfile(member, contents)
+                with self.assertRaisesRegex(package.PackageError, error):
                     package.inspect(changed)
 
     def test_an_initial_null_manifest_does_not_hide_a_duplicate(self):
