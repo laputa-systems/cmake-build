@@ -429,6 +429,39 @@ class ExtractTests(unittest.TestCase):
 
 
 class DigestTests(unittest.TestCase):
+    def test_phase_tree_identity_is_stable_across_creation_orders(self) -> None:
+        from buildsys.inputs import tree_digest
+
+        with workspace() as directory:
+            for name, entries in (
+                ("sorted", ("bin", "current", "var")),
+                ("reverse", ("var", "current", "bin")),
+            ):
+                with self.subTest(order=name):
+                    root = directory / name
+                    root.mkdir()
+                    for entry in entries:
+                        if entry == "bin":
+                            executable = root / "bin" / "run"
+                            executable.parent.mkdir()
+                            executable.write_bytes(b"hello\n")
+                            executable.chmod(0o755)
+                            readme = executable.with_name("readme")
+                            readme.write_bytes(b"plain\n")
+                            readme.chmod(0o644)
+                        elif entry == "current":
+                            (root / "current").symlink_to("bin/run")
+                        else:
+                            fifo = root / "var" / "events"
+                            fifo.parent.mkdir()
+                            os.mkfifo(fifo)
+
+                    (root / "aaa-state.json").write_text("excluded state")
+                    self.assertEqual(
+                        tree_digest(root, exclude={"aaa-state.json"}),
+                        "268c6573353f4af9405aaa155a68adb0fdda29fb1aa5623bf2eac78de6c80005",
+                    )
+
     def test_digest_tracks_content_mode_and_links(self) -> None:
         from buildsys.inputs import tree_digest
 
