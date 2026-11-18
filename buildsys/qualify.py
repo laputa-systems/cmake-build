@@ -169,11 +169,23 @@ def _junit(report: Path) -> dict[str, str]:
     if result.returncode:
         raise QualificationError(f'cannot parse upstream report: {result.stderr}')
     try:
-        cases = json.loads(result.stdout)
-        names = {item['name']: item['status'] for item in cases}
-    except (ValueError, TypeError, KeyError) as error:
+        cases: object = json.loads(result.stdout)
+    except ValueError as error:
         raise QualificationError('upstream report has invalid test cases') from error
-    if not names or len(names) != len(cases) or any(status not in ('run', 'fail') for status in names.values()):
+    if not isinstance(cases, list):
+        raise QualificationError('upstream report has invalid test cases')
+    names: dict[str, str] = {}
+    for item in cases:
+        if not isinstance(item, dict):
+            raise QualificationError('upstream report has invalid test cases')
+        name: object = item.get('name')
+        status: object = item.get('status')
+        if not isinstance(name, str) or not name:
+            raise QualificationError('upstream report has invalid test cases')
+        if name in names or not isinstance(status, str) or status not in ('run', 'fail'):
+            raise QualificationError('upstream report is empty, duplicated, or contains skipped tests')
+        names[name] = status
+    if not names:
         raise QualificationError('upstream report is empty, duplicated, or contains skipped tests')
     return names
 

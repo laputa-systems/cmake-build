@@ -25,6 +25,15 @@ class UpstreamReportTests(unittest.TestCase):
                     report.write_text(text)
                     _junit(report)
 
+    def test_rejects_a_result_without_a_case_name(self) -> None:
+        with workspace() as directory:
+            report = directory / 'report.xml'
+            for attributes in ('status="run"', 'name="" status="run"'):
+                with self.subTest(attributes=attributes):
+                    report.write_text(f'<testsuite><testcase {attributes}/></testsuite>')
+                    with self.assertRaisesRegex(QualificationError, 'upstream report has invalid test cases'):
+                        _junit(report)
+
 
 if __name__ == '__main__':
     unittest.main()

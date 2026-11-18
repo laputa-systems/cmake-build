@@ -169,10 +169,14 @@ def vendor(cache: Cache, components: list[Input], source: Input, patch: Path, ro
 def _phase_digest(directory: Path) -> str:
     try:
         record = json.loads((directory / "phase.json").read_text())
-        expected = record["output_digest"]
+        expected: object = record["output_digest"]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise RustError(f"{directory}: missing or invalid phase record") from error
-    if (directory / "state.json").exists() or tree_digest(directory, exclude={"phase.json", "state.json"}) != expected:
+    if (
+        not isinstance(expected, str)
+        or (directory / "state.json").exists()
+        or tree_digest(directory, exclude={"phase.json", "state.json"}) != expected
+    ):
         raise RustError(f"{directory}: phase output does not match its record")
     return expected
 
