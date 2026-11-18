@@ -1,0 +1,63 @@
+name: native qualification trial
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  qualify:
+    name: qualify ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-26.04
+            jaq: jaq-x86_64
+            kache: kache-x86_64-unknown-linux-musl
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-26.04-arm
+            jaq: jaq-aarch64
+            kache: kache-aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/native-setup
+        with:
+          target: ${{ matrix.target }}
+          jaq: ${{ matrix.jaq }}
+          kache: ${{ matrix.kache }}
+      - name: Qualify the exact packaged archive
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          python3 build.py qualify --target "$TARGET"
+      - name: Verify the archive and qualification receipts
+        env:
+          TARGET: ${{ matrix.target }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          candidate=".work/artifacts/$TARGET/candidate.json"
+          archive=$(jaq -r '.archive' "$candidate")
+          test "$archive" = "cmake-4.4.5-$TARGET.tar.xz"
+          archive=".work/artifacts/$TARGET/$archive"
+          sha=$(sha256sum "$archive" | cut -d' ' -f1)
+          size=$(stat -c '%s' "$archive")
+          jaq -e --arg sha "$sha" --arg commit "$SOURCE_SHA" --argjson size "$size" '.sha256 == $sha and .size == $size and .commit == $commit' "$candidate" >/dev/null
+          generation=".work/generations/$TARGET/$sha"
+          cmp "$archive" "$generation/artifact.tar.xz"
+          jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$generation/results.json" >/dev/null
+          git diff --exit-code -- sources.lock.json bootstrap.lock.json release-budgets.json
+          printf '%s %s %s\n' "$TARGET" "$size" "$sha"
