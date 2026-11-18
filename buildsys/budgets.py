@@ -4,6 +4,7 @@ import json
 import math
 import statistics
 from pathlib import Path
+from typing import Literal
 
 from buildlib import hashing, locks
 from buildlib.locks import LockError
@@ -96,7 +97,7 @@ def check_memory(document: dict, target: str, records: list[dict]) -> dict[str, 
     return measurements
 
 
-def validate_memory_source(document: dict, target: str, archive_sha256: str, archive_size: int) -> str:
+def validate_memory_source(document: dict, target: str, archive_sha256: str, archive_size: int) -> Literal['measured', 'unmeasured']:
     entry = _entry(document, target)
     status = entry.get('memory_status')
     if status == 'measured':
@@ -110,14 +111,14 @@ def validate_memory_source(document: dict, target: str, archive_sha256: str, arc
             raise BudgetError(f'{target} memory baseline has invalid archive identity')
         for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang'):
             _metric_values(entry['metrics'], target, f'{workload}_initial_rss_kib')
-    elif (status == 'unmeasured' and entry.get('archive_sha256') == archive_sha256
+        return 'measured'
+    if (status == 'unmeasured' and entry.get('archive_sha256') == archive_sha256
           and type(entry.get('memory_archive_bytes')) is int and entry['memory_archive_bytes'] == archive_size):
         if ('rss_scope' in entry or 'memory_repetitions' in entry
             or any(name.endswith('_initial_rss_kib') for name in entry['metrics'])):
             raise BudgetError(f'partial memory baseline is invalid: {target}')
-    else:
-        raise BudgetError(f'memory baseline must be measured on the recorded {target} archive')
-    return status
+        return 'unmeasured'
+    raise BudgetError(f'memory baseline must be measured on the recorded {target} archive')
 
 
 def apply_memory(document: dict, target: str, archive_sha256: str, archive_size: int, records: list[dict]) -> bool:
