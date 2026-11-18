@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import unittest
-from types import SimpleNamespace
+
+from buildlib.locks import Input
 
 from buildsys import benchmark
 
@@ -23,8 +24,10 @@ class BenchmarkTests(unittest.TestCase):
 
     def test_report_rejects_missing_or_failed_measurements(self) -> None:
         with self.assertRaises(benchmark.BenchmarkError):
-            benchmark.summarize([{'variant': 'product', 'scenario': 'initial', 'seconds': 1.0,
-                                  'max_rss_kib': 1, 'exit_code': 1}], 1)
+            benchmark.summarize([{'variant': 'product', 'workload': 'fmt', 'scenario': 'initial',
+                                  'iteration': 0, 'seconds': 1.0, 'cpu_seconds': 0.5,
+                                  'max_rss_kib': 1, 'exit_code': 1,
+                                  'load_before': 0.0, 'load_after': 0.0}], 1)
         with self.assertRaises(benchmark.BenchmarkError):
             benchmark.summarize([], 10)
 
@@ -32,26 +35,31 @@ class BenchmarkTests(unittest.TestCase):
         scenarios = [(workload, scenario) for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
                      for scenario in ('initial', 'unchanged', 'cmakelists-edit', 'option-change')]
         scenarios += [('process', 'version'), ('process', 'script')]
-        records = [{'workload': workload, 'scenario': scenario, 'variant': variant, 'iteration': 0,
-                    'seconds': 1.0, 'cpu_seconds': 0.5, 'max_rss_kib': 42, 'exit_code': 0}
-                   for workload, scenario in scenarios for variant in ('product', 'musl', 'kitware')]
+        records: list[benchmark.Measurement] = [
+            {'workload': workload, 'scenario': scenario, 'variant': variant, 'iteration': 0,
+             'seconds': 1.0, 'cpu_seconds': 0.5, 'max_rss_kib': 42, 'exit_code': 0,
+             'load_before': 0.0, 'load_after': 0.0}
+            for workload, scenario in scenarios for variant in ('product', 'musl', 'kitware')
+        ]
         self.assertEqual(len(benchmark.summarize(records, 1)), 54)
         with self.assertRaises(benchmark.BenchmarkError):
             benchmark.summarize(records[:-1], 1)
 
-        profiles = [{'workload': workload, 'variant': variant, 'summary': 'total'}
-                    for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
-                    for variant in ('product', 'musl', 'kitware')]
-        metadata = {'target': 'test', 'host': 'test', 'cpu_model': 'test', 'container': 'test', 'cpus': [0],
-                    'archive_sha256': 'a', 'official_sha256': 'b', 'baseline_digest': 'c',
-                    'cmake_sha256': 'c', 'toolchain_sha256': 'd',
-                    'strace_version': 'test', 'runner_sha256': 'd', 'implementation_sha256': 'f',
-                    'rss_implementation_sha256': 'g', 'profiles': profiles,
-                    'projects': [SimpleNamespace(name='fmt', version='1', sha256='e')],
-                    'sizes': {variant: {'executable': 1, 'files': 2, 'archive': 3}
-                              for variant in ('product', 'musl', 'kitware')}}
-        for record in records:
-            record.update(load_before=0.0, load_after=0.0)
+        profiles: list[benchmark.Profile] = [
+            {'workload': workload, 'variant': variant, 'summary': 'total'}
+            for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
+            for variant in ('product', 'musl', 'kitware')
+        ]
+        metadata: benchmark.ReportMetadata = {
+            'target': 'test', 'host': 'test', 'cpu_model': 'test', 'container': 'test', 'cpus': [0],
+            'archive_sha256': 'a', 'official_sha256': 'b', 'baseline_digest': 'c',
+            'cmake_sha256': 'c', 'toolchain_sha256': 'd',
+            'strace_version': 'test', 'runner_sha256': 'd', 'implementation_sha256': 'f',
+            'rss_implementation_sha256': 'g', 'profiles': profiles,
+            'projects': [Input(name='fmt', version='1', sha256='e', urls=('https://example.invalid/fmt',))],
+            'sizes': {variant: {'executable': 1, 'files': 2, 'archive': 3}
+                      for variant in ('product', 'musl', 'kitware')},
+        }
         report = benchmark.render(records, 1, metadata)
         self.assertIn('## Raw samples', report)
         self.assertIn("RSS is CMake's image high-water mark", report)

@@ -23,7 +23,7 @@ LOADER = (
 )
 
 
-def pin() -> dict:
+def pin() -> dict[str, object]:
     return next(item for item in json.loads((ROOT / "sources.lock.json").read_text())["inputs"] if item["name"] == "buildlib-wheel")
 
 
@@ -43,7 +43,7 @@ class PinTests(unittest.TestCase):
 
 
 class ShimTests(unittest.TestCase):
-    def run_shim(self, root: Path) -> subprocess.CompletedProcess:
+    def run_shim(self, root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run([sys.executable, "-I", "-c", LOADER, str(root / "buildsys/buildlib_wheel.py")],
                               cwd=root, capture_output=True, text=True, check=False)
 
@@ -54,6 +54,19 @@ class ShimTests(unittest.TestCase):
         item = pin()
         (root / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "inputs": [{**item, "url": served.as_uri()}]}))
         return root
+
+    def test_rejects_invalid_pin_fields_before_cache_access(self) -> None:
+        for field, value in (("url", 123), ("sha256", "../outside"), ("size", True)):
+            with self.subTest(field=field), workspace() as directory:
+                root = self.project(directory, WHEEL)
+                lock = root / "sources.lock.json"
+                document = json.loads(lock.read_text())
+                document["inputs"][0][field] = value
+                lock.write_text(json.dumps(document))
+                result = self.run_shim(root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{field} must be", result.stderr)
+                self.assertFalse((root / ".work/cache").exists())
 
     def test_imports_buildlib_from_the_verified_cache_object(self) -> None:
         with workspace() as directory:

@@ -60,36 +60,50 @@ class BootstrapLock:
     image_manifest_reference: str
     reference_image: str
     repositories: dict[str, list[str]]
-    targets: dict[str, dict]
+    targets: dict[str, tuple[Input, ...]]
 
 
-def _entry(entry: object, source: str, index: int) -> dict:
+def _entry(entry: object, source: str, index: int) -> dict[str, object]:
     if not isinstance(entry, dict):
         raise InputError(f"{source}: entry #{index} is not an object")
-    return entry
+    fields: dict[str, object] = {}
+    for key, value in entry.items():
+        if not isinstance(key, str):
+            raise InputError(f"{source}: entry #{index} has a non-string key")
+        fields[key] = value
+    return fields
 
 
-def _bootstrap_input(entry: dict, source: str, index: int) -> Input:
+def _bootstrap_input(entry: dict[str, object], source: str, index: int) -> Input:
+    strings: dict[str, str] = {}
     for field in ("name", "version", "url", "sha256", "role", "target"):
         if field not in entry:
             raise InputError(f"{source}: entry #{index} missing {field}")
-        if not isinstance(entry[field], str) or not entry[field]:
+        value = entry[field]
+        if not isinstance(value, str) or not value:
             raise InputError(f"{entry['name']}: {field} must be a nonempty string")
-    if not hashing.is_sha256(entry["sha256"]):
+        strings[field] = value
+    if not hashing.is_sha256(strings["sha256"]):
         raise InputError(f"{entry['name']}: sha256 must be lowercase hex")
     size = entry.get("size")
     if size is not None and (type(size) is not int or size < 0):
         raise InputError(f"{entry['name']}: size must be a nonnegative integer")
+    license_name = entry.get("license")
+    purpose = entry.get("purpose")
+    if license_name is not None and not isinstance(license_name, str):
+        raise InputError(f"{entry['name']}: license must be a string")
+    if purpose is not None and not isinstance(purpose, str):
+        raise InputError(f"{entry['name']}: purpose must be a string")
     item = Input(
-        name=entry["name"],
-        version=entry["version"],
-        sha256=entry["sha256"],
-        urls=(entry["url"],),
+        name=strings["name"],
+        version=strings["version"],
+        sha256=strings["sha256"],
+        urls=(strings["url"],),
         size=size,
-        role=entry["role"],
-        target=entry["target"],
-        license=entry.get("license"),
-        purpose=entry.get("purpose"),
+        role=strings["role"],
+        target=strings["target"],
+        license=license_name,
+        purpose=purpose,
     )
     return _repository_input(item, source)
 
@@ -127,6 +141,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     targets = document.get("targets")
     if not isinstance(targets, dict):
         raise InputError(f"{path}: expected 'targets' object")
+    target_inputs: dict[str, tuple[Input, ...]] = {}
     for triple, section in targets.items():
         if triple not in TARGETS:
             raise InputError(f"{path}: unknown target section {triple}")
@@ -135,6 +150,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
         packages = section.get("packages", [])
         if not isinstance(packages, list):
             raise InputError(f"{path}: {triple}.packages must be a list")
+        inputs: list[Input] = []
         for index, raw in enumerate(packages):
             entry = _entry(raw, f"{path}:{triple}.packages", index)
             item = _bootstrap_input(entry, f"{path}:{triple}.packages", index)
@@ -143,6 +159,7 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             filename = f"{item.name}-{item.version}.apk"
             if item.url != f"{stable_repository}/{TARGETS[triple].alpine_arch}/{filename}":
                 raise InputError(f"{path}: {item.name} must use the stable APK URL for {triple}")
+            inputs.append(item)
         rust = section.get("rust")
         if rust is not None:
             if not isinstance(rust, dict) or not isinstance(rust.get("components"), list):
@@ -150,37 +167,21 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             for index, raw in enumerate(rust["components"]):
                 entry = _entry(raw, f"{path}:{triple}.rust.components", index)
                 if "role" not in entry:
-                    entry = {**entry, "role": "build-source", "target": ALL_TARGETS}
-                _bootstrap_input(entry, f"{path}:{triple}.rust.components", index)
+                    entry = {"target": ALL_TARGETS, **entry, "role": "build-source"}
+                inputs.append(_bootstrap_input(entry, f"{path}:{triple}.rust.components", index))
+        target_inputs[triple] = tuple(inputs)
     return BootstrapLock(
         alpine_release=alpine["release"],
         image_index_digest=alpine["image_index_digest"],
         image_manifest_reference=alpine["image_manifest_reference"],
         reference_image=reference_image,
         repositories=repositories,
-        targets=targets,
+        targets=target_inputs,
     )
 
 
 def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
-    section = lock.targets.get(triple)
-    inputs: list[Input] = []
-    if section is None:
-        return inputs
-    inputs.extend(
-        _bootstrap_input(entry, "bootstrap", index)
-        for index, entry in enumerate(section.get("packages", []))
-    )
-    rust = section.get("rust")
-    if rust:
-        name_prefix = rust.get("name_prefix", "rust")
-        for index, entry in enumerate(rust["components"]):
-            entry = {"role": "build-source", "target": ALL_TARGETS, **entry}
-            entry.setdefault("name", f"{name_prefix}-{index}")
-            if "version" not in entry:
-                entry["version"] = rust.get("channel", "unknown")
-            inputs.append(_bootstrap_input(entry, "bootstrap", index))
-    return inputs
+    return list(lock.targets.get(triple, ()))
 
 
 class Cache:

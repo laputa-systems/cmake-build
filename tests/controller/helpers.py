@@ -29,7 +29,7 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def write_lock(path: Path, entries: list[dict]) -> Path:
+def write_lock(path: Path, entries: list[dict[str, object]]) -> Path:
     path.write_text(json.dumps({"schema_version": 1, "inputs": entries}))
     return path
 

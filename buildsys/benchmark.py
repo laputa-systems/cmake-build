@@ -10,8 +10,10 @@ import subprocess
 import tempfile
 from collections import defaultdict
 from pathlib import Path
+from typing import TypedDict
 
 from buildlib.hashing import digest_file, sha256_file
+from buildlib.locks import Input
 
 from . import budgets, package, sandbox, stage
 from .buildlib_wheel import cache_root
@@ -29,6 +31,59 @@ from .targets import Target
 
 class BenchmarkError(Exception):
     pass
+
+
+class Measurement(TypedDict):
+    workload: str
+    scenario: str
+    variant: str
+    iteration: int
+    seconds: float
+    cpu_seconds: float
+    max_rss_kib: int
+    exit_code: int
+    load_before: float
+    load_after: float
+
+
+class MeasurementSummary(TypedDict):
+    median_seconds: float
+    median_cpu_seconds: float
+    min_seconds: float
+    max_seconds: float
+    max_rss_kib: int
+
+
+class Profile(TypedDict):
+    workload: str
+    variant: str
+    summary: str
+
+
+class ArtifactSize(TypedDict):
+    executable: int
+    files: int
+    archive: int | str
+
+
+class ReportMetadata(TypedDict):
+    target: str
+    host: str
+    cpu_model: str
+    container: str
+    cpus: list[int]
+    archive_sha256: str
+    official_sha256: str
+    baseline_digest: str
+    cmake_sha256: str
+    toolchain_sha256: str
+    strace_version: str
+    runner_sha256: str
+    implementation_sha256: str
+    rss_implementation_sha256: str
+    profiles: list[Profile]
+    projects: list[Input]
+    sizes: dict[str, ArtifactSize]
 
 
 def _write_atomic(path: Path, content: str, scratch: Path) -> None:
@@ -49,10 +104,12 @@ def interleaved_orders(variants: tuple[str, ...], repetitions: int):
         yield variants[offset:] + variants[:offset]
 
 
-def summarize(records: list[dict], repetitions: int) -> dict:
+def summarize(
+    records: list[Measurement], repetitions: int
+) -> dict[tuple[str, str, str], MeasurementSummary]:
     if not records or repetitions < 1:
         raise BenchmarkError('benchmark produced no measurements')
-    groups = defaultdict(list)
+    groups: defaultdict[tuple[str, str, str], list[Measurement]] = defaultdict(list)
     for record in records:
         if (record.get('exit_code') != 0 or not isinstance(record.get('seconds'), (int, float))
             or not math.isfinite(record['seconds']) or record['seconds'] < 0 or record.get('max_rss_kib', -1) < 0):
@@ -79,7 +136,7 @@ def summarize(records: list[dict], repetitions: int) -> dict:
     }
 
 
-def render(records: list[dict], repetitions: int, metadata: dict) -> str:
+def render(records: list[Measurement], repetitions: int, metadata: ReportMetadata) -> str:
     summary = summarize(records, repetitions)
     expected_profiles = {(workload, variant) for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
                          for variant in ('product', 'musl', 'kitware')}
@@ -242,7 +299,7 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
         baseline = directory / 'baseline'
         baseline.mkdir()
         stage.stage(reference_phase, baseline, target.triple, version, root / 'licenses', root / 'NOTICE')
-        def sizes(prefix: Path, compressed: int | str) -> dict:
+        def sizes(prefix: Path, compressed: int | str) -> ArtifactSize:
             return {'executable': (prefix / 'bin/cmake').stat().st_size,
                     'files': sum(path.stat().st_size for path in prefix.rglob('*') if path.is_file() and not path.is_symlink()),
                     'archive': compressed}

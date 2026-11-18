@@ -13,14 +13,22 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import urllib.request
 from pathlib import Path
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES_LOCK = ROOT / "sources.lock.json"
 INPUT_NAME = "buildlib-wheel"
+
+
+class WheelPin(TypedDict):
+    url: str
+    sha256: str
+    size: int
 
 
 def cache_root(root: Path) -> Path:
@@ -31,20 +39,27 @@ def object_path(root: Path, sha256: str) -> Path:
     return root / "objects" / f"{sha256}.blob"
 
 
-def _pin() -> dict:
+def _pin() -> WheelPin:
     try:
         document = json.loads(SOURCES_LOCK.read_text())
         pin = next(item for item in document["inputs"] if item["name"] == INPUT_NAME)
-        return {key: pin[key] for key in ("url", "sha256", "size")}
+        url, sha256, size = pin["url"], pin["sha256"], pin["size"]
+        if not isinstance(url, str) or not url:
+            raise ValueError("url must be a nonempty string")
+        if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+            raise ValueError("sha256 must be a lowercase hexadecimal digest")
+        if type(size) is not int or size < 0:
+            raise ValueError("size must be a nonnegative integer")
+        return {"url": url, "sha256": sha256, "size": size}
     except (OSError, ValueError, KeyError, StopIteration, TypeError) as error:
         raise ImportError(f"{SOURCES_LOCK} does not pin {INPUT_NAME}: {error!r}") from error
 
 
-def _matches(data: bytes, pin: dict) -> bool:
+def _matches(data: bytes, pin: WheelPin) -> bool:
     return len(data) == pin["size"] and hashlib.sha256(data).hexdigest() == pin["sha256"]
 
 
-def _download(pin: dict, destination: Path) -> None:
+def _download(pin: WheelPin, destination: Path) -> None:
     request = urllib.request.Request(pin["url"], headers={"User-Agent": "cmake-build/1"})
     try:
         with urllib.request.urlopen(request, timeout=120) as response:

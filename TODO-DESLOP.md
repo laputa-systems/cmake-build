@@ -220,17 +220,23 @@ To requalify, run the `qualify.yml` workflow on the checked branch. It
 fetches and verifies the lock, builds on both native architectures,
 tests the packaged archives, and checks the committed memory budgets.
 
+Types (DSLP-3) closes the 21 remaining diagnostics from the candidate
+checks at `1617378`. Default ty now rejects missing generic arguments,
+unsound returns and unused ignore directives. The wheel bootstrap
+validates its URL, digest and size before cache access. Bootstrap APK
+and Rust entries leave the parser as validated Buildlib inputs. A
+direct comparison with the previous reader matched all 36 locked input
+records for each target, including ordering.
+
+The benchmark report, provenance fixture and tool checks expose their
+record fields to the checker. In a scratch file, assigning `"unknown"`
+to `Measurement["max_rss_kib"]` failed with `invalid-assignment`.
+The focused controller cases exercise malformed wheel pins and optional
+bootstrap metadata. DSLP-4 retains the wider controller mutation work.
+
 ## Tickets
 
 
-### DSLP-3 · P2 · Types: strict profile and typing findings
-
-- **Area:** deslop · types
-- **Where:** type checker and lint configuration; Python sources
-- **Problem:** The strict-profile candidates in the deslop skill's tools reference have not been measured here.
-- **Recommendation:** Run the deslop Types step. Accept: clean at the adopted profile, escape hatches not increased, witnesses recorded.
-- **Fix with:** deslop
-- **Effort:** M
 
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 

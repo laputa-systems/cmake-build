@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
@@ -23,6 +24,7 @@ from buildsys.sysroot import (
     elf_machine,
     trace_paths,
 )
+from buildsys.targets import Target
 from buildsys.targets import target as describe_target
 
 DYNAMIC_C = """
@@ -77,24 +79,35 @@ class ProvenanceError(Exception):
     """A provenance check failed."""
 
 
+class ArtifactReport(TypedDict):
+    e_machine: int
+    comment: list[str]
+
+
+class ProvenanceReport(TypedDict):
+    target: str
+    toolchain: str
+    sysroot: str
+    checks: list[str]
+    artifacts: dict[str, ArtifactReport]
+
+
 def _run(
     command: list[str],
     *,
     work: Path,
-    check: bool = True,
-    capture: bool = True,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     environment = {**os.environ, "TMPDIR": str(work), "TMP": str(work)}
     result = subprocess.run(
         command,
         cwd=work,
         env=environment,
-        capture_output=capture,
+        capture_output=True,
         text=True,
         check=False,
         timeout=300,
     )
-    if check and result.returncode != 0:
+    if result.returncode != 0:
         raise ProvenanceError(
             f"{' '.join(command)} failed ({result.returncode}):\n"
             f"{result.stdout}\n{result.stderr}"
@@ -144,7 +157,7 @@ def _check_comment(toolchain: Path, binary: Path) -> list[str]:
     return comments
 
 
-def _check_static_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target) -> None:
+def _check_static_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target: Target) -> None:
     check_link_trace(trace, toolchain, sysroot, work, target)
     root = toolchain.resolve()
     names = {Path(path).name for path in trace_paths(trace) if root in Path(path).resolve().parents}
@@ -155,14 +168,14 @@ def _check_static_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, 
         raise ProvenanceError("static link trace lacks compiler-rt builtins")
 
 
-def _check_dynamic_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target) -> None:
+def _check_dynamic_trace(trace: str, toolchain: Path, sysroot: Path, work: Path, target: Target) -> None:
     check_link_trace(trace, toolchain, sysroot, work, target)
     loader = (sysroot / target.musl_loader.lstrip("/")).resolve()
     if loader not in {Path(path).resolve() for path in trace_paths(trace)}:
         raise ProvenanceError("dynamic link trace lacks the sysroot loader")
 
 
-def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: Path) -> dict:
+def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: Path) -> ProvenanceReport:
     target = describe_target(target_triple)
     toolchain = Path(toolchain).resolve()
     sysroot = Path(sysroot).resolve()
@@ -317,7 +330,7 @@ def run(toolchain: Path, sysroot: Path, target_triple: str, work: Path, output: 
                 raise ProvenanceError(f"{binary}: e_machine {machine}")
     checks.append("ELF machine, closure, and .comment on every artifact")
 
-    report = {
+    report: ProvenanceReport = {
         "target": target.triple,
         "toolchain": str(toolchain),
         "sysroot": str(sysroot),
