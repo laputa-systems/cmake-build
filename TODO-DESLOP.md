@@ -61,6 +61,26 @@ existing CMake and budgets suites passed nine tests. Decoded budget
 and phase data, process status and the remaining generic annotations
 remain open under DSLP-3.
 
+Phase and budget types at `e5051ef9978249471a28796f9b2e4a52891c4bd8`
+reduce the strict inventory from 63 to 60 diagnostics, with 50 generic
+arguments and 10 unsound returns still open elsewhere. Phase records
+expose decoded fields as `object` until callers check them. The successful
+memory-baseline modes return the two literal values the branches establish.
+
+A checker witness that reads the private phase record and calls
+`record["output_digest"].startswith("a")` without a type guard passes
+on the old signature and now reports one `missing-attribute` diagnostic.
+The budget witness imports `assert_type` and checks the return value of
+`validate_memory_source({}, "target", "0" * 64, 1)` against
+`Literal["measured", "unmeasured"]`. The old signature reports one
+`type-assertion-failure`; the candidate accepts the witness. These files
+are checker inputs only. Run `uv run --frozen ty check <witness-file>`
+for each and the earlier three-setting inventory for repository counts.
+
+Existing phase recovery and budget tests passed 12 cases. The serialized
+record shape, archive bindings and budget decisions remain the same.
+The repository-wide strict settings remain open under DSLP-3.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

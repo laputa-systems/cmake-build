@@ -52,18 +52,18 @@ class PhaseCache:
     def _record_path(self, name: str) -> Path:
         return self.directory(name) / RECORD
 
-    def _read(self, path: Path) -> dict | None:
+    def _read(self, path: Path) -> dict[str, object] | None:
         if not path.is_file():
             return None
         try:
-            document = json.loads(path.read_text(encoding="utf-8"))
+            document: object = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
         if not isinstance(document, dict):
             return None
         if document.get("schema_version") != SCHEMA_VERSION:
             return None
-        return document
+        return {key: value for key, value in document.items() if isinstance(key, str)}
 
     def run(
         self,
@@ -121,7 +121,7 @@ class PhaseCache:
         return PhaseResult(fingerprint, False, directory)
 
 
-def _write_json(path: Path, document: dict) -> None:
+def _write_json(path: Path, document: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
