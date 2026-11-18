@@ -356,6 +356,14 @@ Keep the full native controller check for platform-dependent behavior.
 The remaining survivor dispositions, complete path selection and hosted
 controls remain open under DSLP-4.
 
+
+The tree-digest fixtures now isolate content changes, execute-bit changes,
+and symlink retargeting. The phase case excludes the root record and
+checks that nested records and relative paths still affect the digest.
+The same 568 identities with both input and phase fixtures moved from
+446 caught and 122 surviving to 455 caught and 113 surviving. All 25
+input cases passed with the pinned controller tools.
+
 ## Tickets
 
 
