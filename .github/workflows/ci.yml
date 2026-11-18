@@ -31,4 +31,6 @@ jobs:
           export TMPDIR="$PWD/.work/tmp"
           python3 build.py build --target x86_64-unknown-linux-musl --qualification-build
       - name: Run controller suite in the native builder
-        run: make test-ci
+        run: time -p make test-ci
+      - name: Repeat controller suite on the prepared builder
+        run: time -p make test-ci
