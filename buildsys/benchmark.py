@@ -160,9 +160,16 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
     except package.PackageError as error:
         raise BenchmarkError(f'qualified archive is invalid: {error}') from error
     qualification = results.get('qualification', {})
-    if artifact.get('target', {}).get('triple') != target.triple or artifact.get('build', {}).get('mode') != 'qualification' or any(
-        qualification.get(name) != 'passed' for name in ('basic', 'parity', 'network', 'projects')
-    ) or not qualification.get('upstream'):
+    artifact_target = artifact.get('target')
+    artifact_build = artifact.get('build')
+    if (
+        not isinstance(artifact_target, dict)
+        or artifact_target.get('triple') != target.triple
+        or not isinstance(artifact_build, dict)
+        or artifact_build.get('mode') != 'qualification'
+        or any(qualification.get(name) != 'passed' for name in ('basic', 'parity', 'network', 'projects'))
+        or not qualification.get('upstream')
+    ):
         raise BenchmarkError('archive lacks qualification for the requested target')
     budget_path = root / 'release-budgets.json'
     budget_document = budgets.read(budget_path)
