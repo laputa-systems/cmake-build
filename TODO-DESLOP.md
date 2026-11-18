@@ -364,6 +364,14 @@ The same 568 identities with both input and phase fixtures moved from
 446 caught and 122 surviving to 455 caught and 113 surviving. All 25
 input cases passed with the pinned controller tools.
 
+A concurrent cache-store fixture pauses both writers before their real
+atomic replace. With the shared staging filename at `e524954`, one writer
+raised `FileNotFoundError` after the other moved the file. Each store now
+uses its own staging directory in the cache filesystem. Both writers return
+the same verified object and leave only that object behind. A second fixture
+changes the source during the copy and verifies refusal, staging cleanup and
+a successful retry. The input and phase suite passed 35 tests and 38 subtests.
+
 ## Tickets
 
 

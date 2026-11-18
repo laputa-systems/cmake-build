@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import tarfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
+from unittest.mock import patch
 
 from helpers import archive, workspace, write_lock
 
@@ -232,6 +237,53 @@ class CacheTests(unittest.TestCase):
             stored = cache.store(payload, source())
             self.assertEqual(stored.read_bytes(), b"good")
             self.assertEqual(cache.require(source()), stored)
+
+    def test_concurrent_stores_publish_the_same_verified_object(self) -> None:
+        with workspace() as directory:
+            payload = directory / "payload"
+            payload.write_bytes(b"good")
+            cache = Cache(directory / "cache")
+            item = source()
+            replace = os.replace
+            ready = Barrier(2)
+
+            def publish(temporary: Path, target: Path) -> None:
+                ready.wait(timeout=5)
+                replace(temporary, target)
+
+            with (
+                patch("buildsys.inputs.os.replace", side_effect=publish),
+                ThreadPoolExecutor(max_workers=2) as executor,
+            ):
+                first = executor.submit(cache.store, payload, item)
+                second = executor.submit(cache.store, payload, item)
+                stored = first.result()
+                self.assertEqual(second.result(), stored)
+
+            self.assertEqual(cache.require(item).read_bytes(), b"good")
+            self.assertEqual(list(stored.parent.iterdir()), [stored])
+
+    def test_store_cleans_up_when_input_changes_during_copy(self) -> None:
+        with workspace() as directory:
+            payload = directory / "payload"
+            payload.write_bytes(b"good")
+            cache = Cache(directory / "cache")
+            item = source()
+            copy = shutil.copyfile
+
+            def copy_changed(path: Path, temporary: Path) -> None:
+                path.write_bytes(b"evil")
+                copy(path, temporary)
+
+            with (
+                patch("buildsys.inputs.shutil.copyfile", side_effect=copy_changed),
+                self.assertRaisesRegex(InputError, "bytes changed during publication"),
+            ):
+                cache.store(payload, item)
+
+            self.assertEqual(list((cache.root / "objects").iterdir()), [])
+            payload.write_bytes(b"good")
+            self.assertEqual(cache.store(payload, item).read_bytes(), b"good")
 
     def test_corrupted_cached_input(self) -> None:
         with workspace() as directory:
