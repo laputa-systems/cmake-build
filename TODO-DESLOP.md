@@ -43,6 +43,24 @@ same fingerprint and reuses the recovered record on the next call. Run
 `PYTHONPATH="$PWD/tests/controller:$PWD" uv run --frozen python -m unittest test_phases`
 to exercise the recovery and ordinary phase reuse without a native build.
 
+The first strict-typing inventory at
+`0111edef816280ce3ebca3ab42e6a89ea4113299` found 52 missing generic
+arguments and 13 unsound returns using ty 0.0.101. The
+`unused-ignore-comment` setting added no findings in the same run.
+`buildsys/dependencies.py` accounted for two of the unsound returns:
+`re.findall` erased the capture types for revision tags and version
+macros. The parser now slices the known input string at each required
+capture span. `uv run --frozen ty check --error unsound-return-statement buildsys/dependencies.py`
+fails twice on the base and passes on the candidate. The aggregate
+strict check has 63 remaining diagnostics. No policy setting changes.
+
+A before-and-after helper comparison used an inline header version,
+a pair of numeric macros, a tag, the unversioned fallback, an absent
+tag and duplicate macros. Each value or diagnostic matched. The
+existing CMake and budgets suites passed nine tests. Decoded budget
+and phase data, process status and the remaining generic annotations
+remain open under DSLP-3.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

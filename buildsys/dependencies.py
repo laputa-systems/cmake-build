@@ -62,16 +62,18 @@ def _version(source: Path, path: str | None, macros: tuple[str, ...], cmake_vers
         return f"unversioned; bundled in CMake {cmake_version}"
     text = (source / path).read_text()
     if macros == ("@tag",):
-        tags = re.findall(r'^readonly tag="([^"]+)"', text, re.MULTILINE)
+        tags = list(re.finditer(r'^readonly tag="([^"]+)"', text, re.MULTILINE))
         if len(tags) != 1:
             raise DependencyError(f"cannot identify source revision in {path}")
-        return tags[0]
+        start, end = tags[0].span(1)
+        return text[start:end]
     parts = []
     for macro in macros:
-        matches = re.findall(r'^\s*#\s*define\s+' + re.escape(macro) + r'\s+"?([0-9]+(?:\.[0-9]+)*)', text, re.MULTILINE)
+        matches = list(re.finditer(r'^\s*#\s*define\s+' + re.escape(macro) + r'\s+"?([0-9]+(?:\.[0-9]+)*)', text, re.MULTILINE))
         if len(matches) != 1:
             raise DependencyError(f"cannot identify {macro} in {path}")
-        parts.append(matches[0])
+        start, end = matches[0].span(1)
+        parts.append(text[start:end])
     return ".".join(parts)
 
 
