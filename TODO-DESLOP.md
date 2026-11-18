@@ -252,6 +252,22 @@ Rust roles and discarding the Alpine object diagnostic failed the
 corresponding fixture checks. The native release and the wider
 controller mutation scope retain their separate verification.
 
+
+**Native controller cache**
+
+[CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
+`tests/controller/` out of the native phase cache key. Recompute the key
+from the `fingerprint` step in `.github/actions/native-setup/action.yml`. A controller
+case edit leaves it unchanged. A native C fixture or builder source
+edit changes it. The controller suite still runs in full after phase
+preparation.
+
+[Run 44377892313](https://github.com/laputa-systems/cmake-build/actions/runs/44377892313)
+compared two attempts at the same PR revision. Native phase preparation
+took 541 seconds cold and 24 seconds after restoring the audited native
+and Rust caches. Both attempts passed all 128 tests in 21 modules. The
+job key was `aebba13c014c06b5b334b0f7a2d0779c810f4260ed2a3584af9d496cea0d4756`.
+
 ## Tickets
 
 
