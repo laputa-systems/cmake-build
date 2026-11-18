@@ -412,8 +412,8 @@ combine the subprocess data, and inspect the JSON report. The wheel's
 SHA-256 is `21745c08f2835b847a16887b748d3084dddeb0571ae2a0d62e33644413568b99`.
 The configured mirror rejected reads of the pure-Python and CPython 3.14
 musl variants with HTTP 404. The retained coverage entry point needs a
-compatible mirrored wheel. The separate native artifact qualification
-and the wider mutation work remain open as recorded above.
+compatible mirrored wheel. The native artifact trial above covers the
+packaged runtime. Wider controller mutation remains open.
 
 ## Tickets
 
