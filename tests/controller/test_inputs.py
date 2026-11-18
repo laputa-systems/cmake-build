@@ -411,6 +411,9 @@ class ExtractTests(unittest.TestCase):
         with workspace() as directory:
             bundle = directory / "links.tar.gz"
             with tarfile.open(bundle, "w:gz") as tar:
+                root = tarfile.TarInfo(".")
+                root.type = tarfile.DIRTYPE
+                tar.addfile(root)
                 payload = tarfile.TarInfo("top/file")
                 payload.size = 4
                 tar.addfile(payload, io.BytesIO(b"data"))

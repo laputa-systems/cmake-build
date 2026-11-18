@@ -257,10 +257,7 @@ def _check_member(member: tarfile.TarInfo, destination: Path, regular: set[str])
             _reject(name, "link-escape")
         if member.linkname not in regular:
             _reject(name, "dangling hardlink")
-    elif member.isdir():
-        if name.rstrip("/") == ".":
-            return
-    elif not member.isreg():
+    elif not member.isdir() and not member.isreg():
         _reject(name, "special")
 
 
