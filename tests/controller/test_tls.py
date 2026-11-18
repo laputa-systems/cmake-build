@@ -124,6 +124,13 @@ class DependencyTests(unittest.TestCase):
             with self.assertRaisesRegex(RustError, "does not match"):
                 _phase_digest(phase.directory)
 
+    def test_rejects_non_string_phase_digest_before_scanning_output(self) -> None:
+        with workspace() as directory, patch.object(rust, "tree_digest") as digest:
+            (directory / "phase.json").write_text('{"output_digest": 42}\n')
+            with self.assertRaisesRegex(RustError, "does not match"):
+                _phase_digest(directory)
+            digest.assert_not_called()
+
     def test_vendor_process_tree_stops_on_termination(self) -> None:
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))

@@ -112,6 +112,19 @@ budget tests pass, including the missing RSS witness. Strict findings
 fell from 50 to 44: 37 missing generic arguments and seven unsound
 returns remain. Ruff and ty passed.
 
+At `54ba25ecfa70efb36e82087fc4981038f5d32a70`, jaq produced a case
+with a null or empty name for two malformed JUnit fixtures. Both
+reports had previously been accepted. The controller now rejects
+them while preserving the existing successful report and duplicate,
+empty-report and skipped-test outcomes. Rust phase validation checks
+that the stored digest is text before walking the output tree. The
+fixtures cover the valid digest, drifted output and a non-text digest.
+
+Run the controller's `test_projects.py` and the isolated Rust phase
+fixtures for the boundary controls. The same full strict invocation
+reduces 44 diagnostics to 42, with 37 missing generic arguments and
+five unsound returns still open. Ruff and the normal ty check pass.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
