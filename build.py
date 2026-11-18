@@ -55,6 +55,7 @@ from buildsys.inputs import (
 from buildsys.phases import PhaseCache, PhaseError
 from buildsys.sandbox import SandboxError
 from buildsys.targets import (
+    Target,
     UnsupportedTargetError,
     native_target,
 )
@@ -84,7 +85,7 @@ def _fail(message: str) -> NoReturn:
     raise SystemExit(2)
 
 
-def _target(value: str):
+def _target(value: str) -> Target:
     try:
         return describe_target(value)
     except UnsupportedTargetError as error:
@@ -209,11 +210,11 @@ def fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _target_root(description) -> Path:
+def _target_root(description: Target) -> Path:
     return BUILD_ROOT / description.triple
 
 
-def _toolchain_directory(description) -> Path:
+def _toolchain_directory(description: Target) -> Path:
     return _target_root(description) / "phases" / "prepare" / "toolchain"
 
 
@@ -585,7 +586,7 @@ def _source_commit() -> str:
     return commit
 
 
-def _package_inside(description, commit: str) -> Path:
+def _package_inside(description: Target, commit: str) -> Path:
     import tarfile
 
     source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
@@ -727,7 +728,7 @@ def qualify_command(args: argparse.Namespace) -> int:
     test_command(argparse.Namespace(target=description.triple, suite="upstream", in_container=False), prepare_only=True)
     lock = load_bootstrap(BOOTSTRAP_LOCK)
     image = sandbox.image_tag(lock, description, DOCKERFILE)
-    def run(tree: Path) -> dict:
+    def run(tree: Path) -> dict[str, object]:
         sizes = budgets.check_size(size_budgets, description.triple, tree, tree.parent / "artifact.tar.xz")
         print(f"size budgets passed: {sizes}")
         qualify.projects(root=ROOT, phase=tree / "usr", image=image, target=description)
@@ -779,7 +780,7 @@ def _controller_test(args: argparse.Namespace) -> int:
         return 1
     environment = {**os.environ, "PYTHONPATH": str(ROOT)}
 
-    def run(module: str) -> tuple[str, subprocess.CompletedProcess]:
+    def run(module: str) -> tuple[str, subprocess.CompletedProcess[str]]:
         return module, subprocess.run(
             [
                 sys.executable,
@@ -877,7 +878,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
-        return args.handler(args)
+        status: object = args.handler(args)
+        if type(status) is not int:
+            _fail("command did not return an integer exit status")
+        return status
     except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, budgets.BudgetError, cmake.CMakeBuildError, dependencies.DependencyError,
             elf.AuditError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
             sandbox.SandboxError, stage.StageError, tls.TlsError) as error:
