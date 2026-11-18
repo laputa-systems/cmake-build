@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import math
 import statistics
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypedDict
 
 from buildlib import hashing, locks
 from buildlib.locks import LockError
@@ -61,15 +62,27 @@ def check_size(document: dict, target: str, tree: Path, archive: Path) -> dict[s
     return measurements
 
 
-def memory_baseline(records: list[dict]) -> dict[str, dict]:
-    metrics = {}
+class _MemoryMetric(TypedDict):
+    value: float
+    spread: int
+    central_spread: float
+    allowed_regression: float
+
+
+def memory_baseline(records: Sequence[Mapping[str, object]]) -> dict[str, _MemoryMetric]:
+    metrics: dict[str, _MemoryMetric] = {}
     sample_counts = set()
     for workload in ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang'):
         name = f'{workload}_initial_rss_kib'
-        samples = [record['max_rss_kib'] for record in records
-                   if record.get('variant') == 'product' and record.get('workload') == workload
-                   and record.get('scenario') == 'initial']
-        if len(samples) < 5 or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in samples):
+        samples = []
+        for record in records:
+            if record.get('variant') != 'product' or record.get('workload') != workload or record.get('scenario') != 'initial':
+                continue
+            value = record.get('max_rss_kib')
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise BudgetError(f'insufficient memory samples: {workload}')
+            samples.append(value)
+        if len(samples) < 5:
             raise BudgetError(f'insufficient memory samples: {workload}')
         sample_counts.add(len(samples))
         measured = statistics.median(samples)
@@ -82,7 +95,7 @@ def memory_baseline(records: list[dict]) -> dict[str, dict]:
     return metrics
 
 
-def check_memory(document: dict, target: str, records: list[dict]) -> dict[str, float]:
+def check_memory(document: dict, target: str, records: Sequence[Mapping[str, object]]) -> dict[str, float]:
     entry = _entry(document, target)
     if entry.get('rss_scope') != RSS_SCOPE:
         raise BudgetError(f'{target} memory baseline has an incompatible RSS scope')
@@ -121,7 +134,7 @@ def validate_memory_source(document: dict, target: str, archive_sha256: str, arc
     raise BudgetError(f'memory baseline must be measured on the recorded {target} archive')
 
 
-def apply_memory(document: dict, target: str, archive_sha256: str, archive_size: int, records: list[dict]) -> bool:
+def apply_memory(document: dict, target: str, archive_sha256: str, archive_size: int, records: Sequence[Mapping[str, object]]) -> bool:
     status = validate_memory_source(document, target, archive_sha256, archive_size)
     if status == 'measured':
         check_memory(document, target, records)
@@ -136,7 +149,7 @@ def apply_memory(document: dict, target: str, archive_sha256: str, archive_size:
 
 
 def release_evidence(document: dict, target: str, archive_sha256: str, archive_size: int,
-                     budget_sha256: str, repetitions: int, records: list[dict]) -> dict:
+                     budget_sha256: str, repetitions: int, records: Sequence[Mapping[str, object]]) -> dict:
     if repetitions < 5 or validate_memory_source(document, target, archive_sha256, archive_size) != 'measured':
         raise BudgetError('release memory acceptance requires a measured baseline and five repetitions')
     return {'target': target, 'archive_sha256': archive_sha256, 'archive_size': archive_size,

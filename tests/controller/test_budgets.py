@@ -70,6 +70,11 @@ class SizeBudgetTests(unittest.TestCase):
         with self.assertRaises(budgets.BudgetError):
             budgets.check_memory(document, 'test', records[:4])
 
+    def test_memory_sample_without_rss_is_a_budget_error(self) -> None:
+        records = [{'variant': 'product', 'workload': 'fmt', 'scenario': 'initial'}]
+        with self.assertRaisesRegex(budgets.BudgetError, '^insufficient memory samples: fmt$'):
+            budgets.memory_baseline(records)
+
     def test_memory_baseline_is_initialized_only_for_the_recorded_archive(self) -> None:
         workloads = ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
         records = [{'variant': 'product', 'workload': name, 'scenario': 'initial', 'max_rss_kib': 100}

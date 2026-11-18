@@ -98,6 +98,20 @@ compared a normal LLVM SONAME line and the missing SONAME diagnostic.
 Ruff and ty passed. The remaining strict inventory is 42 generic
 arguments and eight unsound returns.
 
+Memory samples at `339507934ee7dd37d0d17b0c0541710458b970ba`
+exposed a raw `KeyError` when a product sample lacked `max_rss_kib`.
+The budget boundary now reports that as an invalid sample. Matching
+records are checked as positive integers, then the metric calculation
+returns typed numeric fields without changing the existing median,
+spread and allowance arithmetic.
+
+A scratch `assert_type(memory_baseline([])["fmt_initial_rss_kib"]["value"], float)`
+fails with `type-assertion-failure` before the change and passes afterward.
+The checker proof does not execute the empty sample list. All seven
+budget tests pass, including the missing RSS witness. Strict findings
+fell from 50 to 44: 37 missing generic arguments and seven unsound
+returns remain. Ruff and ty passed.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
