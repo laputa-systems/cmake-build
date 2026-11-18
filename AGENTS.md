@@ -35,6 +35,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 
 - On the prepared hosted x86_64 Linux builder, `make test-ci` passed 113 tests in 21 modules twice at 9.17 s and 9.41 s elapsed. Those runs include the sealed test launch and exclude native build preparation. [Cost measurement](https://github.com/laputa-systems/cmake-build/pull/9)
 - On macOS ARM64, `make lint` passed in 1.22 s on the first run and 1.18 s warm. The controller suite needs the prepared Linux builder for the full check.
+- CI reuses the native build phases across edits confined to `tests/controller/`. The full controller suite runs after native phase preparation. Changes to the build sources and native fixtures change the phase cache key.
 - `tests/controller/test_cli.py` exercises CLI arguments and exit codes. `test_inputs.py`, `test_bootstrap.py`, and `test_buildlib_wheel.py` check locks, acquisition, byte identity, and the pinned wheel.
 - `test_sandbox.py` and `test_tls.py` check network, toolchain, and dependency boundaries. `test_phases.py` checks build phase records and invalidation.
 - `test_package_archive.py`, `test_package_generations.py`, and `test_package_reproduce.py` check archive and generation contracts. `make verify` separately qualifies real archives and project consumers.
