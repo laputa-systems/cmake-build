@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from buildlib.locks import Input
-
 from buildsys import benchmark
+from buildsys.inputs import Input
 
 
 class BenchmarkTests(unittest.TestCase):
