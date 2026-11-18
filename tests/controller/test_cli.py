@@ -130,6 +130,17 @@ class CliTests(unittest.TestCase):
             status = build.main(["controller-test", "-k", "no-such-module"])
         self.assertEqual(status, 1)
 
+    def test_dispatch_rejects_a_non_integer_exit_status(self) -> None:
+        with (
+            patch.object(build, '_parser') as parser,
+            contextlib.redirect_stderr(io.StringIO()) as error,
+            self.assertRaises(SystemExit) as status,
+        ):
+            parser.return_value.parse_args.return_value = argparse.Namespace(handler=lambda _args: '1')
+            build.main([])
+        self.assertEqual(status.exception.code, 2)
+        self.assertIn('command did not return an integer exit status', error.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
