@@ -286,6 +286,27 @@ mutations involve text encoding, missing state during cleanup, or
 private JSON write paths and formatting. Their disposition and the
 whole-change gate remain in DSLP-4.
 
+
+**Dead code scan**
+
+[CMake #31](https://github.com/laputa-systems/cmake-build/pull/31) removed
+three fields from the decoded bootstrap record. The controller and its
+tracked profiling scripts read the image indexes and ordered target inputs.
+The Alpine release, image manifest reference and repository metadata still
+pass through the existing lock validation. The 24 input and 22 sandbox
+cases passed locally, and hosted native controller CI passed.
+
+Ruff `F401,F841` passed. Deptry 0.25.1 passed with
+`--package-module-name-map laputa-buildlib=buildlib`. Vulture 2.16
+`--min-confidence 60` checked tracked Python files. Its findings represent
+five live uses. Typed report schemas describe keys read with subscripts or
+written to evidence. The signal handlers receive their frame argument from
+`signal.signal`. HTTP fixture handlers and `daemon_threads` are used by the
+standard library. `TarInfo` serializes the two device number fields in the
+archive fixture. The Linux profiling script passes its `Event` fields by
+reference to the kernel. Keep these uses during the remaining structural
+review under DSLP-5.
+
 ## Tickets
 
 
@@ -303,7 +324,7 @@ whole-change gate remain in DSLP-4.
 
 - **Area:** deslop · dead code
 - **Where:** whole repository
-- **Problem:** No dead-code scan has run.
+- **Problem:** The dead-code tools ran and the bootstrap record projection was reduced. The remaining structural review is open.
 - **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
 - **Fix with:** deslop
 - **Effort:** M
