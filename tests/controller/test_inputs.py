@@ -48,6 +48,28 @@ def source(sha: str = GOOD_SHA, size: int | None = 4, name: str = "source") -> I
 
 
 class LockTests(unittest.TestCase):
+    def test_bootstrap_requires_stable_alpine_release_and_matching_package_urls(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        current = (root / "bootstrap.lock.json").read_text()
+        triple = "aarch64-unknown-linux-musl"
+        edge = "https://dl-cdn.alpinelinux.org/alpine/edge/main"
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            for field in ("release", "repository", "package"):
+                with self.subTest(field=field):
+                    lock = json.loads(current)
+                    expected = "stable"
+                    if field == "release":
+                        lock["alpine"]["release"] = "3.25.0_alpha20260805"
+                    elif field == "repository":
+                        lock["alpine"]["repositories"][triple] = [edge]
+                        expected = "alpine.repositories"
+                    else:
+                        lock["targets"][triple]["packages"][0]["url"] = f"{edge}/aarch64/acl-libs-2.3.2-r1.apk"
+                    path.write_text(json.dumps(lock))
+                    with self.assertRaisesRegex(InputError, expected):
+                        load_bootstrap(path)
+
     def test_bootstrap_requires_a_pinned_reference_image_index(self) -> None:
         with workspace() as directory:
             root = Path(__file__).resolve().parents[2]

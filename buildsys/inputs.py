@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import tarfile
 import tempfile
@@ -60,7 +61,6 @@ class BootstrapLock:
     reference_image: str
     repositories: dict[str, list[str]]
     targets: dict[str, dict]
-    keys: list[Input]
 
 
 def _entry(entry: object, source: str, index: int) -> dict:
@@ -110,24 +110,23 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     for field in ("release", "image_index_digest", "image_manifest_reference"):
         if not isinstance(alpine.get(field), str) or not alpine[field]:
             raise InputError(f"{path}: alpine.{field} must be a nonempty string")
-    if not alpine["image_index_digest"].startswith("sha256:"):
+    release = re.fullmatch(r"([0-9]+\.[0-9]+)\.[0-9]+", alpine["release"])
+    if release is None:
+        raise InputError(f"{path}: alpine.release must be a stable patch release")
+    stable_repository = f"https://dl-cdn.alpinelinux.org/alpine/v{release[1]}/main"
+    if not alpine["image_index_digest"].startswith("sha256:") or not hashing.is_sha256(
+        alpine["image_index_digest"].removeprefix("sha256:")
+    ):
         raise InputError(f"{path}: alpine.image_index_digest must be a sha256 index digest")
     repositories = alpine.get("repositories")
     if not isinstance(repositories, dict):
         raise InputError(f"{path}: alpine.repositories must be an object")
     for triple in TARGETS:
-        urls = repositories.get(triple)
-        if not isinstance(urls, list) or not urls or not all(
-            isinstance(url, str) and url.startswith("https://") for url in urls
-        ):
-            raise InputError(f"{path}: alpine.repositories.{triple} must list https URLs")
+        if repositories.get(triple) != [stable_repository]:
+            raise InputError(f"{path}: alpine.repositories.{triple} must use {stable_repository}")
     targets = document.get("targets")
     if not isinstance(targets, dict):
         raise InputError(f"{path}: expected 'targets' object")
-    keys: list[Input] = []
-    for index, raw in enumerate(alpine.get("keys", [])):
-        entry = _entry(raw, f"{path}:alpine.keys", index)
-        keys.append(_bootstrap_input(entry, f"{path}:alpine.keys", index))
     for triple, section in targets.items():
         if triple not in TARGETS:
             raise InputError(f"{path}: unknown target section {triple}")
@@ -141,6 +140,9 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             item = _bootstrap_input(entry, f"{path}:{triple}.packages", index)
             if item.target not in (triple, ALL_TARGETS):
                 raise InputError(f"{path}: {item.name} target {item.target} is not {triple}")
+            filename = f"{item.name}-{item.version}.apk"
+            if item.url != f"{stable_repository}/{TARGETS[triple].alpine_arch}/{filename}":
+                raise InputError(f"{path}: {item.name} must use the stable APK URL for {triple}")
         rust = section.get("rust")
         if rust is not None:
             if not isinstance(rust, dict) or not isinstance(rust.get("components"), list):
@@ -157,13 +159,12 @@ def load_bootstrap(path: Path) -> BootstrapLock:
         reference_image=reference_image,
         repositories=repositories,
         targets=targets,
-        keys=keys,
     )
 
 
 def bootstrap_inputs(lock: BootstrapLock, triple: str) -> list[Input]:
     section = lock.targets.get(triple)
-    inputs = list(lock.keys)
+    inputs: list[Input] = []
     if section is None:
         return inputs
     inputs.extend(
