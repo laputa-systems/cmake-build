@@ -56,10 +56,7 @@ class LockTests(unittest.TestCase):
         document = json.loads(BOOTSTRAP_LOCK.read_text())
         lock = load_bootstrap(BOOTSTRAP_LOCK)
         alpine = document["alpine"]
-        self.assertEqual(lock.alpine_release, alpine["release"])
         self.assertEqual(lock.image_index_digest, alpine["image_index_digest"])
-        self.assertEqual(lock.image_manifest_reference, alpine["image_manifest_reference"])
-        self.assertEqual(lock.repositories, alpine["repositories"])
         for triple in (X86, ARM):
             with self.subTest(triple=triple):
                 section = document["targets"][triple]

@@ -55,11 +55,8 @@ def load_sources(path: Path) -> list[Input]:
 
 @dataclass(frozen=True)
 class BootstrapLock:
-    alpine_release: str
     image_index_digest: str
-    image_manifest_reference: str
     reference_image: str
-    repositories: dict[str, list[str]]
     targets: dict[str, tuple[Input, ...]]
 
 
@@ -171,11 +168,8 @@ def load_bootstrap(path: Path) -> BootstrapLock:
                 inputs.append(_bootstrap_input(entry, f"{path}:{triple}.rust.components", index))
         target_inputs[triple] = tuple(inputs)
     return BootstrapLock(
-        alpine_release=alpine["release"],
         image_index_digest=alpine["image_index_digest"],
-        image_manifest_reference=alpine["image_manifest_reference"],
         reference_image=reference_image,
-        repositories=repositories,
         targets=target_inputs,
     )
 
