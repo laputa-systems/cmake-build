@@ -65,7 +65,7 @@ def docker_path() -> str:
     return found
 
 
-def _docker(*arguments: str, cwd: Path | None = None, timeout: int = 600) -> subprocess.CompletedProcess:
+def _docker(*arguments: str, cwd: Path | None = None, timeout: int = 600) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [docker_path(), *arguments],
         cwd=cwd,
@@ -76,7 +76,7 @@ def _docker(*arguments: str, cwd: Path | None = None, timeout: int = 600) -> sub
     )
 
 
-def _checked(result: subprocess.CompletedProcess, what: str) -> subprocess.CompletedProcess:
+def _checked(result: subprocess.CompletedProcess[str], what: str) -> subprocess.CompletedProcess[str]:
     if result.returncode != 0:
         raise SandboxError(f"{what} failed ({result.returncode}): {result.stderr.strip()}")
     return result
@@ -309,13 +309,13 @@ def _host_gateway() -> str:
     return value or "172.17.0.1"
 
 
-def _probe(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+def _probe(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command, cwd=cwd, capture_output=True, text=True, check=False, timeout=timeout
     )
 
 
-def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict:
+def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict[str, object]:
     workdir.mkdir(parents=True, exist_ok=True)
     listener = socket.socket()
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -351,9 +351,9 @@ def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict
 
     thread = threading.Thread(target=accept_loop)
     thread.start()
-    outside: subprocess.CompletedProcess | None = None
-    inside_gateway: subprocess.CompletedProcess | None = None
-    inside_loopback: subprocess.CompletedProcess | None = None
+    outside: subprocess.CompletedProcess[str] | None = None
+    inside_gateway: subprocess.CompletedProcess[str] | None = None
+    inside_loopback: subprocess.CompletedProcess[str] | None = None
     failure: str | None = None
     try:
         outside = _probe(

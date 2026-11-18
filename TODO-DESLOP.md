@@ -81,6 +81,23 @@ Existing phase recovery and budget tests passed 12 cases. The serialized
 record shape, archive bindings and budget decisions remain the same.
 The repository-wide strict settings remain open under DSLP-3.
 
+Controller command output at
+`8f6643d183dc0f4b5cd41c1c831c75b2c447725e` reduced the strict inventory
+from 60 to 50 diagnostics. Both process helpers already request text
+output. Typing the results and the probe data removed eight missing
+generic arguments and the unsound gateway return. The sysroot parser
+now returns the required SONAME capture from the original string,
+removing the second unsound return. The data decoded from Docker's
+inspection report remains a separate typing boundary.
+
+`assert_type(_docker("version").stdout, str)` gives one
+`type-assertion-failure` before and passes after when checked in a scratch
+file with the project's ty command. The fixture does not execute Docker.
+The existing sandbox suite passed all 22 tests. A local parser witness
+compared a normal LLVM SONAME line and the missing SONAME diagnostic.
+Ruff and ty passed. The remaining strict inventory is 42 generic
+arguments and eight unsound returns.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog

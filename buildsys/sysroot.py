@@ -69,7 +69,8 @@ def _soname(toolchain: Path, path: Path) -> str:
     match = re.search(r"\(SONAME\)\s+Library soname: \[([^\]]+)\]", output)
     if not match:
         raise SysrootError(f"{path}: no SONAME")
-    return match.group(1)
+    start, end = match.span(1)
+    return output[start:end]
 
 
 def _comment(toolchain: Path, path: Path) -> list[str]:
