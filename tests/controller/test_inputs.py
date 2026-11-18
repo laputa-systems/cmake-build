@@ -349,14 +349,47 @@ class DigestTests(unittest.TestCase):
         with workspace() as directory:
             root = directory / "tree"
             root.mkdir()
-            (root / "a").write_bytes(b"one")
+            source = root / "a"
+            source.write_bytes(b"one")
+            source.chmod(0o644)
             first = tree_digest(root)
-            (root / "a").write_bytes(b"two")
-            self.assertNotEqual(first, tree_digest(root))
-            (root / "a").chmod(0o755)
-            self.assertNotEqual(first, tree_digest(root))
-            (root / "link").symlink_to("a")
-            self.assertNotEqual(first, tree_digest(root))
+            source.write_bytes(b"two")
+            changed_contents = tree_digest(root)
+            self.assertNotEqual(first, changed_contents)
+
+            source.chmod(0o755)
+            executable = tree_digest(root)
+            self.assertNotEqual(changed_contents, executable)
+
+            link = root / "link"
+            link.symlink_to("a")
+            linked = tree_digest(root)
+            self.assertNotEqual(executable, linked)
+            link.unlink()
+            link.symlink_to("other")
+            self.assertNotEqual(linked, tree_digest(root))
+
+    def test_phase_records_are_excluded_only_at_the_root(self) -> None:
+        from buildsys.inputs import tree_digest
+
+        with workspace() as root:
+            nested = root / "install" / "share"
+            nested.mkdir(parents=True)
+            root_record = root / "phase.json"
+            nested_record = nested / "phase.json"
+            root_record.write_text("controller metadata")
+            nested_record.write_text("package metadata")
+            excluded = {"phase.json"}
+            initial = tree_digest(root, exclude=excluded)
+
+            root_record.write_text("updated controller metadata")
+            self.assertEqual(tree_digest(root, exclude=excluded), initial)
+
+            nested_record.write_text("updated package metadata")
+            updated = tree_digest(root, exclude=excluded)
+            self.assertNotEqual(updated, initial)
+            nested.rename(nested.with_name("doc"))
+            self.assertNotEqual(tree_digest(root, exclude=excluded), updated)
 
 
 if __name__ == "__main__":
