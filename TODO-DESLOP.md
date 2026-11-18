@@ -196,9 +196,25 @@ at `bb220e139909c40cbd7132ca979f2327b0f9333f`. The PR also includes
 the command-controller typing change that merged after the first trial.
 All 123 prepared controller tests and both linters passed.
 Its [exact-tree qualification](https://github.com/laputa-systems/cmake-build/actions/runs/44354687939)
-includes the memory gates. The first x86-64 attempt lost its connection
+passed the native archive, size and memory gates on both architectures.
+The first x86-64 attempt lost its connection
 while downloading the pinned Buildlib wheel before reaching Alpine.
-The wheel was re-fetched separately and matched its locked SHA-256.
+The re-fetched wheel matched its locked SHA-256. The second attempt
+used the verified input cache and passed. Both uploaded manifests
+passed their SHA-256 checks and named `bb220e139909c40cbd7132ca979f2327b0f9333f`.
+
+| Exact target | Archive bytes | SHA-256 |
+| --- | ---: | --- |
+| ARM64 musl | 19,014,072 | `b296226391aa9788296a130377eb3031dd756a61dc602717d810f9d7f002b5b1` |
+| x86-64 musl | 20,741,636 | `cf450193664523aad3bd4a104fefda597d6a5d9abe78415089cccb4d40107acf` |
+
+The five-repeat memory reports used the committed budget with SHA-256
+`67d3c1e375b5060df59955327539ba5a6cc1bea1a481e8b1a461b7050c0e5e08`.
+
+| Exact target | fmt RSS (KiB) | libjpeg-turbo RSS (KiB) | LLVM/Clang RSS (KiB) | zstd RSS (KiB) |
+| --- | ---: | ---: | ---: | ---: |
+| ARM64 musl | 14,444 | 15,820 | 489,032 | 16,496 |
+| x86-64 musl | 15,852 | 17,284 | 490,376 | 17,964 |
 
 To requalify, run the `qualify.yml` workflow on the checked branch. It
 fetches and verifies the lock, builds on both native architectures,
