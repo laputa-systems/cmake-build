@@ -162,16 +162,50 @@ and seven generation tests passed with Ruff and ty.
 The strict inventory fell from 27 to 21 at this boundary, with 20
 missing generic arguments and one unsound return still open.
 
+Diagnose ranks input acquisition and phase reuse first. A cold runner
+must acquire the signed bytes, and any changed phase input or output
+must invalidate reuse. The sandbox boundary follows because host
+tools and network access change what the controller can build. The
+archive and generation boundary must check typed member metadata,
+qualified suites and unmodified package bytes before activation.
+The lock, phase, TLS, sandbox and package controller tests exercise
+those boundaries. Full native qualification exercises both targets.
+DSLP-3 and DSLP-4 retain the strict typing and mutation work.
+
+The first cold ARM64 trial stopped before compilation when Alpine
+Edge returned 404 for the locked OpenSSL CLI APK. Alpine 3.24 is the
+oldest supported branch with the pinned musl 1.2.6 runtime. The
+builder now uses the fleet's Alpine 3.24.2 image and its signed
+`v3.24/main` packages. CMake, Python, make, patch, Linux headers,
+xz and the musl runtime determine the builder closure. The OpenSSL
+CLI remains a separate qualification input.
+
+The [two-platform stable trial](https://github.com/laputa-systems/cmake-build/actions/runs/44351416444)
+at `9506d7900bc2c1d959a0db7c09029eb779648d03` passed basic, parity,
+network, project and upstream qualification. Both archives passed
+their size budgets.
+
+| Target | Archive bytes | SHA-256 |
+| --- | ---: | --- |
+| ARM64 musl | 19,014,068 | `b812bd069e39c69880e8ee020d66d103ce564c94d968c113bb6a06f24e378809` |
+| x86-64 musl | 20,741,632 | `8bfe12b64fe504d4e8c64ab884f8c739f78b02687eb6325559c6456238372d04` |
+
+The merged tree at `0bbf8f4e900aa1590bb4c61241a5099190ab790b`
+matches the [green PR](https://github.com/laputa-systems/cmake-build/pull/24)
+at `bb220e139909c40cbd7132ca979f2327b0f9333f`. The PR also includes
+the command-controller typing change that merged after the first trial.
+All 123 prepared controller tests and both linters passed.
+Its [exact-tree qualification](https://github.com/laputa-systems/cmake-build/actions/runs/44354687939)
+includes the memory gates. The first x86-64 attempt lost its connection
+while downloading the pinned Buildlib wheel before reaching Alpine.
+The wheel was re-fetched separately and matched its locked SHA-256.
+
+To requalify, run the `qualify.yml` workflow on the checked branch. It
+fetches and verifies the lock, builds on both native architectures,
+tests the packaged archives, and checks the committed memory budgets.
+
 ## Tickets
 
-### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
-
-- **Area:** deslop · diagnose
-- **Where:** whole repository
-- **Problem:** No review has ranked this repository's risks for the deslop pass.
-- **Recommendation:** Run the deslop Diagnose step. Accept: the diff touches only docs, comments, and this file, and every finding names its Fix with.
-- **Fix with:** deslop
-- **Effort:** S
 
 ### DSLP-3 · P2 · Types: strict profile and typing findings
 
