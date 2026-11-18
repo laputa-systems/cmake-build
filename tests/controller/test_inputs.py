@@ -20,6 +20,7 @@ from buildsys.inputs import (
     bootstrap_inputs,
     load_bootstrap,
     load_sources,
+    locks,
     safe_extract,
 )
 
@@ -62,6 +63,7 @@ class LockTests(unittest.TestCase):
         lock = load_bootstrap(BOOTSTRAP_LOCK)
         alpine = document["alpine"]
         self.assertEqual(lock.image_index_digest, alpine["image_index_digest"])
+        self.assertEqual(bootstrap_inputs(lock, "unknown-target"), [])
         for triple in (X86, ARM):
             with self.subTest(triple=triple):
                 section = document["targets"][triple]
@@ -238,8 +240,9 @@ class LockTests(unittest.TestCase):
             broken = entry()
             del broken["size"]
             lock = write_lock(directory / "lock.json", [broken])
-            with self.assertRaisesRegex(InputError, "must pin a size"):
+            with self.assertRaises(InputError) as failure:
                 load_sources(lock)
+            self.assertEqual(str(failure.exception), f"{lock}: source must pin a size")
 
     def test_modified_lock_entry_breaks_cached_object(self) -> None:
         with workspace() as directory:
@@ -259,6 +262,10 @@ class LockTests(unittest.TestCase):
             bad_role = write_lock(directory / "role.json", [entry(role="vendor")])
             with self.assertRaisesRegex(InputError, "unknown role"):
                 load_sources(bad_role)
+            bad_target = write_lock(directory / "target.json", [entry(target="unknown-target")])
+            with self.assertRaises(InputError) as failure:
+                load_sources(bad_target)
+            self.assertEqual(str(failure.exception), "source: unknown target 'unknown-target'")
 
 
 class CacheTests(unittest.TestCase):
@@ -343,8 +350,24 @@ class CacheTests(unittest.TestCase):
                 size=4,
             )
             cache = Cache(directory / "cache")
-            fetched = cache.fetch(item)
-            self.assertEqual(fetched.read_bytes(), b"good")
+            with patch.object(locks, "fetch_input", wraps=locks.fetch_input) as transport:
+                fetched = cache.fetch(item, timeout=3.25)
+                self.assertEqual(fetched.read_bytes(), b"good")
+                served.unlink()
+                self.assertEqual(cache.fetch(item), fetched)
+            transport.assert_called_once_with(item, fetched, timeout=3.25)
+
+    def test_offline_cache_refuses_fetch_before_calling_transport(self) -> None:
+        with workspace() as directory:
+            cache = Cache(directory / "cache", offline=True)
+            with (
+                patch.object(locks, "fetch_input") as transport,
+                self.assertRaises(InputError) as failure,
+            ):
+                cache.fetch(source())
+            transport.assert_not_called()
+            self.assertEqual(str(failure.exception), "source: offline phase cannot fetch from the network")
+            self.assertFalse(cache.root.exists())
 
     def test_corrupted_fresh_input(self) -> None:
         with workspace() as directory:

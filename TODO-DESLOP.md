@@ -448,6 +448,26 @@ keys and outcomes in `mutants/buildsys/inputs.py.meta`. The only survivors,
 10 and 12, sort by the full path instead of its name. All compared paths
 are children of the same directory on the supported POSIX platforms.
 
+**Input lock and fetch boundaries**
+
+At `fc472b1`, the complete input selection had 571 identities.
+The original input and phase tests caught 503. The new cases caught
+512 with the same source and selected keys. They verify the source
+lock path in missing-size diagnostics, reject an unknown source
+target, preserve an empty lookup for an absent bootstrap target,
+and check offline refusal and the caller's timeout. A second fetch
+uses the verified cached object after the local source is removed.
+
+Use the same sealed input trial with
+`only_mutate = ["buildsys/inputs.py"]`. Select `buildsys.inputs.*`
+and compare the full identity keys and outcome codes in
+`mutants/buildsys/inputs.py.meta`. Of the 59 survivors, 51 are
+in archive extraction. The four staging-prefix edits and the two
+sibling ordering edits retain their earlier dispositions. The
+non-string JSON object key diagnostic is unreachable through the
+JSON lock reader. The remaining fetch edit changes the default
+timeout from 120 to 121 seconds.
+
 ## Tickets
 
 
