@@ -125,6 +125,19 @@ fixtures for the boundary controls. The same full strict invocation
 reduces 44 diagnostics to 42, with 37 missing generic arguments and
 five unsound returns still open. Ruff and the normal ty check pass.
 
+A release budget with `targets` set to null, a list or a string
+raised an uncaught `AttributeError` at `745ac5f7`. All three fixtures
+now report the missing target through `BudgetError`. The typed
+boundary keeps the original nested mappings, so initialization
+updates the same metrics and preserves opaque JSON fields.
+
+The budget and package-generation suites each passed seven tests.
+Scratch `assert_type` checks of the emitted archive size and an RSS
+measurement give two diagnostics on the base and pass on the
+candidate. The strict inventory fell from 42 to 31, with 27 missing
+generic arguments and four unsound returns still open. Ruff and the
+normal ty check pass.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
