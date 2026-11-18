@@ -268,6 +268,24 @@ took 541 seconds cold and 24 seconds after restoring the audited native
 and Rust caches. Both attempts passed all 128 tests in 21 modules. The
 job key was `aebba13c014c06b5b334b0f7a2d0779c810f4260ed2a3584af9d496cea0d4756`.
 
+
+**Phase record tests**
+
+On macOS ARM64, mutmut 3.8.1 with Python 3.15.2 and pytest 9.2.0
+selected the same 184 `buildsys.phases.*` identities at `0fdd7b9`.
+The original suite caught 129 and missed 55. The candidate caught
+169 and missed 15. Copy the controller, locks and verified Buildlib
+wheel cache as for the bootstrap trial, and select
+`tests/controller/test_phases.py` with one mutmut child. The identity
+and status list is in `mutants/buildsys/phases.py.meta`.
+
+The eight phase tests cover fingerprint identity and input order,
+invalid cache records, the state visible during and after interruption,
+and the metadata returned when a phase is reused. The 15 remaining
+mutations involve text encoding, missing state during cleanup, or
+private JSON write paths and formatting. Their disposition and the
+whole-change gate remain in DSLP-4.
+
 ## Tickets
 
 
