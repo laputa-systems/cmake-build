@@ -415,6 +415,22 @@ musl variants with HTTP 404. The retained coverage entry point needs a
 compatible mirrored wheel. The native artifact trial above covers the
 packaged runtime. Wider controller mutation remains open.
 
+**Bootstrap input metadata**
+
+The matched `_bootstrap_input` selection at `ca0cc4c` contains 99
+identities. The original lock tests caught 81 and missed 18. The new
+tests caught all 99 with the same production file and identity set.
+The tests preserve a zero-byte pin, license and purpose, reject invalid
+string, digest and size values, and require the package or lock location
+in the diagnostic. All 29 input cases and 32 subtests passed.
+
+Use the sealed input trial setup with
+`pytest_add_cli_args_test_selection = ["tests/controller/test_inputs.py::LockTests"]`
+and select `buildsys.inputs.x__bootstrap_input__mutmut_*` under Mutmut
+3.8.1 and pytest 9.2.0. Compare the selected keys and exit codes in
+`mutants/buildsys/inputs.py.meta`. Other input functions and the
+whole-change workflow still need qualification.
+
 ## Tickets
 
 

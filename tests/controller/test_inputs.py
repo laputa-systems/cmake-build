@@ -166,11 +166,44 @@ class LockTests(unittest.TestCase):
         with workspace() as directory:
             root = Path(__file__).resolve().parents[2]
             lock = json.loads((root / "bootstrap.lock.json").read_text())
-            del lock["targets"]["x86_64-unknown-linux-musl"]["rust"]["components"][0]["size"]
+            component = lock["targets"][X86]["rust"]["components"][0]
+            del component["size"]
             path = directory / "bootstrap.json"
             path.write_text(json.dumps(lock))
-            with self.assertRaisesRegex(InputError, "must pin a size"):
+            with self.assertRaises(InputError) as error:
                 load_bootstrap(path)
+            self.assertEqual(str(error.exception), f"{path}:{X86}.rust.components: {component['name']} must pin a size")
+
+    def test_bootstrap_preserves_zero_size_and_optional_metadata(self) -> None:
+        document = json.loads(BOOTSTRAP_LOCK.read_text())
+        package = document["targets"][X86]["packages"][0]
+        package.update(size=0, license="MIT", purpose="bootstrap tool")
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            path.write_text(json.dumps(document))
+            item = bootstrap_inputs(load_bootstrap(path), X86)[0]
+        self.assertEqual((item.size, item.license, item.purpose), (0, "MIT", "bootstrap tool"))
+
+    def test_bootstrap_reports_the_named_package_for_invalid_values(self) -> None:
+        cases = (
+            ("version", "", "version must be a nonempty string"),
+            ("version", 3, "version must be a nonempty string"),
+            ("sha256", "F" * 64, "sha256 must be lowercase hex"),
+            ("size", -1, "size must be a nonnegative integer"),
+            ("size", False, "size must be a nonnegative integer"),
+        )
+        current = BOOTSTRAP_LOCK.read_text()
+        with workspace() as directory:
+            path = directory / "bootstrap.json"
+            for field, value, message in cases:
+                with self.subTest(field=field, value=value):
+                    document = json.loads(current)
+                    package = document["targets"][X86]["packages"][0]
+                    package[field] = value
+                    path.write_text(json.dumps(document))
+                    with self.assertRaises(InputError) as error:
+                        load_bootstrap(path)
+                    self.assertEqual(str(error.exception), f"{package['name']}: {message}")
 
     def test_bootstrap_rejects_invalid_optional_input_metadata(self) -> None:
         root = Path(__file__).resolve().parents[2]
