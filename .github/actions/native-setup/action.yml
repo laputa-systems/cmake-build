@@ -44,7 +44,9 @@ runs:
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .work/cache
-        key: inputs-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ steps.fingerprint.outputs.digest }}
+        key: inputs-v3-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json') }}
+        restore-keys: |
+          inputs-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target }}-
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |

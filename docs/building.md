@@ -49,6 +49,10 @@ list in `artifact.json`, so archives built before this change do not match
 earlier qualification, reproduction, or memory-baseline evidence, and the
 implementation digests in phase fingerprints change.
 
+Hosted CI keys its cache of downloaded inputs on the locks and native target.
+The controller verifies every restored object against the current pin before
+use. Compiled phase caches still use the full source fingerprint.
+
 `build` enables a persistent developer C/C++ cache in `.work/compiler-cache/`.
 Qualification uses a separate uncached C/C++ build phase. All completed phases
 are reused only when both their input fingerprints and output tree digests
