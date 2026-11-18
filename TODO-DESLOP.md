@@ -268,6 +268,12 @@ normalization of payload modes, root record exclusion, special-file
 rejection, same-size payload changes and unreadable manifests. The
 remaining archive mutations and whole-change gate stay in DSLP-4.
 
+The follow-up rebuilt semantically identical metadata with both top-level
+and nested keys in a different order. The archive bytes matched. It also
+exercises multiple missing destination directories and a payload with only
+the other-execute bit set. At `c533a06` the same 327 identities moved from
+284 caught and 43 missed to 291 caught and 36 missed.
+
 **Native controller cache**
 
 [CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
