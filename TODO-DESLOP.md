@@ -468,6 +468,12 @@ non-string JSON object key diagnostic is unreachable through the
 JSON lock reader. The remaining fetch edit changes the default
 timeout from 120 to 121 seconds.
 
+The same selection caught 518 after two additional archive cases.
+The fixtures preserve contained symbolic and hard links when a new
+destination parent is created, and verify that an existing output
+survives a refused extraction. Forty-five extraction identities
+remain open. All 33 input tests and both linters passed.
+
 ## Tickets
 
 

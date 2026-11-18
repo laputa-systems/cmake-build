@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -405,6 +406,42 @@ class ExtractTests(unittest.TestCase):
             )
             destination = safe_extract(bundle, directory / "out")
             self.assertEqual((destination / "top" / "file").read_bytes(), b"data")
+
+    def test_publishes_internal_links_into_a_new_parent(self) -> None:
+        with workspace() as directory:
+            bundle = directory / "links.tar.gz"
+            with tarfile.open(bundle, "w:gz") as tar:
+                payload = tarfile.TarInfo("top/file")
+                payload.size = 4
+                tar.addfile(payload, io.BytesIO(b"data"))
+                symlink = tarfile.TarInfo("top/symlink")
+                symlink.type = tarfile.SYMTYPE
+                symlink.linkname = "file"
+                tar.addfile(symlink)
+                hardlink = tarfile.TarInfo("top/hardlink")
+                hardlink.type = tarfile.LNKTYPE
+                hardlink.linkname = "top/file"
+                tar.addfile(hardlink)
+
+            destination = directory / "new-parent" / "out"
+            self.assertEqual(safe_extract(bundle, destination), destination)
+            self.assertEqual(list(destination.parent.iterdir()), [destination])
+            top = destination / "top"
+            self.assertEqual(os.readlink(top / "symlink"), "file")
+            self.assertEqual((top / "symlink").read_bytes(), b"data")
+            self.assertTrue((top / "hardlink").samefile(top / "file"))
+
+    def test_refuses_to_replace_an_existing_destination(self) -> None:
+        with workspace() as directory:
+            bundle = archive(directory / "good.tar.gz", [("file", b"new", None)])
+            destination = directory / "out"
+            destination.mkdir()
+            original = destination / "file"
+            original.write_bytes(b"existing")
+            with self.assertRaisesRegex(InputError, "already exists"):
+                safe_extract(bundle, destination)
+            self.assertEqual(original.read_bytes(), b"existing")
+            self.assertEqual(set(directory.iterdir()), {bundle, destination})
 
     def test_traversal_archive(self) -> None:
         with workspace() as directory:
