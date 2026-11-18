@@ -35,6 +35,14 @@ both linters passed. The unsealed macOS base and candidate had the same three
 controller modules failing on host or cache prerequisites. The sealed Linux
 controller job covers those modules.
 
+Phase cache recovery at `1959946ee17b617cb69b7015f6b12a05f7171d02`
+exercised a completed local phase with an unreadable UTF-8 cache record.
+The same build phase aborted with `UnicodeDecodeError` on the base.
+The candidate treats that record as stale, rebuilds the output under the
+same fingerprint and reuses the recovered record on the next call. Run
+`PYTHONPATH="$PWD/tests/controller:$PWD" uv run --frozen python -m unittest test_phases`
+to exercise the recovery and ordinary phase reuse without a native build.
+
 ## Tickets
 
 ### DSLP-2 · P2 · Diagnose: ultrareview into this backlog
