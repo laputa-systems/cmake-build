@@ -209,16 +209,14 @@ class Cache:
         except InputError:
             pass
         target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_suffix(".part")
-        try:
+        with tempfile.TemporaryDirectory(prefix=".store-", dir=target.parent) as staging:
+            temporary = Path(staging) / target.name
             shutil.copyfile(source, temporary)
             try:
                 locks.verify_file(temporary, item)
             except FetchError as error:
                 raise InputError(f"{item.name}: bytes changed during publication: {error}") from error
             os.replace(temporary, target)
-        finally:
-            temporary.unlink(missing_ok=True)
         return self.require(item)
 
     def fetch(self, item: Input, timeout: float = 120.0) -> Path:
