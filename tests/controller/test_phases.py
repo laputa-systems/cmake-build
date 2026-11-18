@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 
@@ -23,8 +24,11 @@ class PhaseTests(unittest.TestCase):
 
             first = cache.run("configure", {"source": DIGEST_A}, action)
             second = cache.run("configure", {"source": DIGEST_A}, action)
-            self.assertFalse(first.reused)
-            self.assertTrue(second.reused)
+            self.assertIs(first.reused, False)
+            self.assertIs(second.reused, True)
+            self.assertIsInstance(first.fingerprint, str)
+            self.assertEqual(second.fingerprint, first.fingerprint)
+            self.assertEqual(second.directory, first.directory)
             self.assertEqual(len(runs), 1)
             self.assertEqual((directory / "phases" / "configure" / "output").read_text(), "one")
 
@@ -78,18 +82,39 @@ class PhaseTests(unittest.TestCase):
             self.assertEqual((recovered.directory / "output").read_text(), "2")
             self.assertEqual(calls, [1, 2])
 
+    def test_invalid_record_claims_force_a_rebuild(self) -> None:
+        with workspace() as directory:
+            cache = PhaseCache(directory / "phases")
+            inputs = {"source": DIGEST_A}
+
+            def action(path):
+                (path / "output").write_text("ready")
+
+            first = cache.run("configure", inputs, action)
+            record_path = first.directory / "phase.json"
+            original = json.loads(record_path.read_text())
+            for value in ([], {**original, "schema_version": 2}, {**original, "inputs": {"source": DIGEST_B}}):
+                with self.subTest(record=value):
+                    record_path.write_text(json.dumps(value))
+                    self.assertFalse(cache.run("configure", inputs, action).reused)
+                    self.assertTrue(cache.run("configure", inputs, action).reused)
+
     def test_interrupted_phase_is_never_complete(self) -> None:
         with workspace() as directory:
             cache = PhaseCache(directory / "phases")
 
+            fingerprint = cache.fingerprint("build", {"source": DIGEST_A})
+            running = {"schema_version": 1, "phase": "build", "fingerprint": fingerprint, "status": "running"}
+
             def fail(path):
+                self.assertEqual(json.loads((path / "state.json").read_text()), running)
                 (path / "partial").write_text("half")
                 raise RuntimeError("interrupted")
 
             with self.assertRaises(RuntimeError):
                 cache.run("build", {"source": DIGEST_A}, fail)
             state = json.loads((directory / "phases" / "build" / "state.json").read_text())
-            self.assertEqual(state["status"], "interrupted")
+            self.assertEqual(state, {**running, "status": "interrupted"})
             self.assertFalse((directory / "phases" / "build" / "phase.json").exists())
 
             def success(path):
@@ -97,16 +122,37 @@ class PhaseTests(unittest.TestCase):
 
             result = cache.run("build", {"source": DIGEST_A}, success)
             self.assertFalse(result.reused)
-            self.assertTrue((directory / "phases" / "build" / "phase.json").is_file())
+            self.assertFalse((result.directory / "state.json").exists())
+            record = json.loads((result.directory / "phase.json").read_text())
+            self.assertEqual(record["phase"], "build")
+            self.assertEqual(record["inputs"], {"source": DIGEST_A})
+            self.assertRegex(record["output_digest"], r"^[0-9a-f]{64}$")
             self.assertFalse((directory / "phases" / "build" / "partial").exists())
 
     def test_phase_requires_content_digests(self) -> None:
         with workspace() as directory:
             cache = PhaseCache(directory / "phases")
-            with self.assertRaisesRegex(PhaseError, "sha256 digest"):
-                cache.fingerprint("build", {"source": "latest"})
+            for value in ("latest", "A" * 64, "X" * 64, "g" * 64, DIGEST_A + "a"):
+                with self.subTest(digest=value), self.assertRaisesRegex(PhaseError, "sha256 digest"):
+                    cache.fingerprint("build", {"source": value})
+            with self.assertRaisesRegex(PhaseError, "invalid input name"):
+                cache.fingerprint("build", {"": DIGEST_A})
             with self.assertRaisesRegex(PhaseError, "at least one input"):
                 cache.fingerprint("build", {})
+
+
+    def test_phase_name_participates_in_the_fingerprint(self) -> None:
+        with workspace() as directory:
+            cache = PhaseCache(directory / "phases")
+            inputs = {"source": DIGEST_A, "toolchain": DIGEST_B}
+            digest = cache.fingerprint("build", inputs)
+            material = f'{{"inputs":{{"source":"{DIGEST_A}","toolchain":"{DIGEST_B}"}},"phase":"build"}}'
+            self.assertEqual(digest, hashlib.sha256(material.encode()).hexdigest())
+            self.assertEqual(cache.fingerprint("build", dict(reversed(inputs.items()))), digest)
+            self.assertNotEqual(cache.fingerprint("configure", inputs), digest)
+            for name in ("", "nested/build", ".staging"):
+                with self.subTest(name=name), self.assertRaisesRegex(PhaseError, "invalid phase name"):
+                    cache.fingerprint(name, inputs)
 
 
 if __name__ == "__main__":
