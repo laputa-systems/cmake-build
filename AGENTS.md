@@ -7,6 +7,7 @@ Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl` and
 
 ```sh
 make lint                                   # ruff and ty
+make test                                   # controller suite
 make fetch TARGET=x86_64-unknown-linux-musl   # also: build, package, verify (qualify), repro (reproduce), clean
 python3 build.py controller-test            # controller suite, exit 0 or 1
 python3 build.py controller-test -k tls     # module-name filter
@@ -29,6 +30,17 @@ suites and qualifies the extracted archive before activation. `benchmark`
 requires a qualified generation, an unmodified musl baseline, and host `strace`.
 It writes the measured report and checks size and memory budgets after five runs.
 An unmeasured memory baseline can be established only with its recorded archive.
+
+## Verification
+
+- On the prepared hosted x86_64 Linux builder, `make test-ci` passed 113 tests in 21 modules twice at 9.17 s and 9.41 s elapsed. Those runs include the sealed test launch and exclude native build preparation. [Cost measurement](https://github.com/laputa-systems/cmake-build/pull/9)
+- On macOS ARM64, `make lint` passed in 1.22 s on the first run and 1.18 s warm. The controller suite needs the prepared Linux builder for the full check.
+- `tests/controller/test_cli.py` exercises CLI arguments and exit codes. `test_inputs.py`, `test_bootstrap.py`, and `test_buildlib_wheel.py` check locks, acquisition, byte identity, and the pinned wheel.
+- `test_sandbox.py` and `test_tls.py` check network, toolchain, and dependency boundaries. `test_phases.py` checks build phase records and invalidation.
+- `test_package_archive.py`, `test_package_generations.py`, and `test_package_reproduce.py` check archive and generation contracts. `make verify` separately qualifies real archives and project consumers.
+- The shipped CMake, CTest, and CPack CLI contracts are exercised by the basic, project, and upstream qualification suites. Certificate trust and network behavior have their own suite.
+- `build.py benchmark` measures declared command workloads and size and memory limits on qualified candidate and reference archives. Its prerequisites and baselines are in [Building and qualification](docs/building.md).
+- `sources.lock.json` records the upstream artifacts and digests. The tracked license notices are under `licenses/`.
 
 ## Layout
 
