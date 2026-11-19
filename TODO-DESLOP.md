@@ -1373,6 +1373,14 @@ The prior host cases reached none. The new cases caught 329 with no
 timeouts. The remaining five are `phase.json` path-case variants on
 this filesystem. All four focused tests and both linters passed.
 
+The inner prepare fixtures verify locked toolchain, musl and headers,
+exact provenance arguments, both process streams on failure, and the
+bytes of the two phase reports. Tool installation and the provenance
+process are simulated. On macOS ARM64 the same mutmut 3.8.1 and CPython
+3.15.2 selection of 205 identities went from none reached to 203 caught
+with no timeouts. The two survivors change report filename case on this
+filesystem. All eight inner-phase cases and both linters passed.
+
 The distribution fixture checks the staged layout, executable bytes
 and modes, resource and license symlinks, artifact metadata, and
 failure diagnostics for missing executables and incomplete license
