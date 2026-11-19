@@ -1415,6 +1415,16 @@ Six variants alter unused names in the suite iteration. Two path
 capitalization variants need Linux evidence. All three focused
 cases, Ruff and ty passed.
 
+The release-command tests verify the inner package guards, locked
+host invocation, native target checks, reproduction differences
+and benchmark report output. The matched macOS ARM64 trial selected
+135 identities in package, reproduce and benchmark dispatch with
+mutmut 3.8.1, Python 3.15.2 and pytest 9.2.0. The old isolated
+dispatcher reached none. The new cases caught 134. The survivor
+changes the absent package commit from empty text to another
+invalid value. Both produce the same diagnostic before packaging.
+All four focused tests and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
