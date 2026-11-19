@@ -1,6 +1,7 @@
 PYTHON ?= python3
 MUTATION_BASE ?= origin/main
 MUTATION_SCOPE ?=
+MUTATION_BUDGET ?= 600
 MUTATION_BUILDLIB ?= $(HOME)/repos/laputa-systems/buildlib
 TARGET ?=
 TARGET_ARG = $(if $(TARGET),--target $(TARGET))
@@ -44,7 +45,7 @@ coverage:
 	$(PYTHON) -m scripts.controller_coverage "$(TARGET)"
 
 mutants-diff:
-	bash scripts/mutants-diff.sh "$(MUTATION_BASE)" "$(MUTATION_BUILDLIB)" "$(MUTATION_SCOPE)"
+	bash scripts/mutants-diff.sh "$(MUTATION_BASE)" "$(MUTATION_BUILDLIB)" "$(MUTATION_SCOPE)" "$(MUTATION_BUDGET)"
 
 test-ci:
 	TMPDIR="$(CURDIR)/.work/tmp" python3 -c 'import sys; from pathlib import Path; import build; target=build.describe_target("x86_64-unknown-linux-musl"); image=build.sandbox.image_tag(build.load_bootstrap(build.BOOTSTRAP_LOCK),target,build.DOCKERFILE); r=build.sandbox.run_sealed(image,["python3","build.py","controller-test"],target=target,mounts=[(Path.cwd(),"/src")],env={"TMPDIR":"/src/.work/tmp","PYTHONPATH":"/src","PATH":"/src/.work/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},timeout=300); print(r.stdout,end=""); print(r.stderr,end="",file=sys.stderr); sys.exit(r.returncode)'

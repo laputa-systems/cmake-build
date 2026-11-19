@@ -120,15 +120,10 @@ also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-bu
 pytest_add_cli_args_test_selection = $tests
 use_setproctitle = false
 TOML
-  (
-    cd "$proof"
-    uv run --frozen --python 3.15.2 --with mutmut==3.8.1 --with pytest==9.2.0 \
-      python -m mutmut run --max-children 1 "buildsys.$module.*"
-  )
-  uv run --frozen --python 3.15.2 python .github/scripts/check_mutation_results.py \
-    "$source" "$proof" .github/mutation-dispositions.toml "$reader"
+  uv run --no-project --python 3.15.2 python .github/scripts/check_mutation_results.py \
+    "$source" "$proof" .github/mutation-dispositions.toml "$reader" --run-budget "$2"
 )
 
 while IFS= read -r module; do
-  run_module "$module"
+  run_module "$module" "$4"
 done <<< "$modules"
