@@ -1360,6 +1360,13 @@ nine variants only change indentation of equivalent parsed JSON on
 success, lock error or toolchain error. All eight focused cases and
 both linters passed. The wider `build.py` scope remains open.
 
+The benchmark coordinator fixture executes the project extraction callbacks
+with four distinct archives. It verifies the cache and image arguments,
+reference staging, Buildlib wheel handoff, and phase source fingerprints.
+The unchanged coordinator's 950 mutmut identities went from 798 to 883
+caught, with 67 survivors and no timeouts. The local focused suite passed
+31 cases with four Linux-only skips. Both linters passed.
+
 The host-phase fixtures check native target matching, locked asset
 selection, loopback requirements, failure reporting, kache admission,
 isolation evidence and the exact sealed command. They simulate image

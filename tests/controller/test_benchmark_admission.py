@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
@@ -11,12 +12,13 @@ from unittest.mock import Mock, call, patch
 from helpers import ROOT, workspace
 
 from buildsys import benchmark
+from buildsys.inputs import Input
 from buildsys.targets import target
 
 
 class BenchmarkWorkspace(unittest.TestCase):
     def setUp(self) -> None:
-        self.root = self.enterContext(workspace())
+        self.root: Path = self.enterContext(workspace())
         self.target = target("aarch64-unknown-linux-musl")
         self.generation = self.root / ".work/generations" / self.target.triple / "generation"
         self.generation.mkdir(parents=True)
@@ -91,7 +93,7 @@ class BenchmarkWorkspace(unittest.TestCase):
         self.budget_path = budget_path
         self.budgets = self.enterContext(patch.object(benchmark.budgets, "read", return_value={}))
         self.enterContext(patch.object(benchmark.budgets, "validate_memory_source"))
-        self.enterContext(patch.object(benchmark.sandbox, "image_fingerprint", return_value="fixture-image"))
+        self.image_fingerprint = self.enterContext(patch.object(benchmark.sandbox, "image_fingerprint", return_value="fixture-image"))
         self.write_phase(reference, reference_digest, reference_inputs)
 
     @staticmethod
@@ -206,13 +208,13 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.enterContext(patch.object(benchmark.platform, "platform", return_value="fixture host"))
         self.cache = Mock()
         self.cache.require.side_effect = lambda item: self.official_archive if item.name.startswith("cmake-reference-") else self.archive
-        self.enterContext(patch.object(benchmark, "Cache", return_value=self.cache))
+        self.cache_factory = self.enterContext(patch.object(benchmark, "Cache", return_value=self.cache))
         self.phase_cache = Mock()
         self.phase_cache.run.side_effect = lambda name, *_: SimpleNamespace(directory=self.phases / name)
         self.phase_cache_factory = self.enterContext(patch.object(benchmark, "PhaseCache", return_value=self.phase_cache))
-        self.enterContext(patch.object(benchmark, "safe_extract", side_effect=self.extract_fixture))
-        self.enterContext(patch.object(benchmark.stage, "stage", side_effect=self.stage_fixture))
-        self.enterContext(patch.object(benchmark.sandbox, "image_tag", return_value="fixture-image"))
+        self.extract = self.enterContext(patch.object(benchmark, "safe_extract", side_effect=self.extract_fixture))
+        self.stage_variant = self.enterContext(patch.object(benchmark.stage, "stage", side_effect=self.stage_fixture))
+        self.image_tag = self.enterContext(patch.object(benchmark.sandbox, "image_tag", return_value="fixture-image"))
         self.copy_runtime = self.enterContext(patch.object(benchmark.sandbox, "copy_reference_runtime"))
         self.sealed = self.enterContext(patch.object(benchmark.sandbox, "run_sealed", side_effect=self.run_fixture))
         self.render = self.enterContext(patch.object(benchmark, "render", return_value="measured report\n"))
@@ -351,6 +353,67 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.release.assert_called_once_with(
             {}, self.target.triple, self.digest, self.archive.stat().st_size, benchmark.sha256_file(self.budget_path), 5, [],
         )
+
+    def test_binds_locked_builder_and_project_inputs_before_running(self) -> None:
+        project_names = ("fmt-source", "zstd-source", "libjpeg-turbo-source", "llvm-project-source")
+        sources = {item.name: item for item in benchmark.load_sources(self.root / "sources.lock.json")}
+        lock = benchmark.load_bootstrap(self.root / "bootstrap.lock.json")
+        archives = {name: self.root / f"{name}.tar.xz" for name in (*project_names, "buildlib-wheel")}
+        for name, archive in archives.items():
+            archive.write_text(name)
+
+        def require(item: Input) -> Path:
+            if item.name == "cmake-reference-aarch64":
+                return self.official_archive
+            return archives[item.name]
+
+        def extract(archive: Path, destination: Path) -> Path:
+            if destination.name == "source":
+                destination.mkdir(parents=True)
+                (destination / "input").write_bytes(archive.read_bytes())
+                return destination
+            return self.extract_fixture(archive, destination)
+
+        def run_phase(name: str, _inputs: dict[str, str], action: Callable[[Path], Path]) -> SimpleNamespace:
+            directory = self.phases / name
+            action(directory)
+            return SimpleNamespace(directory=directory)
+
+        self.cache.require.side_effect = require
+        self.extract.side_effect = extract
+        self.phase_cache.run.side_effect = run_phase
+        benchmark.run(self.root, self.target)
+
+        scratch = self.sealed.call_args.kwargs["mounts"][0][0].parent
+        self.assertEqual(scratch.parent, self.root / ".work/tmp")
+        self.assertTrue(scratch.name.startswith("benchmark-"))
+        dockerfile = self.root / "docker/builder.Dockerfile"
+        self.image_fingerprint.assert_called_once_with(lock, self.target, dockerfile)
+        self.image_tag.assert_called_once_with(lock, self.target, dockerfile)
+        self.which.assert_called_once_with("strace")
+        self.stage_variant.assert_called_once_with(
+            self.reference, scratch / "baseline", self.target.triple, sources["cmake-source"].version,
+            self.root / "licenses", self.root / "NOTICE",
+        )
+        self.assertEqual(self.cache_factory.call_args_list, [
+            call(self.root / ".work/cache", offline=True),
+            call(self.root / ".work/cache", offline=True),
+            call(self.root / ".work/cache", offline=True),
+            call(scratch / "controller/.work/cache"),
+        ])
+        official = sources["cmake-reference-aarch64"]
+        wheel = sources["buildlib-wheel"]
+        self.assertEqual(self.cache.require.call_args_list, [
+            call(official), call(official), call(wheel), *(call(sources[name]) for name in project_names),
+        ])
+        self.cache.store.assert_called_once_with(archives["buildlib-wheel"], wheel)
+        implementation = benchmark.sha256_file(self.root / "buildsys/qualify.py")
+        self.assertEqual([request.args[:2] for request in self.phase_cache.run.call_args_list], [
+            (f"project-{name}", {"source": sources[name].sha256, "implementation": implementation})
+            for name in project_names
+        ])
+        for name in project_names:
+            self.assertEqual((self.phases / f"project-{name}/source/input").read_text(), name)
 
     def test_report_identifies_x86_cpu_or_uses_the_missing_label(self) -> None:
         for cpuinfo, expected in (
