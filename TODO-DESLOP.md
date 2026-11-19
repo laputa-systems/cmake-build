@@ -826,6 +826,154 @@ in the archive's `also_copy`. All focused sandbox tests and linters
 passed.
 
 
+The upstream report follow-up exercises tool startup and timeout
+errors, malformed tool output, and publication of multiple report
+sections. A failed rename leaves the previous report intact and
+removes the staged file. The tests compare the staged bytes before
+the failure and verify that replacing one section preserves the
+following receipt.
+
+On macOS ARM64 at `3d80e135`, the same upstream qualification scope
+caught 293 of 413 variants, up from 263. The remaining 120 stay open
+with the qualification controller in DSLP-4. Use
+`tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0,
+with the `upstream`, `_junit`, `_write_section` and
+`_check_baseline_failures` selectors. All seven focused tests and
+both linters passed.
+
+The upstream phase fixtures check the candidate executable bind,
+the different reference selection, sealed mount destinations and
+read-only inputs, the sysroot and toolchain environment, and the
+sandbox deadline. Both missing XML and missing runner summaries
+preserve the prior report. The reference selection escapes the
+dot in the failing case name before invoking the baseline.
+
+On macOS ARM64 at `a501fe36`, the isolated `upstream` scope caught
+217 of 270 matching identities, up from 171. The rendered
+mutation source matched byte for byte. The other report functions
+retain their separate evidence above. Run
+`tests/controller/test_projects.py` with mutmut 3.8.1 and pytest
+9.2.0 and select `buildsys.qualify.x_upstream__mutmut_*`. The
+seven focused tests and both linters passed.
+
+The basic qualification fixture relocates the candidate under a
+path with spaces, retains a tool symlink, and keeps controller
+state out of the immutable artifact mount. It checks the sealed
+mounts and deadline, child failure propagation, and removal of
+scratch after both outcomes.
+
+At `46c9cb7f`, the macOS ARM64 `basic` scope caught 110 of 114.
+The four survivors change or omit the disposable temporary
+directory's diagnostic prefix. The mount destination, copied
+artifact and cleanup stay the same. Use the sealed controller
+archive and select `buildsys.qualify.x_basic__mutmut_*` with
+`tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0.
+All eight focused tests and both linters passed.
+
+**Network qualification handoff**
+
+The controller fixture verifies a cached OpenSSL archive before
+extracting it and mounts the relocated stage and local suite
+read-only. It checks the locked CMake URL and digest passed to
+the second suite. A failed local process or missing 11-case
+result prevents the second process from starting. The fixture
+also checks rejection of a wrong-target lock entry, a missing
+entry, a failed second process, a skip, and missing confirmation.
+Both process boundaries are substituted. No Internet access
+or native CMake package was needed for this fixture.
+
+At `bb35c6ea3`, mutmut 3.8.1 with pytest 9.2.0 selected 207
+`qualify.network` variants in a fresh macOS ARM64 archive with
+`tests/controller/test_network_qualification.py`. The suite
+caught 198. Variants 15 and 75 change only the case of the
+lock and cache paths and need a case-sensitive run. Variants
+31, 33, 35 and 36 change the diagnostic name of a
+temporary directory. Variants 70, 72 and 76 change
+`Cache.offline` before `require`, which verifies a local
+file and does not consult that setting. Both focused tests
+and Ruff and ty passed.
+
+**Project qualification handoff**
+
+The controller fixture verifies four locked archives through
+actual cache verification, extraction and phase publication.
+The phase receipts record both the source digest and the
+controller digest. The child receives each source and the
+relocated CMake stage as read-only mounts. A missing source
+stops before the child, and every missing project result and
+nonzero child exit stops qualification.
+
+At `529d3b52`, mutmut 3.8.1 with pytest 9.2.0 selected 184
+`qualify.projects` variants from a fresh macOS ARM64 archive.
+`tests/controller/test_projects.py::ProjectQualificationTests`
+caught 174. Variants 26, 32 and 75 change path case and
+need a case-sensitive run. Variants 80, 82, 84 and 85
+change the name of a removed temporary directory. Variants
+21, 23 and 27 change the offline flag before a local-only
+`Cache.require` call. All ten focused tests and both
+linters passed. The child process was substituted.
+
+**Parity qualification handoff**
+
+The controller fixture verifies a locked reference archive
+with the actual cache and extraction code. It checks the
+candidate and reference mounts, interpreter and runtime
+selection across all four child calls. An invalid archive
+layout or failed or incomplete child leaves the prior report
+untouched. Equal graph output replaces the earlier result, and
+changed output records the exact unified diff, including an
+empty context line. The neighboring report section remains.
+
+At `0a28b62f`, mutmut 3.8.1 with pytest 9.2.0 selected 297
+`qualify.parity` variants from a fresh macOS ARM64 archive.
+`tests/controller/test_parity_qualification.py` caught 282.
+Variants 15, 20, 87, 229, 231, 233, 240 and 247 change only
+path case on the case-folded volume. Variants 39, 41, 43 and
+44 change the name of a removed temporary directory. Variants
+82, 84 and 88 change the offline flag before a local-only
+`Cache.require` call. All four focused cases and both linters
+passed. The subprocess boundary was substituted.
+
+**Upstream executable and report evidence**
+
+The upstream fixture now changes the copied candidate after
+the copy completes. Qualification rejects the mismatched
+digest before starting the sealed child and keeps the prior
+report intact. A sealed successful fixture checks the copied
+tool symlink, all host mounts, multiline output, and published
+candidate digest. The two-failure fixture checks sorted, escaped
+reference selection and the published baseline result.
+
+On macOS ARM64 the same 270 `qualify.upstream` variants went
+from 217 catches to 258 at base `28b14155`. Select
+`tests/controller/test_projects.py::UpstreamQualificationTests`
+with mutmut 3.8.1 and pytest 9.2.0. Variants 23, 97, 100, 104 and
+183 change path case. Variants 25, 27, 29 and 30 change a temporary
+directory's diagnostic name. Variants 5, 7 and 9 omit parent
+creation for the scratch path. The admitted build already has its
+`.work` parent because the source phase is there. All ten focused
+cases and both linters passed.
+
+**Qualification report boundaries**
+
+The JUnit fixture exercises malformed XML through the installed
+`jaq` and verifies the text diagnostic. It also isolates an
+empty result, invalid case data and a missing baseline failure.
+The report fixture replaces both a middle and a final section.
+A simulated flush failure removes the temporary file before
+raising. Publication preserves the original error and report.
+
+On macOS ARM64 the three report helpers caught 135 of the same
+143 variants at base `18da34d7`, up from 122. Use mutmut 3.8.1
+and pytest 9.2.0 with `UpstreamReportTests` and
+`QualificationSectionTests` in `tests/controller/test_projects.py`.
+`_junit` variants 10 and 15 retain the default falsey subprocess
+check. `_write_section` variant 12 selects the same location for
+the single managed heading. Variants 37, 41, 46 and 47 change
+the name of a removed temporary file. Variant 39 passes a falsey
+temporary-file deletion switch. All eleven focused cases and both
+linters passed.
+
 ## Tickets
 
 
