@@ -510,6 +510,26 @@ AST after normalizing those diagnostic arguments preserves every
 other node. The eight remaining member decisions are 2, 3, 6,
 28, 29, 38, 68 and 69. They still need dispositions.
 
+The archive membership check now uses the POSIX path predicate
+for absolute names. The contained-link fixture goes up one directory
+inside the archive. The new rejection cases check a nonportable
+absolute link and an absent hard-link source, preserving both the
+archive and its empty destination namespace. All 36 input tests
+and both linters passed.
+
+The complete input and phase selection catches 535 of the current
+565 identities at input source SHA-256
+`a5f481a06a20ced2e77f012972c462fb49e96e3782d8812dc55ffb2531272831`.
+The changed membership function has a new identity inventory.
+Its 14 remaining suffixes (5, 9, 15, 19, 23, 27, 45, 49, 56, 60,
+63, 67, 72, 76) all preserve rejection and change only diagnostic
+arguments. The other 16 outcomes are the nine extraction defaults
+and staging names above, the four cache staging names, the two
+tree-sort equivalents and the unreachable JSON key-type check.
+The current input selection is fully dispositioned. The remaining
+critical controller functions and whole-change verification stay
+in DSLP-4.
+
 ## Tickets
 
 

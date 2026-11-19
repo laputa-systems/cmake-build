@@ -238,7 +238,7 @@ def _reject(name: str, reason: str) -> None:
 
 def _check_member(member: tarfile.TarInfo, destination: Path, regular: set[str]) -> None:
     name = member.name
-    if not name or name.startswith("/") or Path(name).is_absolute():
+    if not name or Path(name).is_absolute():
         _reject(name, "absolute")
     parts = Path(name).parts
     if ".." in parts:
