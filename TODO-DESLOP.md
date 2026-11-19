@@ -1305,6 +1305,13 @@ With the same mutation inputs and tool versions, a fresh run caught
 writer identities also passed. The 14 portable cases and both
 linters passed. The coordinator still has 189 survivors.
 
+Benchmark sample admission now checks CPU time and both load
+readings alongside wall time, exit status, RSS and iteration.
+The earlier validator accepted a NaN CPU sample in a complete
+matrix and raised an overflow error for an out-of-range wall time.
+The report tests now require the measurement diagnostic for
+both inputs while continuing to accept the valid 54-scenario matrix.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.

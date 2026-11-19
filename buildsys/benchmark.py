@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import platform
 import shutil
 import statistics
 import subprocess
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -104,6 +104,14 @@ def interleaved_orders(variants: tuple[str, ...], repetitions: int):
         yield variants[offset:] + variants[:offset]
 
 
+def _valid_sample_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 <= value <= sys.float_info.max
+    )
+
+
 def summarize(
     records: list[Measurement], repetitions: int
 ) -> dict[tuple[str, str, str], MeasurementSummary]:
@@ -111,8 +119,15 @@ def summarize(
         raise BenchmarkError('benchmark produced no measurements')
     groups: defaultdict[tuple[str, str, str], list[Measurement]] = defaultdict(list)
     for record in records:
-        if (record.get('exit_code') != 0 or not isinstance(record.get('seconds'), (int, float))
-            or not math.isfinite(record['seconds']) or record['seconds'] < 0 or record.get('max_rss_kib', -1) < 0):
+        exit_code = record.get('exit_code')
+        iteration = record.get('iteration')
+        rss = record.get('max_rss_kib')
+        if (
+            type(exit_code) is not int or exit_code != 0
+            or type(iteration) is not int or iteration < 0
+            or type(rss) is not int or rss < 0
+            or not all(_valid_sample_number(record.get(field)) for field in ('seconds', 'cpu_seconds', 'load_before', 'load_after'))
+        ):
             raise BenchmarkError('benchmark contains a failed or invalid measurement')
         groups[(record['workload'], record['scenario'], record['variant'])].append(record)
     variants = ('product', 'musl', 'kitware')

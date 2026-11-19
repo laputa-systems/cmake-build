@@ -44,6 +44,17 @@ class BenchmarkTests(unittest.TestCase):
             {**sample, 'seconds': -0.5},
             {**sample, 'max_rss_kib': -1},
             {**sample, 'exit_code': 1},
+            {**sample, 'seconds': True},
+            {**sample, 'seconds': 10 ** 400},
+            {**sample, 'cpu_seconds': float('inf')},
+            {**sample, 'cpu_seconds': -0.25},
+            {**sample, 'load_before': float('nan')},
+            {**sample, 'load_after': -0.25},
+            {**sample, 'load_after': float('inf')},
+            {**sample, 'iteration': True},
+            {**sample, 'iteration': -1},
+            {**sample, 'max_rss_kib': False},
+            {**sample, 'exit_code': False},
         )
         for record in cases:
             with self.subTest(record=record), self.assertRaises(benchmark.BenchmarkError) as caught:
@@ -70,6 +81,8 @@ class BenchmarkTests(unittest.TestCase):
             for workload, scenario in scenarios for variant in ('product', 'musl', 'kitware')
         ]
         self.assertEqual(len(benchmark.summarize(records, 1)), 54)
+        with self.assertRaisesRegex(benchmark.BenchmarkError, '^benchmark contains a failed or invalid measurement$'):
+            benchmark.summarize([{**records[0], 'cpu_seconds': float('nan')}, *records[1:]], 1)
         measured: list[benchmark.Measurement] = [
             {**record, 'iteration': iteration, 'seconds': seconds, 'cpu_seconds': cpu, 'max_rss_kib': rss}
             for record in records
