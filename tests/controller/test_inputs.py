@@ -338,25 +338,26 @@ class CacheTests(unittest.TestCase):
                 cache.require(source())
 
     def test_fetches_verified_fresh_input(self) -> None:
-        with workspace() as directory:
-            served = directory / "served"
-            served.write_bytes(b"good")
-            item = Input(
-                name="source",
-                version="1.0",
-                urls=(served.as_uri(),),
-                sha256=GOOD_SHA,
-                role="source",
-                target="x86_64-unknown-linux-musl",
-                size=4,
-            )
-            cache = Cache(directory / "cache")
-            with patch.object(locks, "fetch_input", wraps=locks.fetch_input) as transport:
-                fetched = cache.fetch(item, timeout=3.25)
-                self.assertEqual(fetched.read_bytes(), b"good")
-                served.unlink()
-                self.assertEqual(cache.fetch(item), fetched)
-            transport.assert_called_once_with(item, fetched, timeout=3.25)
+        for requested, expected in (({}, 120.0), ({"timeout": 3.25}, 3.25)):
+            with self.subTest(requested=requested), workspace() as directory:
+                served = directory / "served"
+                served.write_bytes(b"good")
+                item = Input(
+                    name="source",
+                    version="1.0",
+                    urls=(served.as_uri(),),
+                    sha256=GOOD_SHA,
+                    role="source",
+                    target="x86_64-unknown-linux-musl",
+                    size=4,
+                )
+                cache = Cache(directory / "cache")
+                with patch.object(locks, "fetch_input", wraps=locks.fetch_input) as transport:
+                    fetched = cache.fetch(item, **requested)
+                    self.assertEqual(fetched.read_bytes(), b"good")
+                    served.unlink()
+                    self.assertEqual(cache.fetch(item), fetched)
+                transport.assert_called_once_with(item, fetched, timeout=expected)
 
     def test_offline_cache_refuses_fetch_before_calling_transport(self) -> None:
         with workspace() as directory:
@@ -464,6 +465,18 @@ class ExtractTests(unittest.TestCase):
                 safe_extract(bundle, destination)
             self.assertEqual(list(directory.iterdir()), [bundle])
             self.assertEqual((safe_extract(bundle, destination) / "file").read_bytes(), b"data")
+
+    def test_unreadable_archive_leaves_no_staging_or_destination(self) -> None:
+        with workspace() as directory:
+            bundle = directory / "unreadable.tar.gz"
+            bundle.write_bytes(b"ordinary non-archive input")
+            destination = directory / "out"
+
+            with self.assertRaises(tarfile.ReadError):
+                safe_extract(bundle, destination)
+
+            self.assertEqual(list(directory.iterdir()), [bundle])
+            self.assertEqual(bundle.read_bytes(), b"ordinary non-archive input")
 
     def test_traversal_archive(self) -> None:
         with workspace() as directory:
