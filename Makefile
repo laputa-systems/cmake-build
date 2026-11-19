@@ -2,7 +2,7 @@ PYTHON ?= python3
 TARGET ?=
 TARGET_ARG = $(if $(TARGET),--target $(TARGET))
 
-.PHONY: test test-ci coverage build verify lint clean fetch package repro controller-test
+.PHONY: test test-ci coverage build verify lint clean fetch package repro controller-test reproduction-git-test
 
 fetch:
 	$(PYTHON) build.py fetch $(TARGET_ARG)
@@ -31,7 +31,11 @@ clean:
 	rm -rf .venv .ruff_cache .work/build .work/rust .work/phases .work/artifacts .work/generations .work/benchmark-results .work/tmp
 	find . -path './.git' -prune -o -path './.work' -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
 
-test: controller-test
+test: controller-test reproduction-git-test
+
+reproduction-git-test:
+	mkdir -p .work/tmp
+	TMPDIR="$(CURDIR)/.work/tmp" PYTHONPATH="$(CURDIR)" $(PYTHON) -m unittest discover -s tests/host -p test_reproduction_git.py
 
 coverage:
 	$(PYTHON) -m scripts.controller_coverage "$(TARGET)"

@@ -648,7 +648,10 @@ removals before reporting failures.
 The prior reproduction selection caught 46 of 238 identities and
 marked 185 unexercised. The current source catches 206 of 246 with
 the real-worktree cases. Select `buildsys.reproduce.*` with the
-controller archive recipe and `tests/controller/test_package_reproduce.py`.
+controller archive recipe, `tests/controller/test_package_reproduce.py`, and
+`tests/host/test_reproduction_git.py`. Run `make reproduction-git-test` on the
+host to exercise real Git worktrees. CI runs this before the sealed controller
+suite because the minimum builder image has no Git.
 All five reproduction tests and both linters passed. Wider rejection
 and diagnostic variants remain in DSLP-4.
 
