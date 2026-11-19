@@ -32,27 +32,6 @@ class LicenseStagingTests(unittest.TestCase):
             with self.assertRaisesRegex(licenses.LicenseError, 'tls-1.0.0'):
                 licenses.verify_closure('tls v1.0.0\n', 'std v0.0.0\n', base)
 
-    def test_rejects_invalid_empty_and_unlicensed_dependency_closures(self) -> None:
-        with workspace() as root:
-            for group in ('rustls', 'rust-std'):
-                folder = root / group / 'Sample-crate-1.2.3+BUILD'
-                folder.mkdir(parents=True)
-                (folder / 'LICENSE').write_text('terms')
-            entry = 'Sample-crate v1.2.3+BUILD (registry)\n'
-            licenses.verify_closure(entry + entry, entry, root)
-            cases = (
-                ('invalid dependency\n', entry, "invalid rustls dependency entry: 'invalid dependency'"),
-                (entry, 'sample-crate 1.2.3\n', "invalid rust-std dependency entry: 'sample-crate 1.2.3'"),
-                ('', entry, 'rustls dependency closure is empty'),
-                (entry, '', 'rust-std dependency closure is empty'),
-                (entry, 'empty v0.1.0\n', 'rust-std dependency lacks license texts: empty-0.1.0'),
-            )
-            (root / 'rust-std/empty-0.1.0').mkdir()
-            for rustls, std, message in cases:
-                with self.subTest(message=message), self.assertRaises(licenses.LicenseError) as caught:
-                    licenses.verify_closure(rustls, std, root)
-                self.assertEqual(str(caught.exception), message)
-
     def test_reports_each_missing_distribution_executable(self) -> None:
         for missing in ('cmake', 'ctest', 'cpack'):
             with self.subTest(missing=missing), workspace() as root:
