@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import unittest
 from pathlib import Path
@@ -183,6 +185,9 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.loader = self.root / "trace-loader"
         self.library = self.root / "trace-library"
         self.cpuinfo: Path = self.root / "cpuinfo"
+        self.official_archive = self.root / "official.tar.xz"
+        self.official_archive.write_bytes(b"official archive bytes")
+        self.official_directory = True
         self.report = self.root / "docs/performance.md"
         self.provenance = (
             self.root / "tests/benchmark/run.py",
@@ -200,15 +205,15 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.enterContext(patch.object(benchmark, "Path", side_effect=self.owned_path))
         self.enterContext(patch.object(benchmark.platform, "platform", return_value="fixture host"))
         self.cache = Mock()
-        self.cache.require.return_value = self.archive
+        self.cache.require.side_effect = lambda item: self.official_archive if item.name.startswith("cmake-reference-") else self.archive
         self.enterContext(patch.object(benchmark, "Cache", return_value=self.cache))
-        phase_cache = Mock()
-        phase_cache.run.side_effect = lambda name, *_: SimpleNamespace(directory=self.phases / name)
-        self.enterContext(patch.object(benchmark, "PhaseCache", return_value=phase_cache))
+        self.phase_cache = Mock()
+        self.phase_cache.run.side_effect = lambda name, *_: SimpleNamespace(directory=self.phases / name)
+        self.phase_cache_factory = self.enterContext(patch.object(benchmark, "PhaseCache", return_value=self.phase_cache))
         self.enterContext(patch.object(benchmark, "safe_extract", side_effect=self.extract_fixture))
         self.enterContext(patch.object(benchmark.stage, "stage", side_effect=self.stage_fixture))
         self.enterContext(patch.object(benchmark.sandbox, "image_tag", return_value="fixture-image"))
-        self.enterContext(patch.object(benchmark.sandbox, "copy_reference_runtime"))
+        self.copy_runtime = self.enterContext(patch.object(benchmark.sandbox, "copy_reference_runtime"))
         self.sealed = self.enterContext(patch.object(benchmark.sandbox, "run_sealed", side_effect=self.run_fixture))
         self.render = self.enterContext(patch.object(benchmark, "render", return_value="measured report\n"))
         self.check_size = self.enterContext(patch.object(benchmark.budgets, "check_size"))
@@ -217,6 +222,7 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.release = self.enterContext(patch.object(benchmark.budgets, "release_evidence", return_value=self.evidence))
         self.result = {"rss_scope": benchmark.budgets.RSS_SCOPE, "records": [], "profiles": [], "cpus": [0, 2]}
         self.change_during_measurement: Path | None = None
+        self.stdout = self.enterContext(contextlib.redirect_stdout(io.StringIO()))
 
     def owned_path(self, name: str | Path) -> Path:
         return self.cpuinfo if name == "/proc/cpuinfo" else Path(name)
@@ -228,13 +234,18 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         return SimpleNamespace(returncode=0, stdout=f"libfixture.so => {self.library} (0x1)\n{self.loader} (0x2)\n", stderr="")
 
     def extract_fixture(self, archive: Path, destination: Path) -> Path:
-        self.assertEqual(archive, self.archive)
         if destination.name == "candidate":
+            self.assertEqual(archive, self.archive)
             prefix = destination / "usr"
             self.write_variant(prefix, b"product executable")
         elif destination.name == "official":
+            self.assertEqual(archive, self.official_archive)
             prefix = destination / "cmake-release"
-            self.write_variant(prefix, b"kitware executable")
+            if self.official_directory:
+                self.write_variant(prefix, b"official CMake")
+            else:
+                destination.mkdir()
+                prefix.write_bytes(b"unexpected file")
         else:
             raise AssertionError(f"unexpected extraction destination: {destination}")
         return destination
@@ -271,16 +282,42 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
             call([str(self.tracer), "--version"], capture_output=True, text=True, check=True),
             call(["ldd", str(self.tracer)], capture_output=True, text=True, check=False),
         ])
-        self.assertEqual(self.sealed.call_args.args[1], ["/opt/alpine/usr/python3", "/suite/run.py", "5"])
+        lock = benchmark.load_bootstrap(self.root / "bootstrap.lock.json")
+        self.assertEqual(self.sealed.call_args.args, (lock.reference_image, ["/opt/alpine/usr/python3", "/suite/run.py", "5"]))
         options = self.sealed.call_args.kwargs
         self.assertEqual(options["target"], self.target)
         self.assertEqual(options["env"], {"PYTHONHOME": "/opt/alpine/usr", "TMPDIR": "/benchmark"})
         self.assertEqual(options["workdir"], "/benchmark")
         self.assertEqual(options["timeout"], 28800)
-        destinations = {destination for _, destination in options["mounts"]}
-        self.assertEqual(len(destinations), 19)
-        self.assertEqual(options["read_only"], destinations - {"/benchmark"})
-        self.assertTrue({"/variants/product", "/variants/musl", "/variants/kitware", self.target.musl_loader, "/inputs/fmt-source"} <= destinations)
+        work = options["mounts"][0][0]
+        scratch = work.parent
+        runtime = scratch / "runtime"
+        project_names = ("fmt-source", "zstd-source", "libjpeg-turbo-source", "llvm-project-source")
+        expected_mounts = {
+            "/benchmark": work,
+            "/suite": self.root / "tests/benchmark",
+            "/controller/buildsys": self.root / "buildsys",
+            "/controller/sources.lock.json": self.root / "sources.lock.json",
+            "/controller/.work": scratch / "controller/.work",
+            "/variants/product": scratch / "candidate/usr",
+            "/variants/musl": scratch / "baseline",
+            "/variants/kitware": scratch / "official/cmake-release",
+            "/opt/alpine": runtime,
+            self.target.musl_loader: runtime / "lib" / Path(self.target.musl_loader).name,
+            "/etc/ld-musl-aarch64.path": runtime / "etc/ld-musl-aarch64.path",
+            "/usr/bin/make": runtime / "usr/make",
+            "/src/.work/build/aarch64-unknown-linux-musl/phases/prepare": self.phases / "prepare",
+            "/tools/toolchain.cmake": self.phases / "bootstrap/toolchain.cmake",
+            "/tools/ninja": self.phases / "bootstrap/ninja-build/ninja",
+            **{f"/inputs/{name}": self.phases / f"project-{name}/source" for name in project_names},
+        }
+        self.assertEqual(options["mounts"], [(path, destination) for destination, path in expected_mounts.items()])
+        self.assertEqual(options["read_only"], expected_mounts.keys() - {"/benchmark"})
+        self.copy_runtime.assert_called_once_with("fixture-image", self.target, runtime)
+        self.phase_cache_factory.assert_called_once_with(self.phases)
+        self.assertEqual([item.args[0] for item in self.phase_cache.run.call_args_list], [f"project-{name}" for name in project_names])
+        self.assertEqual(self.stdout.getvalue(), f"size and memory budgets passed for {self.target.triple}; existing baseline retained\n")
+
 
         records, repetitions, metadata = self.render.call_args.args
         self.assertEqual((records, repetitions), ([], 5))
@@ -294,7 +331,7 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
             {
                 "product": {"executable": 18, "files": 24, "archive": self.archive.stat().st_size},
                 "musl": {"executable": 15, "files": 21, "archive": "not packaged"},
-                "kitware": {"executable": 18, "files": 24, "archive": self.archive.stat().st_size},
+                "kitware": {"executable": 14, "files": 20, "archive": self.official_archive.stat().st_size},
             },
         )
         self.check_size.assert_called_once()
@@ -318,6 +355,11 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
                     SimpleNamespace(returncode=returncode, stdout=stdout, stderr="fixture ldd failure"),
                 ]
                 self.assert_rejected(message)
+        self.sealed.assert_not_called()
+
+    def test_official_archive_must_contain_a_single_directory(self) -> None:
+        self.official_directory = False
+        self.assert_rejected("official archive has an invalid layout")
         self.sealed.assert_not_called()
 
     def test_failed_runner_reports_the_tail_of_each_stream(self) -> None:
@@ -363,6 +405,7 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         benchmark.run(self.root, self.target)
         self.assertEqual(self.budget_path.read_text(), '{\n  "fixture": "first baseline"\n}\n')
         self.assertFalse((self.root / ".work/benchmark-results").exists())
+        self.assertEqual(self.stdout.getvalue(), f"memory baseline established for {self.target.triple}; review and commit the budget\n")
 
 
 class BenchmarkReportPublicationTests(unittest.TestCase):
