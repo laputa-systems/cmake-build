@@ -47,14 +47,18 @@ run_module() (
     buildlib_wheel) tests='["tests/controller/test_buildlib_wheel.py::CacheAdmissionTests"]' ;;
     budgets) tests='["tests/controller/test_budgets.py", "tests/controller/test_package_reproduce.py",
                       "tests/controller/test_package_generations.py", "tests/controller/test_cli.py"]' ;;
-    cmake)
+    cmake|dependencies)
       tests='["tests/controller/test_cmake.py"]'
+      if [[ $module == dependencies ]]; then
+        tests='["tests/controller/test_cmake.py", "tests/controller/test_dependency_inventory.py"]'
+      fi
       module_copy=', "docker", "patches", "scripts"'
       ;;
     generations) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                           "tests/controller/test_package_commands.py"]' ;;
     licenses|stage) tests='["tests/controller/test_licenses.py"]' ;;
     inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;
+    targets) tests='["tests/controller/test_cli.py", "tests/controller/test_targets.py"]' ;;
     reference) tests='["tests/controller/test_reference.py"]' ;;
     reproduce) tests='["tests/controller/test_package_reproduce.py", "tests/host/test_reproduction_git.py"]' ;;
     package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",

@@ -14,6 +14,7 @@ CRITICAL = frozenset({
     "buildsys/budgets.py",
     "buildsys/buildlib_wheel.py",
     "buildsys/cmake.py",
+    "buildsys/dependencies.py",
     "buildsys/generations.py",
     "buildsys/inputs.py",
     "buildsys/licenses.py",
@@ -26,6 +27,7 @@ CRITICAL = frozenset({
     "buildsys/sandbox.py",
     "buildsys/stage.py",
     "buildsys/sysroot.py",
+    "buildsys/targets.py",
     "buildsys/tls.py",
     "buildsys/toolchain.py",
 })
