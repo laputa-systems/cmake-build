@@ -82,6 +82,8 @@ jobs:
                                   "tests/controller/test_package_commands.py"]' ;;
             inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;
             reproduce) tests='["tests/controller/test_package_reproduce.py", "tests/host/test_reproduction_git.py"]' ;;
+            package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
+                              "tests/controller/test_package_commands.py"]' ;;
             phases) tests='["tests/controller/test_phases.py"]' ;;
             *) exit 2 ;;
           esac
@@ -116,3 +118,21 @@ jobs:
           ' cmake-proof "$proof" "$MODULE"
           uv run --frozen --python 3.15.2 python .github/scripts/check_mutation_results.py \
             "$source" "$proof" .github/mutation-dispositions.toml "$reader"
+
+  whole-change:
+    if: always()
+    needs: [plan, controller]
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 3
+    env:
+      PLAN: ${{ needs.plan.result }}
+      CONTROLLER: ${{ needs.controller.result }}
+      MODULES: ${{ needs.plan.outputs.modules }}
+    steps:
+      - run: |
+          test "$PLAN" = success
+          if [ "$MODULES" = '[]' ]; then
+            test "$CONTROLLER" = skipped
+          else
+            test "$CONTROLLER" = success
+          fi
