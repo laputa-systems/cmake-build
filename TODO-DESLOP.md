@@ -1321,6 +1321,16 @@ count, a second-read diagnostic and optional archive arguments to the
 already measured baseline branch. All 11 focused tests and both
 linters passed.
 
+The fetch and doctor fixtures cover cache admission, the requested and
+native build inputs, offline vendoring, toolchain inspection, and exact
+errors before the next external effect. Container, transport and tool
+operations are simulated. On macOS ARM64, mutmut 3.8.1 with CPython
+3.15.2 and pytest 9.2.0 ran the same 292 `fetch` and `doctor` identities.
+The prior doctor check caught 25. The new cases caught 283. The last
+nine variants only change indentation of equivalent parsed JSON on
+success, lock error or toolchain error. All eight focused cases and
+both linters passed. The wider `build.py` scope remains open.
+
 The host-phase fixtures check native target matching, locked asset
 selection, loopback requirements, failure reporting, kache admission,
 isolation evidence and the exact sealed command. They simulate image
