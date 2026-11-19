@@ -288,6 +288,19 @@ the unused private defaults or the defaults of keys already verified by
 the network-mode check. Select `test_sandbox.py::ReferenceImageTests`
 with the controller archive recipe. All 27 sandbox tests and lint passed.
 
+**Network self-test completion**
+
+A passing host control and two denied container probes could report
+success even when the listener worker was reported active after join.
+The network result now requires a stopped listener worker. The test
+uses the real local host control and records both denied background
+probe commands, the published evidence and failed-host cleanup.
+
+The current `network_boundary_selftest` selection catches 191 of
+214 identities with `test_sandbox.py::NetworkBoundaryTests` on macOS
+ARM64. The remaining 23 are separate from that count. All 29
+focused sandbox tests and both linters passed.
+
 **Verified wheel cache**
 
 The direct cache cases exercise a cached symlink, corrupt bytes,
