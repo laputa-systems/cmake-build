@@ -140,17 +140,25 @@ class BenchmarkTests(unittest.TestCase):
             'projects': [Input(name='fmt', version='1', sha256='e', urls=('https://example.invalid/fmt',))],
             'sizes': {
                 'product': {'executable': 10, 'files': 20, 'archive': 5},
-                'musl': {'executable': 12, 'files': 22, 'archive': 7},
+                'musl': {'executable': 12, 'files': 22, 'archive': 'not packaged'},
                 'kitware': {'executable': 15, 'files': 26, 'archive': 9},
             },
         }
-        report = benchmark.render(records, 1, metadata)
-        self.assertIn('## Raw samples', report)
-        self.assertIn("RSS is CMake's image high-water mark", report)
-        self.assertIn('Startup timings are untraced', report)
+        report = benchmark.render(measured, 3, metadata)
+        self.assertTrue(report.startswith(
+            '# CMake executable performance\n\n'
+            'Target: `aarch64-unknown-linux-musl`. Runs per variant: 3.\n\n'
+        ))
         for evidence in (
-            '# CMake executable performance',
-            'Target: `aarch64-unknown-linux-musl`. Runs per variant: 1.',
+            (
+                'All three binaries ran in the same native Debian container with the pinned musl toolchain.\n'
+                'Kitware uses glibc while the product and unmodified baseline use musl; runtime and resource\n'
+                'differences are part of the Kitware comparison. The musl baseline uses unmodified CMake with\n'
+                'OpenSSL disabled; the product includes Rustls and patches. Their comparison includes those\n'
+                'product differences and does not isolate an individual compiler flag.\n'
+                'A warmup preceded measurement. Filesystem caches were not pinned; cold-cache results were not\n'
+                'measured. Timings are not release gates.\n\n'
+            ),
             'Host: `Linux arm64`. CPU: `fixture CPU`. Container: `fixture image`.',
             'CPU affinity: `[0, 2]`. Product archive SHA-256: `product-hash`.',
             'Official archive SHA-256: `kitware-hash`. Baseline output digest: `musl-hash`.',
@@ -158,11 +166,42 @@ class BenchmarkTests(unittest.TestCase):
             'Tracer: `fixture strace`. Runner SHA-256: `runner-hash`.',
             'Benchmark implementation SHA-256: `impl-hash`.',
             'RSS measurement implementation SHA-256: `rss-hash`.',
-            '| fmt | 1 | `e` |',
-            '| product | 10 | 20 | 5 |\n| musl | 12 | 22 | 7 |\n| kitware | 15 | 26 | 9 |',
-            '| fmt | initial | product | 1.000000 | 1.000000–1.000000 | 0.500000 | 42 |',
-            '| fmt | initial | product | 1 | 1.000000 | 0.500000 | 42 | 0.12 | 0.34 |',
-            '### fmt: product\n\n```text\ntrace for fmt/product\n```',
+            (
+                'See the [baseline analysis](performance-analysis.md) for the interpretation and limits of the initial run.\n\n'
+                '| Project | Version | Source SHA-256 |\n| --- | --- | --- |\n| fmt | 1 | `e` |'
+            ),
+            (
+                '\n\n## Size\n\n'
+                'The official archive includes additional tools and resources, so total package sizes are not like-for-like.\n\n'
+                '| Variant | CMake executable bytes | Regular-file bytes | Archive bytes |\n| --- | ---: | ---: | ---: |\n'
+                '| product | 10 | 20 | 5 |\n| musl | 12 | 22 | not packaged |\n| kitware | 15 | 26 | 9 |'
+            ),
+            (
+                '\n\n## Measurements\n\n'
+                "RSS is CMake's image high-water mark, read before exit; it excludes child processes.\n"
+                'Configure timings include process-tracing overhead. Startup timings are untraced; their RSS\n'
+                'comes from a separate traced invocation. CPU time includes waited child processes.\n\n'
+                '| Workload | Operation | Variant | Median seconds | Range seconds | Median CPU seconds | Maximum RSS KiB |\n'
+                '| --- | --- | --- | ---: | ---: | ---: | ---: |\n'
+            ),
+            '| fmt | initial | product | 3.000000 | 2.000000–9.000000 | 1.500000 | 60 |',
+            (
+                '\n\n## Raw samples\n\n'
+                'Seconds, peak RSS in KiB, and one-minute host load before and after each invocation.\n\n'
+                '| Workload | Operation | Variant | Iteration | Seconds | CPU seconds | Peak RSS KiB | Load before | Load after |\n'
+                '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n'
+                '| fmt | initial | product | 1 | 3.000000 | 0.250000 | 60 | 0.12 | 0.34 |\n'
+                '| fmt | initial | product | 2 | 2.000000 | 1.500000 | 44 | 0.12 | 0.34 |\n'
+                '| fmt | initial | product | 3 | 9.000000 | 3.500000 | 57 | 0.12 | 0.34 |'
+            ),
+            (
+                '\n\n## File and process syscall profiles\n\n'
+                'These untimed `strace -f -c` profiles cover an unchanged reconfigure after the\n'
+                'measured runs. They include child processes and use a host tracer, not the release binary.\n'
+                'Tracing changes execution cost; its syscall times are not untraced wall-time shares.\n'
+                'Kernel sampling with `perf` is not collected by this command.\n\n'
+                '### fmt: product\n\n```text\ntrace for fmt/product\n```'
+            ),
         ):
             with self.subTest(evidence=evidence):
                 self.assertIn(evidence, report)

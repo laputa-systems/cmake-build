@@ -1334,6 +1334,13 @@ infinite median. The report now computes even medians with the mean of
 the two central samples. The fixture checks finite wall and CPU medians
 at the upper bound and exact midpoints for ordinary even groups.
 
+The report fixture checks the Markdown table boundaries and measurement
+units, distinct raw and aggregate rows, archive size provenance, and
+the limits described for syscall profiling and timing. It caught all
+234 matched `render` identities with mutmut 3.8.1 and CPython 3.15.2,
+up from 145 on the unchanged renderer. The focused suite passed 30
+cases with four Linux-only skips. The coordinator remains open.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.
