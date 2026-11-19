@@ -95,7 +95,10 @@ def run(root: Path, target: str, version: str, commit: str) -> list[str]:
                     differences.append(f'build {index}: executable contains its checkout path')
             return differences
         finally:
+            failed_removals = []
             for checkout in reversed(created):
                 result = subprocess.run(['git', 'worktree', 'remove', '--force', str(checkout)], cwd=root, check=False)
                 if result.returncode:
-                    raise ReproduceError(f'could not remove reproduction worktree {checkout}')
+                    failed_removals.append(str(checkout))
+            if failed_removals:
+                raise ReproduceError('could not remove reproduction worktree ' + ', '.join(failed_removals))

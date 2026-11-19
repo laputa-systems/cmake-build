@@ -622,6 +622,51 @@ path. The two Linux jobs check those case-sensitive paths. Variants
 Variants 84, 85, 87, 88, 97 and 98 change JSON formatting or key order.
 All 23 package tests and both linters passed.
 
+**Package archive admission**
+
+The archive tests now check xz compression, unique members under
+`usr`, rejection of an empty link target, and an ordinary nested
+relative link that resolves to a retained configuration file. The
+link walk uses the normalized POSIX components directly.
+
+The package selection catches 303 of 325 identities. The earlier
+source caught 291 of 327. Two identities disappeared with the
+redundant check for a component that the path parser already removes.
+The 22 remaining outcomes stay under DSLP-4. All 26 package tests
+and both linters passed.
+
+**Reproduction worktree cleanup**
+
+The reproduction cases create two real detached worktrees in a
+temporary Git fixture and package the staged fixture binaries.
+They verify copied cache and Rust phase files, identical archives,
+payload and checkout-path differences, and cleanup after a failed
+second build. A failed removal previously stopped the cleanup loop
+and left the other worktree registered. Cleanup now attempts both
+removals before reporting failures.
+
+The prior reproduction selection caught 46 of 238 identities and
+marked 185 unexercised. The current source catches 206 of 246 with
+the real-worktree cases. Select `buildsys.reproduce.*` with the
+controller archive recipe, `tests/controller/test_package_reproduce.py`, and
+`tests/host/test_reproduction_git.py`. Run `make reproduction-git-test` on the
+host to exercise real Git worktrees. CI runs this before the sealed controller
+suite because the minimum builder image has no Git.
+All five reproduction tests and both linters passed. Wider rejection
+and diagnostic variants remain in DSLP-4.
+
+**Persisted release budgets**
+
+The budget reader now has a real-file control using the tracked
+release budget. It retains the full parsed document and rejects
+missing files, malformed JSON, a missing object and the wrong
+schema version. The same 420 identities moved from 342 caught and
+11 unexercised to 349 caught with all identities exercised.
+Use the controller archive recipe with `buildsys.budgets.*` and
+`test_budgets.py`, `test_package_reproduce.py`,
+`test_package_generations.py` and `test_cli.py`. The 71 survivors
+remain in DSLP-4. All eight budget tests and both linters passed.
+
 ## Tickets
 
 
@@ -634,6 +679,15 @@ All 23 package tests and both linters passed.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M
+
+The budget boundary follow-up exercises symlink and missing entrypoints,
+invalid numeric limits, exact report fields, partial memory records,
+and the acceptance boundary for the median and interquartile spread.
+The unchanged 420-identity budget scope now catches 406. The other 14
+include a case-sensitive path variant, the library's default quartile
+count, a second-read diagnostic and optional archive arguments to the
+already measured baseline branch. All 11 focused tests and both
+linters passed.
 
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
