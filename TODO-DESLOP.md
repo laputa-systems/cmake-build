@@ -777,6 +777,13 @@ with `tests/controller/test_projects.py`. All four focused tests
 and both linters passed. The wider qualification scope remains in
 DSLP-4.
 
+The network self-test closes its listener when gateway lookup or worker
+startup fails before the probes run. Before the fix at `48527b9b`, two
+tests held a real listener and caught the original error, then found
+that the listener still owned a live descriptor. Both checks now see
+a closed descriptor and no probe invocations. Run
+`python -m unittest discover -s tests/controller -p test_sandbox.py -k closes_the_listener`.
+
 The reference image and runtime fixtures exercise locked image pull and
 inspection, vendoring arguments and output, the sealed copy paths, and
 cleanup failure ordering. The macOS ARM64 trial caught 251 of 252
