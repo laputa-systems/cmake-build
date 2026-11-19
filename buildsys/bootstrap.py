@@ -25,7 +25,7 @@ def _run(command: list[str], cwd: Path, env: dict[str, str]) -> str:
 def _source(archive: Path, destination: Path) -> Path:
     safe_extract(archive, destination)
     entries = list(destination.iterdir())
-    if len(entries) != 1 or not entries[0].is_dir():
+    if not (len(entries) == 1 and entries[0].is_dir()):
         raise BootstrapError(f"{archive}: expected one source directory")
     return entries[0]
 
