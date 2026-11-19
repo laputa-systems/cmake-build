@@ -499,3 +499,23 @@ Darwin = [
   "buildsys.rust.x_vendor__mutmut_19=21596c2bed86074f0d8503d3124f2669cba694efc3266258fa6ce2e5afc0efc3",
   "buildsys.rust.x_wrapper_identity__mutmut_9=a101184351247210d26d5e4bb586f41a3158d0caf1a77ceef96f40cf6571e7e4",
 ]
+
+[qualified.licenses]
+source_sha256 = "d0f40f1e4a6e383c72a41f14ea9840352e8ceefda0faef5c0630b50063c2cbd8"
+Linux = []
+Darwin = []
+
+[qualified.stage]
+source_sha256 = "d702b19f648115b64468799caeaf2ef1899e2991e927980f7825c80407237828"
+Linux = [
+  "buildsys.stage.x_stage__mutmut_43=85cdf01a09453541bd5470eed18b1ac92002122228911c23e50581fc90d82c06",
+  "buildsys.stage.x_stage__mutmut_45=a064df77ed22aff7bf24f64e4ce2bd552c62868e000ea8965ad3c257d2321419",
+  "buildsys.stage.x_stage__mutmut_49=373e06d49be0cf31a30f13fa90b3452046ff41c2b59de8624d2294d148f3789e",
+]
+Darwin = [
+  "buildsys.stage.x_stage__mutmut_4=6ae5a0fb83f6aa5d59ea8400441920c88a74a5c63c22aa8f90a79a6ee54f70f0",
+  "buildsys.stage.x_stage__mutmut_19=b1c0bd8fbaefe255dd3a8ce60bca28256cfce689b265ca5ee594e54911a9db61",
+  "buildsys.stage.x_stage__mutmut_43=85cdf01a09453541bd5470eed18b1ac92002122228911c23e50581fc90d82c06",
+  "buildsys.stage.x_stage__mutmut_45=a064df77ed22aff7bf24f64e4ce2bd552c62868e000ea8965ad3c257d2321419",
+  "buildsys.stage.x_stage__mutmut_49=373e06d49be0cf31a30f13fa90b3452046ff41c2b59de8624d2294d148f3789e",
+]
