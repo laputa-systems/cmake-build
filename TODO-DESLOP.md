@@ -274,6 +274,20 @@ exercises multiple missing destination directories and a payload with only
 the other-execute bit set. At `c533a06` the same 327 identities moved from
 284 caught and 43 missed to 291 caught and 36 missed.
 
+**Sealed and networked execution handoff**
+
+The controller cases verify Docker arguments for UID, platform, mounts,
+environment and deadline. They preserve the started child's status and
+streams, reject a missing network mode before starting, and preserve the
+inspection error if cleanup also fails. Both network wrappers keep their
+declared defaults.
+
+The same 193 identities in `_checked`, `_run_container`, `run_sealed`
+and `run_networked` move from 90 to 185 caught. The remaining eight change
+the unused private defaults or the defaults of keys already verified by
+the network-mode check. Select `test_sandbox.py::ReferenceImageTests`
+with the controller archive recipe. All 27 sandbox tests and lint passed.
+
 **Verified wheel cache**
 
 The direct cache cases exercise a cached symlink, corrupt bytes,
