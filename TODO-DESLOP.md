@@ -1,9 +1,11 @@
 Prefix: DSLP
-Next: 7
+Next: 11
 
 Deslop campaign backlog ([plan](https://github.com/laputa-systems/stuff/blob/main/docs/campaigns/deslop.md), tier A). One agent works this file with the `deslop` skill: take the lowest-numbered open ticket whose area does not start with `Needs owner ·`. After DSLP-5, work the open P1 and P2 findings, then fill in `## Report` below.
 
 ## Report
+
+Bench: the wrapper exposes the existing matrix and its accounting tests; timing gates, attribution, historical studies and early admission remain in DSLP-7 through DSLP-10. The local host cannot run the native matrix.
 
 Ground (DSLP-1) passed at base `dfd9c86c33e52bf56c0eb699d1d8a166817c82e4`. The prepared Linux builder passed 113 controller tests twice. Local Ruff and ty passed. [Verification](AGENTS.md#verification) records the scope, costs, and separate native qualification.
 
@@ -387,3 +389,41 @@ branch or script was established as safely removable, so there are no removal
 records and no live-behavior tests were deleted. Local `make test` at the
 base ran 335 tests with only `test_audit.py` (native clang missing) and
 `test_tls.py` (offline rustls source missing) failing; `make lint` passed.
+### DSLP-7 · P2 · Cover user-visible timing regressions with valid gates
+
+- **Area:** Performance measurement
+- **Where:** buildsys/benchmark.py:224; buildsys/budgets.py:115; release-budgets.json
+- **Problem:** The coordinator enforces size and image RSS but does not gate wall or CPU timing; existing x86 timing limits are unused and ARM lacks them. A configure or startup regression can pass release. Host load alone does not establish validity.
+- **Recommendation:** Establish representative interleaved timing gates and host readiness with an accepted anchor; review obsolete timing limits.
+- **Fix with:** bench-pyramid
+- **Effort:** L
+
+
+### DSLP-8 · P3 · Add attribution for configure and memory regressions
+
+- **Area:** Performance observability
+- **Where:** tests/benchmark/run.py:142; buildsys/benchmark.py:217
+- **Problem:** The untimed syscall summary covers unchanged reconfigure, but CPU sampling, allocation attribution, operation traces and I/O byte counters are absent; image RSS excludes child memory. Regressions cannot reliably be attributed.
+- **Recommendation:** Add separate opt-in CPU sampling and scoped memory or allocation diagnostics, then evaluate I/O tracing.
+- **Fix with:** bench-pyramid
+- **Effort:** M
+
+
+### DSLP-9 · P3 · Clarify superseded historical performance studies
+
+- **Area:** Performance documentation
+- **Where:** docs/performance-legacy-x86_64.md:3; docs/performance-legacy-aarch64.md:3; docs/performance-rust-release.md:3; docs/performance-o2.md:3; docs/performance-oz.md:3; docs/performance-thinlto.md:3; docs/performance-gc.md:3
+- **Problem:** Legacy and Rustls study RSS is invalid and superseded by corrected image RSS baselines; O2, Oz, ThinLTO and GC are historical experiments, not current release gates. Readers can mistake old comparisons for current evidence.
+- **Recommendation:** Index the studies by artifact and explicitly distinguish superseded findings and current gates without deleting history.
+- **Fix with:** technical-writing
+- **Effort:** S
+
+
+### DSLP-10 · P3 · Improve benchmark admission and workload coverage
+
+- **Area:** Performance operability
+- **Where:** buildsys/benchmark.py:224; tests/benchmark/run.py:23; docs/building.md:73
+- **Problem:** The coordinator requires a complete matrix and finds some prerequisites after preparation; no short production workload is selectable. Configure and startup cover real work but package, install, CTest, CPack and network journeys lack performance measurements.
+- **Recommendation:** Add a short supported production path and early read-only admission, then assess representative missing journeys.
+- **Fix with:** bench-pyramid
+- **Effort:** L
