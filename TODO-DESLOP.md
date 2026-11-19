@@ -1093,6 +1093,19 @@ fingerprinting. Variant 136 adds `X` to the stripped character
 set, equivalent for the two locked `/lib/` loader paths.
 All 13 focused tests and both linters passed.
 
+**Flat toolchain archive order**
+
+The native x86-64 aggregate run left toolchain install variant
+17 alive. It changes the top-level directory test from
+`and` to `or`. The flat archive had one file and one
+directory, so a file listed first missed the altered branch.
+The fixture also installs an archive with two top-level
+directories. Either order now requires the exact same layout
+and file bytes. All three layout cases passed. The matched
+macOS ARM64 toolchain scope caught 223 of 225, including
+variant 17. Both remaining `_run` defaults are equivalent.
+[Native observation](https://github.com/laputa-systems/cmake-build/actions/runs/44505269102/job/135495202553)
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
