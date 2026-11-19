@@ -978,6 +978,21 @@ linters passed.
 
 
 
+**Whole qualification controller**
+
+At `b0256cdba`, a fresh macOS ARM64 archive ran the three
+controller suites in the trial's `qualify` case with CPython
+3.15.2, mutmut 3.8.1, and pytest 9.2.0. All 1,215 variants
+ran. The suites caught 1,157, and the checker verified all 58
+survivors against the controller and generated-body hashes.
+
+The dispositions above cover temporary names, default falsey
+arguments, local-only cache access, the single managed report
+heading, and the existing scratch parent. The 18 case-only path
+changes are allowed on Darwin's case-folded trial volume. Linux
+must catch them. The hosted trial installs the locked native
+`jaq` to exercise real XML parsing on both Linux architectures.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests

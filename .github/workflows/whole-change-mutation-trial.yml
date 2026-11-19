@@ -88,6 +88,22 @@ jobs:
             package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                               "tests/controller/test_package_commands.py"]' ;;
             phases) tests='["tests/controller/test_phases.py"]' ;;
+            qualify)
+              tests='["tests/controller/test_projects.py", "tests/controller/test_network_qualification.py",
+                      "tests/controller/test_parity_qualification.py"]'
+              module_copy=', "docker", "patches", "scripts"'
+              mkdir -p "$root/.work/tools"
+              jaq_blob=$(uv run --frozen --python 3.15.2 python -c '
+          from pathlib import Path
+          import sys
+          from buildsys.inputs import Cache, load_sources
+
+          entry = next(item for item in load_sources(Path("sources.lock.json")) if item.name == sys.argv[1])
+          print(Cache(Path(".work/cache")).fetch(entry))
+          ' "jaq-$(uname -m)")
+              install -m 0755 "$jaq_blob" "$root/.work/tools/jaq"
+              export PATH="$root/.work/tools:$PATH"
+              ;;
             sandbox)
               tests='["tests/controller/test_sandbox.py"]'
               module_copy=', "docker", "patches", "scripts"'
