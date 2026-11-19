@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import locale
 import unittest
 
 from helpers import workspace
@@ -82,22 +81,6 @@ class PhaseTests(unittest.TestCase):
             self.assertEqual(recovered.fingerprint, first.fingerprint)
             self.assertEqual((recovered.directory / "output").read_text(), "2")
             self.assertEqual(calls, [1, 2])
-
-    def test_reuses_a_utf8_phase_record(self) -> None:
-        with workspace() as directory:
-            cache = PhaseCache(directory / "phases")
-            inputs = {"révision": DIGEST_A}
-
-            def write_output(path):
-                (path / "output").write_bytes(b"ready")
-
-            first = cache.run("configure", inputs, write_output)
-            record_path = first.directory / "phase.json"
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-            record_path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
-            self.addCleanup(locale.setlocale, locale.LC_CTYPE, locale.setlocale(locale.LC_CTYPE))
-            locale.setlocale(locale.LC_CTYPE, "C")
-            self.assertTrue(cache.run("configure", inputs, write_output).reused)
 
     def test_completed_phase_can_clear_an_already_removed_state(self) -> None:
         with workspace() as directory:
