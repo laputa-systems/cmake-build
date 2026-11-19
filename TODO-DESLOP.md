@@ -274,6 +274,33 @@ exercises multiple missing destination directories and a payload with only
 the other-execute bit set. At `c533a06` the same 327 identities moved from
 284 caught and 43 missed to 291 caught and 36 missed.
 
+**Sealed and networked execution handoff**
+
+The controller cases verify Docker arguments for UID, platform, mounts,
+environment and deadline. They preserve the started child's status and
+streams, reject a missing network mode before starting, and preserve the
+inspection error if cleanup also fails. Both network wrappers keep their
+declared defaults.
+
+The same 193 identities in `_checked`, `_run_container`, `run_sealed`
+and `run_networked` move from 90 to 185 caught. The remaining eight change
+the unused private defaults or the defaults of keys already verified by
+the network-mode check. Select `test_sandbox.py::ReferenceImageTests`
+with the controller archive recipe. All 27 sandbox tests and lint passed.
+
+**Network self-test completion**
+
+A passing host control and two denied container probes could report
+success even when the listener worker was reported active after join.
+The network result now requires a stopped listener worker. The test
+uses the real local host control and records both denied background
+probe commands, the published evidence and failed-host cleanup.
+
+The current `network_boundary_selftest` selection catches 191 of
+214 identities with `test_sandbox.py::NetworkBoundaryTests` on macOS
+ARM64. The remaining 23 are separate from that count. All 29
+focused sandbox tests and both linters passed.
+
 **Verified wheel cache**
 
 The direct cache cases exercise a cached symlink, corrupt bytes,
@@ -289,6 +316,24 @@ same request header. Use the controller archive recipe with the
 verified `.work/cache/objects` wheel copied into the archive and
 listed in `also_copy`. All nine normal wheel tests and both linters
 passed.
+
+**Stable builder context**
+
+Both target fixtures load the tracked Alpine lock, supply verified
+native APK bytes from an offline cache, and verify the image build
+uses the pinned base, no network and the expected target platform.
+They exercise fresh, stale and already-built contexts, failure
+reporting and the absence of Rust artifacts from the APK directory.
+The image fingerprint changes for the base, APKs, architecture and
+Dockerfile bytes. Reordering entries and changing Rust pins keep it.
+
+The six-function image and context selection caught 149 of 152
+identities. Two variants change a Rust name filter after the locked
+architecture selection excludes those inputs. One changes the APK
+directory case on the macOS volume. Use the controller archive recipe
+with `docker` included and select
+`test_sandbox.py::BuilderImageContextTests`. All 24 local sandbox
+tests and lint passed.
 
 **Native controller cache**
 
@@ -715,6 +760,71 @@ which changes the contents of a stack used only for depth,
 `inspect` 51 and 75, which change failure text only. Run the package
 archive, generation and command tests with `buildsys.package.*`.
 All 28 package tests and both linters passed.
+
+
+The network probe trial at `2f308d09` now catches 213 of 214
+`network_boundary_selftest` variants on macOS ARM64, up from 191.
+The remaining variant 196 changes the ASCII encoding name to
+uppercase, which resolves to the same Python codec.
+
+The focused fixture simulates an idle interval, two accepted
+connections, and unexpected receive and accept errors. It checks
+exact listener and join deadlines, connection cleanup, multiple
+receive chunks, invalid-byte replacement, and the three bounded
+subprocess evidence fields. The existing positive control opens a
+real local connection. Use `tests/controller/test_sandbox.py`,
+mutmut 3.8.1, pytest 9.2.0 and one worker with the existing sandbox
+archive configuration. All 34 focused tests and both linters passed.
+
+**Upstream report admission**
+
+A runner summary for two cases and a valid JUnit report containing
+one case previously published a green qualification. The candidate
+now checks the count for both the packaged and reference runs.
+The fixtures verify the packaged executable used for validation,
+reference rerun selection, disagreement between status and JUnit,
+and preservation of the previous qualification on rejection.
+
+The macOS ARM64 controller trial caught 263 of 413 identities in
+`upstream`, `_junit`, `_check_baseline_failures` and `_write_section`
+with `tests/controller/test_projects.py`. All four focused tests
+and both linters passed. The wider qualification scope remains in
+DSLP-4.
+
+The network self-test closes its listener when gateway lookup or worker
+startup fails before the probes run. Before the fix at `48527b9b`, two
+tests held a real listener and caught the original error, then found
+that the listener still owned a live descriptor. Both checks now see
+a closed descriptor and no probe invocations. Run
+`python -m unittest discover -s tests/controller -p test_sandbox.py -k closes_the_listener`.
+
+The sandbox transport fixture runs a local child to verify argument
+boundaries, working directory, stdout, stderr, exit status and
+deadline. It also checks bridge gateway fallback and independently
+stages the lock and Dockerfile under a fixture checkout root.
+
+The matching macOS ARM64 selection for `_docker`, `_probe`,
+`_host_gateway`, `_locked_image_fingerprint`, `docker_path`, and
+`in_container` caught 82 of 89, compared with 9 before the transport
+fixture. `_docker` 6 and 12 and `_probe` 5 and 11 retain the same
+falsey subprocess check. `_locked_image_fingerprint` 13, 16 and 17
+alias tracked paths on the case-folded fixture volume. Use
+`tests/controller/test_sandbox.py`, mutmut 3.8.1, pytest 9.2.0 and one
+worker. Include `docker`, `patches`, and `scripts` in the archive copy.
+The focused sandbox suite and linters passed.
+
+The reference image and runtime fixtures exercise locked image pull and
+inspection, vendoring arguments and output, the sealed copy paths, and
+cleanup failure ordering. The macOS ARM64 trial caught 251 of 252
+mutations in `pull_image`, `pull_reference`, `run_fetch`, and
+`copy_reference_runtime`. Variant 75 in the last function changes the
+loader write directory from `etc` to `ETC`; the case-folded macOS volume
+maps both names to the directory already created as `etc`.
+Use `tests/controller/test_sandbox.py`, mutmut 3.8.1 and pytest 9.2.0
+with one mutation worker and include `docker`, `patches`, and `scripts`
+in the archive's `also_copy`. All focused sandbox tests and linters
+passed.
+
 
 ## Tickets
 
