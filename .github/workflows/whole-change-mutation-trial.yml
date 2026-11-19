@@ -113,6 +113,11 @@ jobs:
               install -m 0755 "$jaq_blob" "$root/.work/tools/jaq"
               export PATH="$root/.work/tools:$PATH"
               ;;
+            rust)
+              tests='["tests/controller/test_sandbox.py", "tests/controller/test_tls.py", "tests/controller/test_rust.py",
+                       "tests/controller/test_kache.py", "-k", "not locked_graph and not locked_dependency_graph"]'
+              module_copy=', "docker", "patches", "scripts"'
+              ;;
             sandbox|sysroot|toolchain)
               tests='["tests/controller/test_sandbox.py"]'
               module_copy=', "docker", "patches", "scripts"'

@@ -479,3 +479,23 @@ Linux = []
 Darwin = [
   "buildsys.reference.x_build__mutmut_5=56ef8b74848f7b5ff7e0c4829867b7667a9619c5a3987cf84e9c6ecef06eb62c",
 ]
+
+[qualified.rust]
+source_sha256 = "d7f7a45855b788aab6f55b38e79c8c963b0ffceb369d249767bf8dafe67e3401"
+Linux = [
+  "buildsys.rust.x__phase_digest__mutmut_22=8910f48128e2a9fd1f57e4189eec35f9919a3642a459e7fe75df53f4d242bb79",
+  "buildsys.rust.x__phase_digest__mutmut_23=732ec0dbd611f87f26dc3116d016386c8d81bb24dcb7a7f01d6d5e4fba908dd6",
+]
+Darwin = [
+  "buildsys.rust.x__cargo_config__mutmut_4=d57f99a81ad7efc9435ce9e5d8d8a56e13f4f88c3c8ddee5d8c12e2ed480270d",
+  "buildsys.rust.x__phase_digest__mutmut_15=bef54bf4cf2f140308a238ee861866fa58e55828fd1ce763423ab39b37f1a7e9",
+  "buildsys.rust.x__phase_digest__mutmut_22=8910f48128e2a9fd1f57e4189eec35f9919a3642a459e7fe75df53f4d242bb79",
+  "buildsys.rust.x__phase_digest__mutmut_23=732ec0dbd611f87f26dc3116d016386c8d81bb24dcb7a7f01d6d5e4fba908dd6",
+  "buildsys.rust.x__phase_digest__mutmut_5=3c50e05d1eb1af045ef660860b2ea71f5d88a415cee275d6c6627de7ad622275",
+  "buildsys.rust.x_build_static__mutmut_114=9192a686f74de2c4187ecd136d76f8699139f9ab40eecc1336f348f1e088e2fd",
+  "buildsys.rust.x_build_static__mutmut_74=259bcf87d7b5e1b755cafdde5354b901be0abacb38ee92e6c8cc202dae380c19",
+  "buildsys.rust.x_install_wrapper__mutmut_14=f2059d45190c168540c4e626816d6c5c4fde2f12428f7482878ead31c3c82bf4",
+  "buildsys.rust.x_install_wrapper__mutmut_22=a37b3f7c83f280a376a3eb31bb35def450de1f80a924b897b30670f5b8a9d202",
+  "buildsys.rust.x_vendor__mutmut_19=21596c2bed86074f0d8503d3124f2669cba694efc3266258fa6ce2e5afc0efc3",
+  "buildsys.rust.x_wrapper_identity__mutmut_9=a101184351247210d26d5e4bb586f41a3158d0caf1a77ceef96f40cf6571e7e4",
+]
