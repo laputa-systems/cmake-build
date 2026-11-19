@@ -1,3 +1,4 @@
+import fcntl
 import json
 import unittest
 from unittest.mock import patch
@@ -182,6 +183,28 @@ class GenerationTest(unittest.TestCase):
             generations.qualify(self.store, self.archive, file_sha256(self.archive),
                                 lambda tree: budgets.check_size(limits, 'example', tree, tree.parent / 'artifact.tar.xz'))
         self.assertEqual((self.store / 'active/usr/bin/cmake').read_bytes(), b'first')
+
+    def test_qualification_keeps_the_store_locked_and_reports_the_copied_archive(self):
+        digest = file_sha256(self.archive)
+        self.store.mkdir()
+        lock_path = self.store / '.lock'
+
+        def inspect(tree):
+            self.assertEqual(tree.parent.parent, self.store)
+            self.assertEqual(tree.name, 'tree')
+            self.assertTrue(tree.parent.name.startswith('.candidate-'))
+            self.assertEqual(file_sha256(tree.parent / 'artifact.tar.xz'), digest)
+            with lock_path.open('rb') as other, self.assertRaises(BlockingIOError):
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return {'basic': 'passed'}
+
+        generation = generations.qualify(self.store, self.archive, digest, inspect)
+        result = generation / 'results.json'
+        self.assertEqual(json.loads(result.read_text())['archive_sha256'], digest)
+        self.assertIn('results.json', {path.name for path in generation.iterdir()})
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
+        with lock_path.open('rb') as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_size_check_uses_the_copied_candidate(self):
         digest = file_sha256(self.archive)

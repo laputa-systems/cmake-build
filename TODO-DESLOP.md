@@ -611,6 +611,17 @@ critical scope.
 [Positive trial](https://github.com/laputa-systems/cmake-build/actions/runs/44446845009) ·
 [Mixed deletion trial](https://github.com/laputa-systems/cmake-build/actions/runs/44447078808)
 
+The generation fixture also verifies that the staged tree sits under
+the store, the exclusive lock is held during qualification, and the
+receipt records the copied artifact's digest. It checks that a second
+file descriptor can acquire the lock after the ordinary call returns.
+The matched macOS selection catches 121 of the same 141 identities.
+Variants 10, 33, 106 and 111 change case in a lock, archive or tree
+path. The two Linux jobs check those case-sensitive paths. Variants
+19–21, 41, 52, 61, 68–70 and 114 change rejection diagnostics.
+Variants 84, 85, 87, 88, 97 and 98 change JSON formatting or key order.
+All 23 package tests and both linters passed.
+
 ## Tickets
 
 
