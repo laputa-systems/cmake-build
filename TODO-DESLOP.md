@@ -1278,6 +1278,36 @@ pinned revision in `.github/mutation-buildlib-revision`. Set
 is outside the default local path. Every invocation uses fresh
 scratch for the selected scopes.
 
+**Hosted whole-change controls**
+
+- A documentation-only change selected no modules. The plan and
+  final check passed with the controller matrix skipped.
+  [Documentation control](https://github.com/laputa-systems/cmake-build/actions/runs/44518341877)
+- The input branch with no witness reopened five identities on both
+  Linux hosts and failed the aggregate.
+  [Uncovered branch](https://github.com/laputa-systems/cmake-build/actions/runs/44518353110)
+- Removing the license witness passed ordinary CI and reopened the
+  same three identities on both Linux hosts. Adding an unrelated
+  covered bootstrap edit retained those failures and selected bootstrap.
+  Both bootstrap jobs caught all 268 identities. The corresponding
+  macOS deletion trial also left two capitalization variants alive.
+  [Test deletion](https://github.com/laputa-systems/cmake-build/actions/runs/44518364284) ·
+  [Mixed diff](https://github.com/laputa-systems/cmake-build/actions/runs/44518378427)
+- The x86-64 license job exhausted a one-second budget. The ARM64
+  license job rejected absent results, and the x86-64 stage job
+  rejected an absent scope. Those three jobs and the aggregate failed.
+  [Incomplete results and budget](https://github.com/laputa-systems/cmake-build/actions/runs/44518766634)
+
+The clean 18-scope Make runs at `08d86c45b` and `e03d6d515` passed all
+38 jobs each. GitHub job timestamps show per-run medians of 33 and
+35 seconds among 36 native jobs in each run. The maximums were 163
+and 150 seconds. The runs used 1,648 and 1,583 runner seconds including
+plan and final jobs, with 227 and 469 wall seconds including queueing.
+The second runs mutmut under the shared 600-second deadline. Neither
+sample exceeds the campaign's ten-minute per-job median target.
+[Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44517720657) ·
+[Budgeted Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44518717818)
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
