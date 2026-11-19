@@ -45,14 +45,14 @@ type _InventoryEntry = _DirectoryEntry | _FileEntry | _SymlinkEntry
 def _safe_link(name: str, target: str) -> None:
     if not target or PurePosixPath(target).is_absolute():
         raise PackageError(f'unsafe symlink {name}: {target}')
-    depth = len(PurePosixPath(name).parent.parts)
+    parents = list(PurePosixPath(name).parent.parts[1:])
     for part in PurePosixPath(target).parts:
         if part == '..':
-            depth -= 1
-            if depth < 1:
+            if not parents:
                 raise PackageError(f'escaping symlink {name}: {target}')
+            parents.pop()
         else:
-            depth += 1
+            parents.append(part)
 
 
 def _materialize(stage: Path, tree: Path) -> dict[str, _InventoryEntry]:
@@ -127,7 +127,7 @@ def inspect(archive_path: Path) -> dict[str, object]:
             for member in archive:
                 name = member.name
                 parts = PurePosixPath(name).parts
-                if not parts or parts[0] != 'usr' or '..' in parts or name.startswith('/') or name in actual or name == ARTIFACT and artifact is not None:
+                if not parts or parts[0] != 'usr' or '..' in parts or name in actual or name == ARTIFACT and artifact is not None:
                     raise PackageError(f'invalid or duplicate archive member: {name}')
                 item: _InventoryEntry
                 if member.isdir():

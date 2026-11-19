@@ -3,6 +3,8 @@ import json
 import os
 import tarfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from helpers import file_sha256, workspace
 
@@ -36,7 +38,9 @@ class PackageTest(unittest.TestCase):
             self.assertEqual(archive.getmember('usr/bin/cmake').mode, 0o755)
             member = archive.extractfile('usr/share/doc/cmake-build/artifact.json')
             assert member is not None
-            artifact = json.load(member)
+            body = member.read()
+            artifact = json.loads(body)
+            self.assertEqual(body, json.dumps(artifact, sort_keys=True, indent=2).encode() + b'\n')
             self.assertEqual(artifact['target'], 'example')
             self.assertEqual(artifact['files']['usr/bin/cmake']['sha256'], file_sha256(self.stage / 'bin/cmake'))
             self.assertEqual(artifact['files']['usr/share/link']['target'], '../bin/cmake')
@@ -112,9 +116,9 @@ class PackageTest(unittest.TestCase):
         alias.symlink_to(self.stage, target_is_directory=True)
         destination = self.root / 'invalid.tar.xz'
         for stage in (alias, self.root / 'missing'):
-            with self.subTest(stage=stage), self.assertRaisesRegex(package.PackageError, 'staging directory'):
+            with self.subTest(stage=stage), self.assertRaisesRegex(package.PackageError, '^staging directory is missing or a symlink$'):
                 package.create(stage, destination, {}, 0)
-        with self.assertRaisesRegex(package.PackageError, 'metadata must not supply its own file inventory'):
+        with self.assertRaisesRegex(package.PackageError, '^metadata must not supply its own file inventory$'):
             package.create(self.stage, destination, {'files': {}}, 0)
         self.assertFalse(destination.exists())
 
@@ -141,6 +145,36 @@ class PackageTest(unittest.TestCase):
                 self.assertEqual(archive.getmember(filename).mode, 0o644)
             self.assertEqual(archive.getmember('usr/share/plugin').mode, 0o755)
 
+    def test_archive_writer_failure_preserves_destination_and_retires_scratch(self):
+        destination = self.root / 'nested' / 'cmake.tar.xz'
+        destination.parent.mkdir()
+        destination.write_bytes(b'prior archive')
+        temporary: list[Path] = []
+
+        def fail_writer(tree: Path, target: Path, *, mtime: int, prefix: str) -> None:
+            temporary.append(tree)
+            self.assertEqual((target, mtime, prefix), (destination, 10, 'usr'))
+            self.assertEqual(tree.parent, destination.parent)
+            self.assertTrue(tree.name.startswith('.package-'))
+            self.assertTrue((tree / package.ARTIFACT.removeprefix('usr/')).is_file())
+            raise package.release.ReleaseError('archive writer unavailable')
+
+        with (
+            patch.object(package.release, 'create_archive', side_effect=fail_writer),
+            self.assertRaisesRegex(package.PackageError, '^archive writer unavailable$'),
+        ):
+            package.create(self.stage, destination, {}, 10)
+        self.assertEqual(len(temporary), 1)
+        self.assertFalse(temporary[0].exists())
+        self.assertEqual(destination.read_bytes(), b'prior archive')
+
+    def test_rejects_a_file_where_artifact_metadata_requires_a_directory(self):
+        (self.stage / 'share/doc').write_bytes(b'ordinary file')
+        destination = self.root / 'cmake.tar.xz'
+        with self.assertRaisesRegex(package.PackageError, '^artifact parent is not a directory: usr/share/doc$'):
+            package.create(self.stage, destination, {}, 0)
+        self.assertFalse(destination.exists())
+
     def test_inventory_requires_an_integer_size(self):
         (self.stage / 'share/tiny').write_bytes(b'x')
         original = self.root / 'original.tar.xz'
@@ -160,7 +194,7 @@ class PackageTest(unittest.TestCase):
                             member.size = len(body)
                             contents = io.BytesIO(body)
                         destination.addfile(member, contents)
-                with self.assertRaisesRegex(package.PackageError, 'package inventory does not match its contents'):
+                with self.assertRaisesRegex(package.PackageError, '^package inventory does not match its contents$'):
                     package.inspect(changed)
 
     def test_detects_payload_changes_and_incomplete_manifests(self):
@@ -168,8 +202,8 @@ class PackageTest(unittest.TestCase):
         changed = self.root / 'changed.tar.xz'
         package.create(self.stage, original, {}, 0)
         for name, data, error in (
-            ('usr/bin/cmake', b'cmakE', 'package inventory does not match its contents'),
-            (package.ARTIFACT, b'{}', 'package inventory does not match its contents'),
+            ('usr/bin/cmake', b'cmakE', '^package inventory does not match its contents$'),
+            (package.ARTIFACT, b'{}', '^package inventory does not match its contents$'),
             (package.ARTIFACT, b'{', 'invalid package:'),
         ):
             with self.subTest(member=name, data=data):
@@ -194,7 +228,7 @@ class PackageTest(unittest.TestCase):
                     null.size = 4
                     destination.addfile(null, io.BytesIO(b'null'))
                 destination.addfile(member, source.extractfile(member) if member.isfile() else None)
-        with self.assertRaisesRegex(package.PackageError, 'package inventory does not match its contents'):
+        with self.assertRaisesRegex(package.PackageError, '^package inventory does not match its contents$'):
             package.inspect(changed)
 
 
