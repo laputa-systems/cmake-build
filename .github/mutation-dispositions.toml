@@ -555,3 +555,8 @@ Darwin = [
   "buildsys.dependencies.x_inventory__mutmut_127=0161f7fb82a111141ba51b212e7a3d67087a09351de68d550c0b62253ad61d5e",
   "buildsys.dependencies.x_inventory__mutmut_18=e07a0d3d22b38b521fd4e070bf8e87873c5a526d287e5424e0c402524929c22c",
 ]
+
+[qualified.benchmark_process]
+source_sha256 = "28a1528c3bfa375dac518bed423082858e56444beefd4d5990f0bc04be7875c6"
+Linux = ["buildsys.benchmark_process.x_run__mutmut_48=fbe78abdd5a73a4bb058cf5cd67f8046f32658f5eaa01c8dd2741314d67b3f1d"]
+Darwin = ["buildsys.benchmark_process.x_run__mutmut_48=fbe78abdd5a73a4bb058cf5cd67f8046f32658f5eaa01c8dd2741314d67b3f1d"]

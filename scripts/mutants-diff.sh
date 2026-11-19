@@ -40,6 +40,7 @@ run_module() (
     awk '$1 == "120000" || $1 == "160000" { print "unsupported archive entry: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }'
   module_copy=
   case "$module" in
+    benchmark_process) tests='["tests/controller/test_benchmark_accounting.py"]' ;;
     bootstrap)
       tests='["tests/controller/test_bootstrap.py"]'
       module_copy=', "docker", "patches", "scripts"'
