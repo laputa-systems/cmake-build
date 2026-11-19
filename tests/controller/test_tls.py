@@ -288,6 +288,128 @@ class DependencyTests(unittest.TestCase):
                 check_host_vendored(ROOT / ".work/rust" / native.triple, native, inputs, source, patch_file,
                                     Cache(ROOT / ".work/cache", offline=True), [native.triple], ROOT / ".work/tmp")
 
+    def test_host_dependency_check_uses_verified_phases_and_locked_runtime(self) -> None:
+        native = target("x86_64-unknown-linux-musl")
+        targets = [native.triple, "aarch64-unknown-linux-musl"]
+        components = bootstrap_inputs(load_bootstrap(ROOT / "bootstrap.lock.json"), native.triple)
+        locked = {item.name: item for item in components}
+        source = next(item for item in load_sources(ROOT / "sources.lock.json") if item.name == "rustls-ffi-source")
+        names = ("rustc", "cargo", "rust-std", "rust-src", "musl", "libgcc")
+        required = [locked[name] for name in names]
+
+        with workspace() as directory:
+            root = directory / "rust"
+            phases = PhaseCache(root / "phases")
+            patch_file = directory / "provider.patch"
+            patch_file.write_bytes(b"provider patch")
+            implementation = file_sha256(Path(rust.__file__))
+            tool_inputs = {name: locked[name].sha256 for name in ("rustc", "cargo", "rust-std", "rust-src")}
+            tool_inputs["implementation"] = implementation
+            tools = phases.run("tools", tool_inputs, lambda path: (path / "tool").write_bytes(b"tools")).directory
+            vendor_inputs = {
+                "tools": _phase_digest(tools), "source": source.sha256,
+                "patch": file_sha256(patch_file), "implementation": implementation,
+            }
+
+            def stage_source(phase):
+                project = phase / "source/rustls"
+                project.mkdir(parents=True)
+                (project / "Cargo.toml").write_text("[package]\n")
+
+            vendored = phases.run("vendor", vendor_inputs, stage_source).directory
+            homes = []
+            checked_targets = []
+            unpacked = []
+            inherited = {
+                "PATH": "/host/bin", "RUSTFLAGS": "from-host",
+                "LD_LIBRARY_PATH": "/host/lib", "LD_PRELOAD": "/host/preload.so",
+            }
+
+            def extract(package, destination):
+                unpacked.append((package, destination))
+                if package.name == "musl":
+                    loader = destination / native.musl_loader.removeprefix("/")
+                    loader.parent.mkdir(parents=True)
+                    loader.write_bytes(b"loader")
+                else:
+                    (destination / "usr/lib").mkdir(parents=True)
+                return destination
+
+            def check(cargo, manifest, triple, env, launcher):
+                self.assertEqual(cargo, tools / "bin/cargo")
+                self.assertEqual(manifest, vendored / "source/rustls/Cargo.toml")
+                temporary = Path(env["CARGO_HOME"]).parent
+                self.assertEqual(temporary.parent, directory)
+                self.assertTrue(temporary.name.startswith("cargo-host-check-"))
+                loader = temporary / "musl" / native.musl_loader.removeprefix("/")
+                libgcc = temporary / "libgcc/usr/lib"
+                rustc = temporary / "rustc"
+                cargo_home = temporary / "cargo"
+                self.assertEqual(launcher, (str(loader), "--library-path", f"{libgcc}{os.pathsep}{tools / 'lib'}"))
+                self.assertEqual(rustc.read_text(), "#!/bin/sh\nexec " + shlex.join([
+                    *launcher, str(tools / "bin/rustc"),
+                ]) + ' "$@"\n')
+                self.assertEqual(rustc.stat().st_mode & 0o777, 0o755)
+                self.assertEqual(env, {
+                    "PATH": "/host/bin", "CARGO_HOME": str(cargo_home), "TMPDIR": str(directory),
+                    "RUSTC": str(rustc), "RUSTC_WRAPPER": "",
+                })
+                config = tomllib.loads((cargo_home / "config.toml").read_text())
+                self.assertEqual(config["source"]["vendored-sources"]["directory"], str(vendored / "vendor"))
+                homes.append(temporary)
+                checked_targets.append(triple)
+
+            cache = Cache(directory / "cache", offline=True)
+            with patch.dict(os.environ, inherited, clear=True), \
+                    patch.object(cache, "require", side_effect=lambda item: Path(item.name)) as require, \
+                    patch.object(tls, "safe_extract", side_effect=extract) as unpack, \
+                    patch.object(tls, "check_dependencies", side_effect=check) as verify:
+                check_host_vendored(root, native, required, source, patch_file, cache, targets, directory)
+                self.assertEqual([call.args[0] for call in require.call_args_list], [source, *required])
+                self.assertEqual(checked_targets, targets)
+                self.assertEqual(homes, [homes[0], homes[0]])
+                self.assertEqual(unpacked, [(Path(name), homes[0] / name) for name in ("musl", "libgcc")])
+                self.assertFalse(homes[0].exists())
+
+                verify.reset_mock()
+                require.reset_mock()
+                diagnostic = "^bootstrap lock lacks or duplicates a Rust or host runtime component$"
+                for name in names:
+                    with self.subTest(missing=name), self.assertRaisesRegex(TlsError, diagnostic):
+                        check_host_vendored(
+                            root, native, [item for item in components if item.name != name],
+                            source, patch_file, cache, targets, directory,
+                        )
+                    with self.subTest(duplicate=name), self.assertRaisesRegex(TlsError, diagnostic):
+                        check_host_vendored(root, native, [*components, locked[name]], source, patch_file, cache, targets, directory)
+                require.assert_not_called()
+
+                record_path = vendored / "phase.json"
+                valid_record = record_path.read_text()
+                record = json.loads(valid_record)
+                record["fingerprint"] = "1" * 64
+                record_path.write_text(json.dumps(record))
+                with self.assertRaises(TlsError) as stale:
+                    check_host_vendored(root, native, required, source, patch_file, cache, targets, directory)
+                self.assertEqual(str(stale.exception), f"{vendored}: inputs changed; run fetch")
+                record_path.write_text(valid_record)
+
+                unpack.side_effect = lambda package, destination: destination
+                with self.assertRaisesRegex(TlsError, "^locked musl package does not contain its loader$"):
+                    check_host_vendored(root, native, required, source, patch_file, cache, targets, directory)
+
+                def stage_flat_source(phase):
+                    (phase / "source").mkdir()
+                    (phase / "source/rustls").touch()
+
+                record_path.unlink()
+                phases.run("vendor", vendor_inputs, stage_flat_source)
+                unpack.reset_mock()
+                with self.assertRaisesRegex(TlsError, "^vendored Rustls source has an invalid layout$"):
+                    check_host_vendored(root, native, required, source, patch_file, cache, targets, directory)
+                unpack.assert_not_called()
+                verify.assert_not_called()
+
     def test_locked_dependency_graph_for_both_targets(self) -> None:
         native = native_target()
         lock = load_bootstrap(ROOT / "bootstrap.lock.json")
