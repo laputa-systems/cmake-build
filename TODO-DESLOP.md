@@ -667,6 +667,22 @@ Use the controller archive recipe with `buildsys.budgets.*` and
 `test_package_generations.py` and `test_cli.py`. The 71 survivors
 remain in DSLP-4. All eight budget tests and both linters passed.
 
+
+**Reproduction tree and Git admission**
+
+The sealed comparison covers names missing from either tree, a
+Unix socket, content, modes, symlink targets, and type differences
+in sorted report order. The host Git fixture checks an unknown
+revision, an existing worktree scratch directory, and symlinks
+in the retained compiler and vendor phases.
+
+The same 246 reproduction identities catch 230, compared with
+206 before. Sixteen outcomes survive on the local macOS volume.
+Most change path case. The others change the report delimiters
+or pass a falsey subprocess check value. Run the earlier controller
+archive recipe with the host and controller test files together.
+All six focused tests and both linters passed.
+
 ## Tickets
 
 
