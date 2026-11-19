@@ -492,6 +492,24 @@ override. Use the input recipe and select
 identities went from 11 catches to 12, with matching source spans.
 All 35 input tests and both linters passed.
 
+Extracting the ordinary linked tree into two missing parent
+directories catches the remaining three parent-creation edits.
+The same 48 `safe_extract` identities at `8faba920` move from
+36 catches to 39 with no lost catches. The nine survivors are four
+temporary name prefixes (12, 14, 16, 17), the equivalent default
+read mode (21), an implicit member argument that iterates the same
+loaded members (33, 36), and the default data filter (34, 37).
+The default filter was checked under Python 3.14.7 and 3.15.2.
+The `safe_extract` scope is fully dispositioned.
+
+The `_check_member` survivors 8, 12, 18, 22, 26, 27, 30, 31, 48,
+52, 59, 63, 66, 67, 70, 71, 75 and 79 only replace a diagnostic
+argument to the same two-argument rejection call. Each retains
+the same decision and raises `InputError`. Comparing the function
+AST after normalizing those diagnostic arguments preserves every
+other node. The eight remaining member decisions are 2, 3, 6,
+28, 29, 38, 68 and 69. They still need dispositions.
+
 ## Tickets
 
 

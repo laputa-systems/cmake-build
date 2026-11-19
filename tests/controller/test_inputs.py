@@ -408,7 +408,7 @@ class ExtractTests(unittest.TestCase):
             destination = safe_extract(bundle, directory / "out")
             self.assertEqual((destination / "top" / "file").read_bytes(), b"data")
 
-    def test_publishes_internal_links_into_a_new_parent(self) -> None:
+    def test_publishes_internal_links_into_nested_new_parents(self) -> None:
         with workspace() as directory:
             bundle = directory / "links.tar.gz"
             with tarfile.open(bundle, "w:gz") as tar:
@@ -427,7 +427,7 @@ class ExtractTests(unittest.TestCase):
                 hardlink.linkname = "top/file"
                 tar.addfile(hardlink)
 
-            destination = directory / "new-parent" / "out"
+            destination = directory / "new-parent" / "nested" / "out"
             self.assertEqual(safe_extract(bundle, destination), destination)
             self.assertEqual(list(destination.parent.iterdir()), [destination])
             top = destination / "top"
