@@ -1013,6 +1013,27 @@ and 223 were caught. The two remaining `_run` variants remove
 subprocess behavior. All ten focused tests and both linters
 passed.
 
+**CMake configuration and link evidence**
+
+The controller fixture checks the complete configure definitions
+and the generated linker include. Both build modes use the same
+locked source and Rustls paths. Development creates or reuses its
+compiler cache and passes the exact hardening flags. Invalid
+source layout, missing version output, and missing or malformed
+link evidence stop publication. The child processes and final
+inventory renderer are substituted.
+
+At `31f4fd270`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 405 `buildsys.cmake` variants with
+`tests/controller/test_cmake.py`. The baseline caught 21 and
+left 370 untested. The new fixture caught 393 with all variants
+run on macOS ARM64. Variant 5 changes the case of the source
+path. Variants 47, 48, 50, 51, and 53–56 change a removed
+temporary filename. Variants 235 and 236 alter a sysroot argument
+that is filtered out of the link-driver flags. Variant 253
+affects the diagnostic for an unsupported internal mode. All
+five focused tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
