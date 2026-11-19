@@ -4,15 +4,18 @@ import contextlib
 import io
 import json
 import os
+import signal
+import subprocess
 import tomllib
 import unittest
 from pathlib import Path
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 from helpers import ROOT, archive, file_sha256, workspace
 
-from buildsys import rust
+from buildsys import rust, sandbox
 from buildsys.inputs import Cache, bootstrap_inputs, load_bootstrap, load_sources
+from buildsys.phases import PhaseCache
 from buildsys.targets import target
 
 
@@ -183,6 +186,276 @@ class RustVendorTests(unittest.TestCase):
                     "vendored-sources": {"directory": str(vendored / "vendor")},
                 },
             })
+
+
+class RustProcessTests(unittest.TestCase):
+    def test_runs_in_own_process_group_and_reports_bounded_output(self) -> None:
+        command = ["cargo", "vendor"]
+        cwd = Path("/fixture/source")
+        env = {"PATH": "/locked/bin"}
+        process = Mock(pid=1234, returncode=0)
+        process.communicate.return_value = ("cargo output", "cargo diagnostics")
+        signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
+        previous = {signum: signal.getsignal(signum) for signum in signals}
+
+        with patch.object(rust.subprocess, "Popen", return_value=process) as spawn, \
+                patch.object(rust.os, "killpg") as kill_group, patch.object(rust.os, "kill") as forward:
+            self.assertEqual(rust._run(command, cwd=cwd, env=env), "cargo output")
+            expected = call(
+                command, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, start_new_session=True,
+            )
+            self.assertEqual(spawn.call_args_list, [expected])
+            process.communicate.assert_called_once_with(timeout=1800)
+            self.assertEqual({signum: signal.getsignal(signum) for signum in signals}, previous)
+
+            process.returncode = 7
+            process.communicate.return_value = ("old stdout\n" + "a" * 4000, "old stderr\n" + "b" * 4000)
+            with self.assertRaises(rust.RustError) as failure:
+                rust._run(command, cwd=cwd, env=env)
+            self.assertEqual(str(failure.exception), "cargo failed (7):\n" + "a" * 4000 + "\n" + "b" * 4000)
+            kill_group.assert_not_called()
+            forward.assert_not_called()
+
+    def test_start_failure_and_timeout_preserve_causes_and_reap_child(self) -> None:
+        command = ["cargo", "vendor"]
+        cwd = Path("/fixture/source")
+        env = {"PATH": "/locked/bin"}
+        missing = FileNotFoundError("fixture executable is absent")
+        with patch.object(rust.subprocess, "Popen", side_effect=missing), \
+                patch.object(rust.os, "killpg") as kill, patch.object(rust.os, "kill"):
+            with self.assertRaises(rust.RustError) as failure:
+                rust._run(command, cwd=cwd, env=env)
+            self.assertEqual(str(failure.exception), f"cargo could not complete: {missing}")
+            self.assertIs(failure.exception.__cause__, missing)
+            kill.assert_not_called()
+
+        process = Mock(pid=1234)
+        timeout = subprocess.TimeoutExpired(command, 1800)
+        process.communicate.side_effect = [timeout, ("", "")]
+        with patch.object(rust.subprocess, "Popen", return_value=process), patch.object(rust.os, "kill"), patch.object(
+            rust.os, "killpg", side_effect=ProcessLookupError("fixture child exited"),
+        ) as kill:
+            with self.assertRaises(rust.RustError) as failure:
+                rust._run(command, cwd=cwd, env=env)
+            self.assertEqual(str(failure.exception), "cargo exceeded its deadline")
+            self.assertIs(failure.exception.__cause__, timeout)
+            kill.assert_called_once_with(1234, signal.SIGKILL)
+            self.assertEqual(process.communicate.call_args_list, [call(timeout=1800), call()])
+
+    def test_reaps_group_before_forwarding_an_interrupt(self) -> None:
+        signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
+        events = Mock()
+        process = Mock(pid=1234)
+
+        def communicate(*, timeout=None):
+            if timeout is not None:
+                handler = events.signal.call_args_list[1].args[1]
+                handler(signal.SIGTERM, None)
+            return "", ""
+
+        process.communicate.side_effect = communicate
+        events.attach_mock(process.communicate, "communicate")
+        events.signal.return_value = signal.SIG_IGN
+        with patch.object(rust.subprocess, "Popen", return_value=process), \
+                patch.object(rust.signal, "signal", events.signal), \
+                patch.object(rust.os, "killpg", events.killpg), \
+                patch.object(rust.os, "getpid", return_value=5678), \
+                patch.object(rust.os, "kill", events.kill), self.assertRaises(rust._Interrupted):
+            rust._run(["cargo"], cwd=Path("/fixture"), env={})
+        signals_installed = events.signal.call_args_list[:4]
+        self.assertEqual([invocation.args[0] for invocation in signals_installed], list(signals))
+        self.assertTrue(all(callable(invocation.args[1]) for invocation in signals_installed))
+        self.assertEqual(events.mock_calls[4:], [
+            call.communicate(timeout=1800),
+            *(call.signal(signum, signal.SIG_IGN) for signum in signals),
+            call.killpg(1234, signal.SIGKILL),
+            call.communicate(),
+            call.signal(signal.SIGTERM, signal.SIG_DFL),
+            call.kill(5678, signal.SIGTERM),
+            *(call.signal(signum, signal.SIG_IGN) for signum in signals),
+        ])
+
+
+class RustPhaseRecordTests(unittest.TestCase):
+    def test_loads_the_output_digest_and_rejects_an_unfinished_phase(self) -> None:
+        with workspace() as directory:
+            phase = PhaseCache(directory).run(
+                "tools", {"rustc": "a" * 64}, lambda path: (path / "rustc").write_bytes(b"fixture"),
+            ).directory
+            record = json.loads((phase / "phase.json").read_text())
+            self.assertEqual(rust._phase_digest(phase), record["output_digest"])
+            (phase / "state.json").write_text('{"status":"interrupted"}')
+            with self.assertRaises(rust.RustError) as unfinished:
+                rust._phase_digest(phase)
+            self.assertEqual(str(unfinished.exception), f"{phase}: phase output does not match its record")
+
+    def test_rejects_missing_and_malformed_phase_records(self) -> None:
+        with workspace() as directory:
+            record = directory / "phase.json"
+            with self.assertRaises(rust.RustError) as failure:
+                rust._phase_digest(directory)
+            self.assertEqual(str(failure.exception), f"{directory}: missing or invalid phase record")
+            self.assertIsInstance(failure.exception.__cause__, FileNotFoundError)
+            for contents, cause in (("{", ValueError), ("{}", KeyError), ("null", TypeError)):
+                record.write_text(contents)
+                with self.subTest(contents=contents), self.assertRaises(rust.RustError) as failure:
+                    rust._phase_digest(directory)
+                self.assertEqual(str(failure.exception), f"{directory}: missing or invalid phase record")
+                self.assertIsInstance(failure.exception.__cause__, cause)
+
+
+class RustStaticBuildTests(unittest.TestCase):
+    def test_sealed_build_uses_locked_compiler_and_static_archive(self) -> None:
+        description = target("aarch64-unknown-linux-musl")
+        with workspace() as directory:
+            root = directory / "rust"
+            tools = root / "phases/tools"
+            vendored = root / "phases/vendor"
+            archive_root = root / "phases/staticlib"
+            home = archive_root / "cargo"
+            project = vendored / "source/rustls"
+            project.mkdir(parents=True)
+            manifest = b"[package]\nname = 'rustls-ffi'\n"
+            (project / "Cargo.toml").write_bytes(manifest)
+            prepared = directory / "prepared"
+            tc = prepared / "toolchain"
+            sysroot = prepared / "sysroot"
+            kache = directory / "build-kache"
+            kache.write_bytes(b"installed compiler cache")
+            scratch = directory / "scratch"
+            archive_path = archive_root / "target" / description.triple / "release/librustls_ffi.a"
+            host_runtime = Path("/usr/lib/libgcc_s.so.1")
+            original_is_file = Path.is_file
+            digests = {tools: "a" * 64, vendored: "b" * 64, prepared: "c" * 64}
+            stream = io.StringIO()
+
+            def is_file(path):
+                return path == host_runtime or original_is_file(path)
+
+            def build(command, *, cwd, env):
+                if Path(command[0]).name == "cargo":
+                    archive_path.parent.mkdir(parents=True)
+                    archive_path.write_bytes(b"fixture static archive")
+                    return ""
+                return "\n0000 T rustls_fixture\n"
+
+            inherited = {"PATH": "/host/bin", "RUSTFLAGS": "host flags", "FIXTURE": "retained"}
+            with contextlib.redirect_stdout(stream), patch.dict(os.environ, inherited, clear=True), \
+                    patch.object(sandbox, "in_container", return_value=True), \
+                    patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo")]), \
+                    patch.object(rust.toolchain, "verify") as verify, \
+                    patch.object(Path, "is_file", is_file), patch.object(rust, "_phase_digest", side_effect=digests.__getitem__), \
+                    patch.object(sandbox, "_locked_image_fingerprint", return_value="d" * 64) as image, \
+                    patch.object(rust, "_run", side_effect=build) as run:
+                result = rust.build_static(root, prepared, description, kache, scratch)
+                self.assertEqual(result, archive_path)
+                self.assertEqual(result.read_bytes(), b"fixture static archive")
+                verify.assert_called_once_with(tc, description, environ={**inherited, "PATH": f"{tc / 'bin'}{os.pathsep}/host/bin"})
+                image.assert_called_once_with(description)
+                host_libs = archive_root / "host-libs"
+                self.assertEqual((host_libs / "libgcc_s.so").readlink(), host_runtime)
+                self.assertEqual((archive_root / "source/Cargo.toml").read_bytes(), manifest)
+                self.assertEqual(tomllib.loads((home / "config.toml").read_text()), {
+                    "source": {
+                        "crates-io": {"replace-with": "vendored-sources"},
+                        "vendored-sources": {"directory": str(vendored / "vendor")},
+                    },
+                })
+                environment = {
+                    "PATH": f"{tools / 'bin'}{os.pathsep}{tc / 'bin'}{os.pathsep}/host/bin", "FIXTURE": "retained",
+                    "TMPDIR": str(scratch), "CARGO_HOME": str(home), "CARGO_TARGET_DIR": str(archive_root / "target"),
+                    "XDG_CACHE_HOME": str(scratch / "kache-cache"), "XDG_CONFIG_HOME": str(scratch / "kache-config"),
+                    "RUSTC_WRAPPER": str(kache), "RUSTC": str(tools / "bin/rustc"), "LIBRARY_PATH": str(host_libs),
+                    "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER": str(tc / "bin/clang"),
+                    "RUSTFLAGS": (
+                        "--remap-path-prefix=/proc/self/cwd=/workspace "
+                        f"-C link-arg=--sysroot={sysroot} -C link-arg=-fuse-ld=lld -L native={tc / 'lib'}"
+                    ),
+                }
+                self.assertEqual(run.call_args_list, [
+                    call([
+                        str(tools / "bin/cargo"), "build", "--release", "--offline", "--frozen", "--target", description.triple,
+                        "-Zbuild-std=std,panic_unwind", "-Zbuild-std-features=panic-unwind,backtrace,llvm-libunwind",
+                        "--no-default-features", "--features", "graviola",
+                    ], cwd=archive_root / "source", env=environment),
+                    call([str(tc / "bin/llvm-nm"), "-g", str(archive_path)], cwd=archive_root, env=environment),
+                ])
+                record = json.loads((archive_root / "phase.json").read_text())
+                self.assertEqual(record["inputs"], {
+                    "tools": digests[tools], "vendor": digests[vendored], "prepare": digests[prepared],
+                    "image": "d" * 64, "kache": rust.wrapper_identity(kache),
+                    "implementation": file_sha256(Path(rust.__file__)),
+                })
+
+                run.reset_mock()
+                self.assertEqual(rust.build_static(root, prepared, description, kache, scratch), archive_path)
+                run.assert_not_called()
+                kache.write_bytes(b"updated compiler cache")
+                os.environ.pop("PATH")
+                self.assertEqual(rust.build_static(root, prepared, description, kache, scratch), archive_path)
+                self.assertEqual(len(run.call_args_list), 2)
+                self.assertEqual(run.call_args.kwargs["env"]["PATH"], f"{tools / 'bin'}{os.pathsep}{tc / 'bin'}{os.pathsep}")
+                self.assertEqual(verify.call_args.kwargs["environ"]["PATH"], f"{tc / 'bin'}{os.pathsep}")
+
+            self.assertEqual(stream.getvalue().splitlines(), [
+                f"Rustls static library built at {archive_root}",
+                f"Rustls static library reused at {archive_root}",
+                f"Rustls static library built at {archive_root}",
+            ])
+
+    def test_static_build_rejects_host_execution_with_exact_error(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        with workspace() as directory, patch.object(sandbox, "in_container", return_value=False), \
+                patch.object(rust, "_run") as run, self.assertRaises(rust.RustError) as failure:
+            rust.build_static(directory, directory, description, directory, directory)
+        self.assertEqual(str(failure.exception), "Rustls build requires a sealed container with only loopback networking")
+        run.assert_not_called()
+
+    def test_static_build_rejects_incomplete_or_wrong_outputs(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        host_runtime = Path("/usr/lib/libgcc_s.so.1")
+        original_is_file = Path.is_file
+        for failure, symbols, diagnostic in (
+            ("layout", "", "vendored Rustls source has an invalid layout"),
+            ("runtime", "", f"missing host procedural-macro runtime {host_runtime}"),
+            ("archive", "", "Rustls static archive was not produced"),
+            ("symbols", "\n0000 T SSL_fixture\n", "Rustls static archive contains OpenSSL symbols"),
+            ("symbols", "         U OPENSSL_fixture\n", "Rustls static archive contains OpenSSL symbols"),
+        ):
+            with self.subTest(failure=failure, symbols=symbols), workspace() as directory:
+                root = directory / "rust"
+                vendored = root / "phases/vendor/source"
+                vendored.mkdir(parents=True)
+                if failure == "layout":
+                    (vendored / "flat-file").touch()
+                else:
+                    (vendored / "rustls").mkdir()
+                kache = directory / "kache"
+                kache.write_bytes(b"wrapper")
+                archive_path = root / "phases/staticlib/target" / description.triple / "release/librustls_ffi.a"
+
+                def is_file(path, available=failure != "runtime"):
+                    if path == host_runtime:
+                        return available
+                    return original_is_file(path)
+
+                def build(command, *, cwd, env, artifact=archive_path, produce=failure != "archive", symbol_text=symbols):
+                    if Path(command[0]).name == "cargo":
+                        if produce:
+                            artifact.parent.mkdir(parents=True)
+                            artifact.write_bytes(b"fixture archive")
+                        return ""
+                    return symbol_text
+
+                with patch.object(sandbox, "in_container", return_value=True), \
+                        patch.object(sandbox.socket, "if_nameindex", return_value=[(1, "lo")]), \
+                        patch.object(rust.toolchain, "verify"), patch.object(Path, "is_file", is_file), \
+                        patch.object(rust, "_phase_digest", return_value="a" * 64), \
+                        patch.object(sandbox, "_locked_image_fingerprint", return_value="b" * 64), \
+                        patch.object(rust, "_run", side_effect=build), self.assertRaises(rust.RustError) as error:
+                    rust.build_static(root, directory / "prepared", description, kache, directory)
+                self.assertEqual(str(error.exception), diagnostic)
 
 
 if __name__ == "__main__":
