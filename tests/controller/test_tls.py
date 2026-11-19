@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import os
+import shlex
 import signal
 import socket
 import subprocess
@@ -10,7 +14,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from helpers import ROOT, workspace
+from helpers import ROOT, file_sha256, workspace
 
 from buildsys import rust, sandbox, tls
 from buildsys.inputs import Cache, Input, bootstrap_inputs, load_bootstrap, load_sources
@@ -117,6 +121,12 @@ class DependencyTests(unittest.TestCase):
         source = Input(name="cmake-source", version="4.4.5", urls=("https://example.invalid/cmake",), sha256="a" * 64, role="source", target="all", size=1)
         with workspace() as directory:
             root = directory / "build"
+            prepared = directory / "prepared"
+            toolchain = prepared / "toolchain"
+            sysroot = prepared / "sysroot"
+            bootstrap = root / "phases/tls-bootstrap"
+            qualification = root / "phases/tls-client"
+            source_root = bootstrap / "source/cmake-source"
             staticlib = directory / "rust/phases/staticlib"
             archive = staticlib / "target" / description.triple / "debug/librustls_ffi.a"
             archive.parent.mkdir(parents=True)
@@ -125,31 +135,113 @@ class DependencyTests(unittest.TestCase):
             (staticlib / "source/Cargo.toml").write_text('[package]\nversion = "0.15.7"\n')
             client = directory / "client.c"
             client.write_text("int main(void) { return 0; }\n")
-            bootstrap_runs = []
-            client_runs = []
+            build_commands = []
+            digests = {prepared: "b" * 64, bootstrap: "e" * 64, staticlib: "f" * 64}
+            stdout = io.StringIO()
 
             def extract(archive_path, destination):
+                self.assertEqual(archive_path, directory / "source")
+                self.assertEqual(destination, bootstrap / "source")
                 (destination / "cmake-source").mkdir(parents=True)
                 return destination
 
+            def extract_flat(archive_path, destination):
+                destination.mkdir(parents=True)
+                (destination / "cmake-source").touch()
+                return destination
+
             def run(command, *, cwd, env):
-                if Path(command[0]).name == "bootstrap":
-                    bootstrap_runs.append(1)
+                build_commands.append((command, cwd, env.copy()))
                 if Path(command[0]).name == "clang":
-                    client_runs.append(1)
                     Path(command[-1]).write_bytes(b"client")
                 return ""
 
-            with patch.object(tls.toolchain, "verify"), patch.object(tls, "_phase_digest", return_value="b" * 64), \
-                    patch.object(tls, "safe_extract", side_effect=extract), patch.object(tls, "_run", side_effect=run), \
-                    patch.object(Cache, "require", return_value=directory / "source"), \
+            with contextlib.redirect_stdout(stdout), \
+                    patch.dict(os.environ, {"PATH": "/host/bin", "TLS_FIXTURE": "retained"}, clear=True), \
+                    patch.object(os, "process_cpu_count", return_value=7) as cpus, \
+                    patch.object(tls.toolchain, "verify") as verify, patch.object(tls, "_phase_digest", side_effect=digests.__getitem__), \
+                    patch.object(tls, "safe_extract", side_effect=extract) as stage, patch.object(tls, "_run", side_effect=run), \
+                    patch.object(Cache, "require", return_value=directory / "source") as require, \
                     patch.object(sandbox, "image_fingerprint", return_value="c" * 64) as image:
-                for _ in range(2):
-                    build_client(Cache(directory), source, directory / "prepared", archive, description, root, directory, client)
-                self.assertEqual((len(bootstrap_runs), len(client_runs)), (1, 1))
+                output = build_client(Cache(directory), source, prepared, archive, description, root, directory, client)
+                self.assertEqual(output, qualification / "client")
+                self.assertEqual(output.read_bytes(), b"client")
+                verify.assert_called_once_with(toolchain, description, environ={
+                    "PATH": f"{toolchain / 'bin'}{os.pathsep}/host/bin",
+                    "TLS_FIXTURE": "retained",
+                })
+                require.assert_called_once_with(source)
+                self.assertEqual(image.call_args.args[1], description)
+
+                flags = [
+                    f"--target={description.triple}", f"--sysroot={sysroot}",
+                    "-fuse-ld=lld", "--rtlib=compiler-rt", "--unwindlib=libunwind",
+                ]
+                build = qualification / "build"
+                self.assertEqual([(command, cwd) for command, cwd, _ in build_commands], [
+                    ([
+                        str(source_root / "bootstrap"), "--parallel=7", "--no-system-libs", "--",
+                        "-DCMAKE_USE_OPENSSL=OFF", f"-DCMAKE_SYSROOT={sysroot}",
+                    ], bootstrap / "bootstrap"),
+                    ([
+                        str(bootstrap / "bootstrap/Bootstrap.cmk/cmake"),
+                        "-S", str(source_root / "Utilities/cmcurl"), "-B", str(build),
+                        "-DCMAKE_BUILD_TYPE=Debug", f"-DCMAKE_C_COMPILER={toolchain / 'bin/clang'}",
+                        f"-DCMAKE_SYSROOT={sysroot}", "-DCMAKE_USE_OPENSSL=OFF", "-DCURL_USE_RUSTLS=ON",
+                        "-DCURL_USE_LIBPSL=OFF", "-DBUILD_SHARED_LIBS=OFF", "-DCURL_CA_BUNDLE=none",
+                        "-DCURL_CA_PATH=none", "-DRUSTLS_VERSION=0.15.7",
+                        f"-DRUSTLS_INCLUDE_DIR={staticlib / 'source/src'}", f"-DRUSTLS_LIBRARY={archive}",
+                        "-DCMAKE_C_FLAGS=" + shlex.join([
+                            *flags, f"-I{source_root / 'Utilities'}", f"-I{bootstrap / 'bootstrap/Utilities'}",
+                        ]),
+                    ], qualification),
+                    (["make", "-j7", "cmcurl"], build),
+                    ([
+                        str(toolchain / "bin/clang"), *flags, "-static-pie",
+                        f"-I{source_root / 'Utilities/cmcurl/include'}", str(client),
+                        str(build / "lib/libcmcurl.a"), str(archive), f"-L{toolchain / 'lib'}",
+                        "-lunwind", "-lm", "-ldl", "-lpthread", "-o", str(output),
+                    ], qualification),
+                ])
+                for _, _, env in build_commands:
+                    self.assertEqual(env["TLS_FIXTURE"], "retained")
+                    self.assertEqual(env["TMPDIR"], str(directory))
+                    self.assertEqual(env["CC"], str(toolchain / "bin/clang"))
+                    self.assertEqual(env["TARGET"], description.triple)
+                    self.assertEqual(env["CFLAGS"], shlex.join(flags))
+                    self.assertEqual(env["CXXFLAGS"], shlex.join([*flags, "-stdlib=libc++"]))
+                    self.assertEqual(env["LDFLAGS"], shlex.join(flags))
+                implementation = file_sha256(Path(tls.__file__))
+                self.assertEqual(json.loads((bootstrap / "phase.json").read_text())["inputs"], {
+                    "prepare": digests[prepared], "source": source.sha256, "image": "c" * 64,
+                    "toolchain": file_sha256(Path(tls.toolchain.__file__)), "implementation": implementation,
+                })
+                self.assertEqual(json.loads((qualification / "phase.json").read_text())["inputs"], {
+                    "bootstrap": digests[bootstrap], "rustls": digests[staticlib], "image": "c" * 64,
+                    "client": file_sha256(client), "implementation": implementation,
+                })
+
+                self.assertEqual(build_client(Cache(directory), source, prepared, archive, description, root, directory, client), output)
+                self.assertEqual(len(build_commands), 4)
                 image.return_value = "d" * 64
-                build_client(Cache(directory), source, directory / "prepared", archive, description, root, directory, client)
-                self.assertEqual((len(bootstrap_runs), len(client_runs)), (2, 2))
+                cpus.return_value = None
+                os.environ.pop("PATH")
+                self.assertEqual(build_client(Cache(directory), source, prepared, archive, description, root, directory, client), output)
+                self.assertEqual(len(build_commands), 8)
+                self.assertEqual(verify.call_args.kwargs["environ"]["PATH"], f"{toolchain / 'bin'}{os.pathsep}")
+                self.assertIn("--parallel=1", build_commands[4][0])
+                self.assertEqual(build_commands[6][0], ["make", "-j1", "cmcurl"])
+                self.assertEqual(stdout.getvalue().splitlines(), [
+                    f"TLS client built at {qualification}",
+                    f"TLS client reused at {qualification}",
+                    f"TLS client built at {qualification}",
+                ])
+
+                image.return_value = "1" * 64
+                stage.side_effect = extract_flat
+                with self.assertRaisesRegex(TlsError, "^CMake archive has an invalid layout$"):
+                    build_client(Cache(directory), source, prepared, archive, description, root, directory, client)
+                self.assertEqual(len(build_commands), 8)
 
     def test_static_build_rebuilds_when_builder_image_changes(self) -> None:
         description = target("x86_64-unknown-linux-musl")
