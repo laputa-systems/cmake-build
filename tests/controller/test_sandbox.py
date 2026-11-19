@@ -33,6 +33,90 @@ X86 = target("x86_64-unknown-linux-musl")
 ARM = target("aarch64-unknown-linux-musl")
 
 
+class ContainerTransportTests(unittest.TestCase):
+    def test_docker_command_runs_from_the_requested_directory(self) -> None:
+        with workspace() as directory, patch.dict(os.environ, {'PATH': str(directory)}):
+            with self.assertRaisesRegex(sandbox.SandboxError, '^docker is not installed$'):
+                sandbox.docker_path()
+            docker = directory / 'docker'
+            docker.write_text(
+                '#!/bin/sh\n'
+                'test "$#" -eq 1 || exit 90\n'
+                'if test "$1" = timeout; then exec /bin/sleep 2; fi\n'
+                'printf "%s:%s\\n" "$PWD" "$1"\n'
+                'printf "fixture error\\n" >&2\n'
+                'exit 19\n',
+                encoding='utf-8',
+            )
+            docker.chmod(0o755)
+            workdir = directory / 'fixture with spaces'
+            workdir.mkdir()
+            result = sandbox._docker('two words', cwd=workdir, timeout=10)
+            self.assertEqual(result.args, [str(docker), 'two words'])
+            self.assertEqual((result.returncode, result.stdout, result.stderr),
+                             (19, f'{workdir}:two words\n', 'fixture error\n'))
+            with self.assertRaises(subprocess.TimeoutExpired):
+                sandbox._docker('timeout', cwd=workdir, timeout=0)
+            probe = sandbox._probe([str(docker), 'another argument'], workdir, 8)
+            self.assertEqual((probe.returncode, probe.stdout, probe.stderr),
+                             (19, f'{workdir}:another argument\n', 'fixture error\n'))
+            with self.assertRaises(subprocess.TimeoutExpired):
+                sandbox._probe([str(docker), 'timeout'], workdir, 0)
+
+    def test_docker_default_deadline_is_applied_to_the_command(self) -> None:
+        with (
+            patch.object(sandbox, 'docker_path', return_value='/fixture/docker'),
+            patch.object(sandbox.subprocess, 'run') as invoke,
+        ):
+            sandbox._docker('inspect', 'image')
+        invoke.assert_called_once()
+        self.assertEqual(invoke.call_args.args, (['/fixture/docker', 'inspect', 'image'],))
+        self.assertEqual(invoke.call_args.kwargs['timeout'], 600)
+
+    def test_bridge_gateway_uses_only_successful_inspection_output(self) -> None:
+        for code, output, expected in (
+            (0, '  172.20.0.1\n', '172.20.0.1'),
+            (0, ' \n', '172.17.0.1'),
+            (3, '172.20.0.1\n', '172.17.0.1'),
+        ):
+            result = subprocess.CompletedProcess([], code, output, 'fixture')
+            with self.subTest(code=code, output=output), patch.object(sandbox, '_docker', return_value=result) as docker:
+                self.assertEqual(sandbox._host_gateway(), expected)
+                docker.assert_called_once_with(
+                    'network', 'inspect', 'bridge', '--format', '{{(index .IPAM.Config 0).Gateway}}',
+                )
+
+    def test_container_environment_requires_the_marker_to_be_a_file(self) -> None:
+        with workspace() as directory, patch.object(sandbox, 'Path') as path:
+            marker = directory / '.dockerenv'
+            path.return_value = marker
+            self.assertFalse(sandbox.in_container())
+            marker.mkdir()
+            self.assertFalse(sandbox.in_container())
+            marker.rmdir()
+            marker.touch()
+            self.assertTrue(sandbox.in_container())
+            self.assertEqual(path.call_args_list, [call('/.dockerenv')] * 3)
+
+    def test_locked_image_fingerprint_uses_the_repository_inputs_and_target(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        dockerfile = build.BOOTSTRAP_LOCK.parent / 'docker' / 'builder.Dockerfile'
+        with workspace() as directory:
+            root = directory / 'fixture'
+            (root / 'buildsys').mkdir(parents=True)
+            staged_dockerfile = root / 'docker' / 'builder.Dockerfile'
+            staged_dockerfile.parent.mkdir()
+            staged_dockerfile.write_bytes(dockerfile.read_bytes())
+            (root / 'bootstrap.lock.json').write_bytes(build.BOOTSTRAP_LOCK.read_bytes())
+            with patch.object(sandbox, '__file__', str(root / 'buildsys' / 'sandbox.py')):
+                x86 = sandbox._locked_image_fingerprint(X86)
+                arm = sandbox._locked_image_fingerprint(ARM)
+            self.assertNotEqual(x86, arm)
+            self.assertEqual(x86, sandbox.image_fingerprint(lock, X86, dockerfile))
+            self.assertEqual(arm, sandbox.image_fingerprint(lock, ARM, dockerfile))
+
+
+
 class ReferenceImageTests(unittest.TestCase):
     def test_sealed_container_protects_declared_read_only_inputs(self) -> None:
         created = subprocess.CompletedProcess([], 0, 'container-id\n', '')
