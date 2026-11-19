@@ -104,7 +104,7 @@ jobs:
               install -m 0755 "$jaq_blob" "$root/.work/tools/jaq"
               export PATH="$root/.work/tools:$PATH"
               ;;
-            sandbox)
+            sandbox|toolchain)
               tests='["tests/controller/test_sandbox.py"]'
               module_copy=', "docker", "patches", "scripts"'
               ;;

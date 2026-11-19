@@ -989,9 +989,10 @@ survivors against the controller and generated-body hashes.
 The dispositions above cover temporary names, default falsey
 arguments, local-only cache access, the single managed report
 heading, and the existing scratch parent. The 18 case-only path
-changes are allowed on Darwin's case-folded trial volume. Linux
-must catch them. The hosted trial installs the locked native
-`jaq` to exercise real XML parsing on both Linux architectures.
+changes are allowed on Darwin's case-folded trial volume. Both
+Linux jobs caught 1,175 of 1,215 variants, including all 18
+case-only changes. Both installed the locked native `jaq` for
+the XML cases. [Native trial](https://github.com/laputa-systems/cmake-build/actions/runs/44487514643)
 
 **Compiler installation and verification**
 

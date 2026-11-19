@@ -369,3 +369,14 @@ Darwin = [
   "buildsys.qualify.x_upstream__mutmut_9=eee1b891083c36d58b0642e1a672fbcd278575ae5ac222e4bd992ebc2f85fe9e",
   "buildsys.qualify.x_upstream__mutmut_97=4a6a210631ff6434c57e057fab93e2f31552be4eeef90f3861d732dfff2aa132",
 ]
+
+[qualified.toolchain]
+source_sha256 = "315c17ec6f484dd40b067d7313fdeddb4ba9f3f8938a95f9a527c18d629b59f0"
+Linux = [
+  "buildsys.toolchain.x__run__mutmut_11=c83e214d1ece1a3a022c178a6a4ee45402b06923c5cdafa597a2a10ec653ab56",
+  "buildsys.toolchain.x__run__mutmut_5=de88b773c51a7a358b5c051e79c9f80868c5e0bb92e24a5c43fb43a02cdb4c0e",
+]
+Darwin = [
+  "buildsys.toolchain.x__run__mutmut_11=c83e214d1ece1a3a022c178a6a4ee45402b06923c5cdafa597a2a10ec653ab56",
+  "buildsys.toolchain.x__run__mutmut_5=de88b773c51a7a358b5c051e79c9f80868c5e0bb92e24a5c43fb43a02cdb4c0e",
+]

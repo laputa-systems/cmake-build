@@ -19,6 +19,7 @@ CRITICAL = frozenset({
     "buildsys/qualify.py",
     "buildsys/reproduce.py",
     "buildsys/sandbox.py",
+    "buildsys/toolchain.py",
 })
 
 CONFIGURATION = frozenset({
