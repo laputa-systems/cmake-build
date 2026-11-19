@@ -42,6 +42,23 @@ jobs:
             --qualified-modules .github/mutation-dispositions.toml)
           printf 'Selected modules: %s\n' "$modules"
           printf 'modules=%s\n' "$modules" >> "$GITHUB_OUTPUT"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        if: steps.select.outputs.modules != '[]'
+        with:
+          version: 0.13.7
+      - id: wheel
+        if: steps.select.outputs.modules != '[]'
+        run: |
+          wheel=$(uv run --no-project --python 3.15.2 python -c 'from buildsys import WHEEL; print(WHEEL)')
+          printf 'wheel=%s\n' "$wheel" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.select.outputs.modules != '[]'
+        with:
+          name: mutation-buildlib-wheel
+          path: ${{ steps.wheel.outputs.wheel }}
+          include-hidden-files: true
+          if-no-files-found: error
+
   controller:
     needs: plan
     if: needs.plan.outputs.modules != '[]'
@@ -73,6 +90,10 @@ jobs:
         with:
           version: 0.13.7
       - run: uv python install 3.15.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mutation-buildlib-wheel
+          path: .work/cache/objects
       - name: Verify mutation results
         run: |
           make mutants-diff MUTATION_BASE="$BASE_REVISION" MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib

@@ -31,6 +31,8 @@ if [[ -n $3 ]]; then
   modules=$3
 fi
 
+wheel=$(uv run --no-project --python 3.15.2 python -c 'from buildsys import WHEEL; print(WHEEL)')
+
 run_module() (
   module=$1
   source="buildsys/$module.py"
@@ -108,21 +110,17 @@ print(Cache(Path(".work/cache")).fetch(entry))
     export LC_ALL=C.UTF-8
   fi
   proof="$scratch/$module"
-  mkdir -p "$proof/.work/tmp"
+  mkdir -p "$proof/.work/tmp" "$proof/.work/cache/objects"
+  cp "$wheel" "$proof/.work/cache/objects/"
   touch "$proof/.work/tmp/.keep"
   export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
   git archive HEAD -- "${paths[@]}" | tar -x -C "$proof"
-  cache_copy=
-  if [ "$module" = buildlib_wheel ]; then
-    (cd "$proof"; uv run --frozen --python 3.15.2 python -c 'from buildsys import WHEEL')
-    cache_copy=', ".work/cache"'
-  fi
   cat >> "$proof/pyproject.toml" <<TOML
 
 [tool.mutmut]
 source_paths = ["buildsys"]
 only_mutate = ["$source"]
-also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"$cache_copy$module_copy]
+also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp", ".work/cache"$module_copy]
 pytest_add_cli_args_test_selection = $tests
 use_setproctitle = false
 TOML
