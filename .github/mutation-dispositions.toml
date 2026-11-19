@@ -225,7 +225,7 @@ Darwin = [
 
 [qualified.sandbox]
 source_sha256 = "e5cf8b3fb80a3e6bb1b95697c76f389a135a727df427f1b57ecfe2a044666d18"
-"ubuntu-26.04" = [
+Linux = [
   "buildsys.sandbox.x__docker__mutmut_12=86372eeacef78dfb827bba5b92d58253d382c8bb42519d91b0cae66918081697",
   "buildsys.sandbox.x__docker__mutmut_6=40406658252df413cb24aa7746245a7f94b25350ca412f04cb1ac29d611d24c8",
   "buildsys.sandbox.x__probe__mutmut_11=1f21badb7fea41439158885466e4df0a62c86385b09185cbee9894a81db894a3",
@@ -242,9 +242,13 @@ source_sha256 = "e5cf8b3fb80a3e6bb1b95697c76f389a135a727df427f1b57ecfe2a044666d1
   "buildsys.sandbox.x_image_fingerprint__mutmut_9=7fa1cff5f242d91776a338c6c90b84bdf9095ffb8822d01b20c4ddcde688da00",
   "buildsys.sandbox.x_network_boundary_selftest__mutmut_196=9aa4921de1d35e65eff882dabaaf7f558e8522b08bbf5b7ca81bc29105799bec",
 ]
-"ubuntu-26.04-arm" = [
+Darwin = [
+  "buildsys.sandbox.x__context__mutmut_27=b7d6a5cb228018c12c121a48a9c66f2e7fcba50d652f97d8c2b5f5d3ea038239",
   "buildsys.sandbox.x__docker__mutmut_12=86372eeacef78dfb827bba5b92d58253d382c8bb42519d91b0cae66918081697",
   "buildsys.sandbox.x__docker__mutmut_6=40406658252df413cb24aa7746245a7f94b25350ca412f04cb1ac29d611d24c8",
+  "buildsys.sandbox.x__locked_image_fingerprint__mutmut_13=6f3eea29e1f2c956451d3685fd0e6aa796a19244cd63742a407a8cc3bd7ee6ac",
+  "buildsys.sandbox.x__locked_image_fingerprint__mutmut_16=f552b975bd4821f0bd79f04ddf13d20d01b24184ddaa28f449b9a647b0b88934",
+  "buildsys.sandbox.x__locked_image_fingerprint__mutmut_17=8fa6364129576dcbe06cec67a64b4ced8477a470d0defa64b6442dfd8e9fe762",
   "buildsys.sandbox.x__probe__mutmut_11=1f21badb7fea41439158885466e4df0a62c86385b09185cbee9894a81db894a3",
   "buildsys.sandbox.x__probe__mutmut_5=4a1b23192803e626a0bfc59d0d2ae939892d1837937f104255ad61c2d398fa0c",
   "buildsys.sandbox.x__run_container__mutmut_1=ddf9dd5c477118495f8bc55083a2a16d485fc36c379bd4a8c54b66e65a71daf1",
@@ -255,6 +259,7 @@ source_sha256 = "e5cf8b3fb80a3e6bb1b95697c76f389a135a727df427f1b57ecfe2a044666d1
   "buildsys.sandbox.x__run_container__mutmut_130=a660a46678bcdb5aaadf128fd2e202b1ce78ed6f8099a26ec42c11403cdf63fb",
   "buildsys.sandbox.x__run_container__mutmut_2=c1d1b14510f95d1a1778df5750adead4690710de64a8a9f8aea3fe5d1b3c4347",
   "buildsys.sandbox.x__run_container__mutmut_3=b7f70f094095ba4e950037baa315a8cac77999d6066c51c9a81e8d4e10823fce",
+  "buildsys.sandbox.x_copy_reference_runtime__mutmut_75=ae856247b7236cf6cf5c9b3e1243325de7e6c324842055dfcfc713532118e237",
   "buildsys.sandbox.x_image_fingerprint__mutmut_10=aa06f52d3e8cd19c8c009331e3e95dbdd06bbc18d581ad4acc1cad943dbf2f17",
   "buildsys.sandbox.x_image_fingerprint__mutmut_9=7fa1cff5f242d91776a338c6c90b84bdf9095ffb8822d01b20c4ddcde688da00",
   "buildsys.sandbox.x_network_boundary_selftest__mutmut_196=9aa4921de1d35e65eff882dabaaf7f558e8522b08bbf5b7ca81bc29105799bec",
