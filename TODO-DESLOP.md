@@ -1371,6 +1371,22 @@ change the case of the UTF-8 codec or compare against a dot component
 that `PurePosixPath.parts` has already normalized away. All seven
 focused tests and both linters passed.
 
+The controller CLI fixture covers parser routing and hidden options,
+dispatch and error translation, exact Git identity admission, and
+test-runner selection, concurrency and counting. It simulates all
+subprocess calls in these mutation tests. The retained ordinary
+suite continues to exercise the real command and native controller.
+
+The fresh macOS ARM64 comparison selected 376 identities in
+`_parser`, `main`, `_source_commit` and `_controller_test`, using
+mutmut 3.8.1, Python 3.15.2 and pytest 9.2.0. The baseline selected
+the existing isolated dispatcher case and caught five. The revised
+suite caught 373. Linux must exercise two capitalization variants.
+The other survivor removes argparse's explicit default of `None`.
+The initial broader trial exceeded the local CPU guard. The matched
+rerun uses only isolated dispatch and simulated subprocesses.
+All eight focused cases and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
