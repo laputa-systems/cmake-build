@@ -870,6 +870,29 @@ archive and select `buildsys.qualify.x_basic__mutmut_*` with
 `tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0.
 All eight focused tests and both linters passed.
 
+### Network qualification handoff
+
+The controller fixture verifies a cached OpenSSL archive before
+extracting it and mounts the relocated stage and local suite
+read-only. It checks the locked CMake URL and digest passed to
+the second suite. A failed local process or missing 11-case
+result prevents the second process from starting. The fixture
+also checks rejection of a wrong-target lock entry, a missing
+entry, a failed second process, a skip, and missing confirmation.
+Both process boundaries are substituted. No Internet access
+or native CMake package was needed for this fixture.
+
+At `bb35c6ea3`, mutmut 3.8.1 with pytest 9.2.0 selected 207
+`qualify.network` variants in a fresh macOS ARM64 archive with
+`tests/controller/test_network_qualification.py`. The suite
+caught 198. Variants 15 and 75 change only the case of the
+lock and cache paths and need a case-sensitive run. Variants
+31, 33, 35 and 36 change the diagnostic name of a
+temporary directory. Variants 70, 72 and 76 change
+`Cache.offline` before `require`, which verifies a local
+file and does not consult that setting. Both focused tests
+and Ruff and ty passed.
+
 ## Tickets
 
 
