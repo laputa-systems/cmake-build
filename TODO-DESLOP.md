@@ -1177,6 +1177,23 @@ caught. The new case caught 42. The three remaining variants
 change the case of `kache-engine` and need the native
 case-sensitive run. Both focused tests and both linters passed.
 
+**Rust tool installation and vendoring**
+
+Actual fixture archives supply the locked components and
+Rustls source. The tests check component order, exact tool
+and Cargo environments, temporary cleanup, persisted phase
+inputs, reuse, and provider-patch invalidation. They reject
+missing or duplicate components and flat archives. The
+installer, patch and Cargo subprocesses are substituted.
+
+The matched macOS ARM64 run used mutmut 3.8.1, CPython 3.15.2
+and pytest 9.2.0. The four tool-install, vendoring and Cargo
+environment functions selected 280 identities. The baseline
+caught 30 and the new cases caught 278. The two remaining
+variants change the case of `config.toml` and `phase.json`
+and need native Linux. All five focused tests and both
+linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
