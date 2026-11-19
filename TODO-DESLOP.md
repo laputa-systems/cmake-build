@@ -1179,6 +1179,58 @@ on macOS ARM64. Variant 5 changes the case of the source
 directory and needs the native Linux run. All three focused
 tests and both linters passed.
 
+**Kache wrapper staging and identity**
+
+The fixture follows a symlink to the installed client and
+copies its adjacent engine. It checks the exact bytes and
+modes, the split and single-binary phase identities, stale
+engine removal, and a copy failure with its original cause.
+
+The matched macOS ARM64 run used mutmut 3.8.1, CPython 3.15.2
+and pytest 9.2.0. At the baseline, 29 of 45
+`install_wrapper` and `wrapper_identity` identities were
+caught. The new case caught 42. The three remaining variants
+change the case of `kache-engine` and need the native
+case-sensitive run. Both focused tests and both linters passed.
+
+**Rust tool installation and vendoring**
+
+Actual fixture archives supply the locked components and
+Rustls source. The tests check component order, exact tool
+and Cargo environments, temporary cleanup, persisted phase
+inputs, reuse, and provider-patch invalidation. They reject
+missing or duplicate components and flat archives. The
+installer, patch and Cargo subprocesses are substituted.
+
+The matched macOS ARM64 run used mutmut 3.8.1, CPython 3.15.2
+and pytest 9.2.0. The four tool-install, vendoring and Cargo
+environment functions selected 280 identities. The baseline
+caught 30 and the new cases caught 278. The two remaining
+variants change the case of `config.toml` and `phase.json`
+and need native Linux. All five focused tests and both
+linters passed.
+
+**Rust child lifecycle, phase reads, and static library**
+
+The fixtures check process-group teardown, signal forwarding,
+restored handlers, bounded command output, and failure causes.
+They also check persisted phase admission and exact offline
+Cargo and archive inspection commands. The static build
+exercises compiler cache invalidation and rejects an unsealed
+host, invalid source layout, missing runtime or archive, and
+forbidden symbols. Child execution is substituted in the new
+fixtures. The controller keeps its real process-tree check.
+
+The matched macOS ARM64 run used mutmut 3.8.1, CPython 3.15.2
+and pytest 9.2.0. In the 361 selected identities, the baseline
+caught 125 and left 59 untested. The new fixtures caught 355.
+Four survivors change file-name casing and need native Linux.
+The two digest exclusion variants change the private state
+file entry in the exclusion set. Interrupted phases already
+fail before hashing, and verified locked outputs contain
+neither alternate name. All 13 focused tests and both
+linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
