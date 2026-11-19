@@ -1,3 +1,4 @@
+import fcntl
 import json
 import unittest
 from unittest.mock import patch
@@ -73,6 +74,82 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
         self.assertEqual(list(self.store.glob('.candidate-*')), [])
 
+    def test_reused_generation_requires_both_the_original_archive_and_tree(self):
+        digest = file_sha256(self.archive)
+        generation = generations.qualify(self.store, self.archive, digest, lambda tree: {'basic': 'passed'})
+        result = generation / 'results.json'
+        previous_result = result.read_bytes()
+        for retained in (generation / 'artifact.tar.xz', generation / 'tree/usr/bin/cmake'):
+            with self.subTest(retained=retained):
+                original = retained.read_bytes()
+                retained.write_bytes(b'changed after activation')
+                with self.assertRaisesRegex(generations.GenerationError, 'existing generation is inconsistent'):
+                    generations.qualify(self.store, self.archive, digest, lambda tree: {'projects': 'passed'})
+                self.assertEqual(result.read_bytes(), previous_result)
+                self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
+                self.assertEqual(list(self.store.glob('.candidate-*')), [])
+                retained.write_bytes(original)
+
+    def test_failed_activation_preserves_previous_pointer_and_can_retry(self):
+        previous_digest = file_sha256(self.archive)
+        previous = generations.qualify(self.store, self.archive, previous_digest, lambda tree: {'basic': 'passed'})
+        (self.stage / 'bin/cmake').write_bytes(b'second')
+        package.create(self.stage, self.archive, {'target': 'example'}, 1)
+        next_digest = file_sha256(self.archive)
+        replacement = self.store / next_digest
+        activation = self.store / 'active'
+        atomic_replace = generations.os.replace
+
+        def fail_activation(source, destination):
+            if destination == activation:
+                raise OSError('fixture activation failure')
+            atomic_replace(source, destination)
+
+        with (
+            patch.object(generations.os, 'replace', side_effect=fail_activation),
+            self.assertRaisesRegex(OSError, 'fixture activation failure'),
+        ):
+            generations.qualify(self.store, self.archive, next_digest, lambda tree: {'basic': 'passed'})
+        self.assertEqual(activation.resolve(), previous / 'tree')
+        self.assertEqual(file_sha256(replacement / 'artifact.tar.xz'), next_digest)
+        self.assertEqual(list(self.store.glob('.active-*')), [])
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
+
+        self.assertEqual(
+            generations.qualify(self.store, self.archive, next_digest, lambda tree: {'projects': 'passed'}),
+            replacement,
+        )
+        self.assertEqual(activation.resolve(), replacement / 'tree')
+        self.assertEqual((activation / 'usr/bin/cmake').read_bytes(), b'second')
+        self.assertEqual(json.loads((replacement / 'results.json').read_text())['qualification'], {'projects': 'passed'})
+
+    def test_qualification_requires_a_nonempty_result(self):
+        digest = file_sha256(self.archive)
+        with self.assertRaisesRegex(generations.GenerationError, 'qualification produced no results'):
+            generations.qualify(self.store, self.archive, digest, lambda tree: {})
+        self.assertFalse((self.store / digest).exists())
+        self.assertFalse((self.store / 'active').is_symlink())
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
+
+    def test_rejects_candidate_that_changes_during_copy(self):
+        expected = file_sha256(self.archive)
+        copy_file = generations.shutil.copyfile
+
+        def corrupt_copy(source, destination):
+            copied = copy_file(source, destination)
+            with destination.open('ab') as stream:
+                stream.write(b'changed')
+            return copied
+
+        with (
+            patch.object(generations.shutil, 'copyfile', side_effect=corrupt_copy),
+            self.assertRaisesRegex(generations.GenerationError, 'archive changed while copying'),
+        ):
+            generations.qualify(self.store, self.archive, expected, lambda tree: {'basic': 'passed'})
+        self.assertFalse((self.store / expected).exists())
+        self.assertFalse((self.store / 'active').is_symlink())
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
+
     def test_tampered_archive_does_not_activate(self):
         expected = file_sha256(self.archive)
         with self.archive.open('ab') as stream:
@@ -106,6 +183,28 @@ class GenerationTest(unittest.TestCase):
             generations.qualify(self.store, self.archive, file_sha256(self.archive),
                                 lambda tree: budgets.check_size(limits, 'example', tree, tree.parent / 'artifact.tar.xz'))
         self.assertEqual((self.store / 'active/usr/bin/cmake').read_bytes(), b'first')
+
+    def test_qualification_keeps_the_store_locked_and_reports_the_copied_archive(self):
+        digest = file_sha256(self.archive)
+        self.store.mkdir()
+        lock_path = self.store / '.lock'
+
+        def inspect(tree):
+            self.assertEqual(tree.parent.parent, self.store)
+            self.assertEqual(tree.name, 'tree')
+            self.assertTrue(tree.parent.name.startswith('.candidate-'))
+            self.assertEqual(file_sha256(tree.parent / 'artifact.tar.xz'), digest)
+            with lock_path.open('rb') as other, self.assertRaises(BlockingIOError):
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return {'basic': 'passed'}
+
+        generation = generations.qualify(self.store, self.archive, digest, inspect)
+        result = generation / 'results.json'
+        self.assertEqual(json.loads(result.read_text())['archive_sha256'], digest)
+        self.assertIn('results.json', {path.name for path in generation.iterdir()})
+        self.assertEqual(list(self.store.glob('.candidate-*')), [])
+        with lock_path.open('rb') as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_size_check_uses_the_copied_candidate(self):
         digest = file_sha256(self.archive)
