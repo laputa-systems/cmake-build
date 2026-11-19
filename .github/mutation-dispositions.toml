@@ -1,3 +1,14 @@
+[qualified.buildlib_wheel]
+source_sha256 = "8a3263f40d76b0fe9fdb07e20c68b76400da70862cb9474ffbfa24dd0b8bb5e8"
+Linux = [
+  "buildsys.buildlib_wheel.x__download__mutmut_10=fdf7d580dd585b05b572ba2d0b91f2b27219bdf7ec00445869ec66b5ce7a2dd0",
+  "buildsys.buildlib_wheel.x__download__mutmut_9=84710f64c20d35aff3595bb35f31aa560e0c5f9dedf67630eb6e4708fa56b319",
+]
+Darwin = [
+  "buildsys.buildlib_wheel.x__download__mutmut_10=fdf7d580dd585b05b572ba2d0b91f2b27219bdf7ec00445869ec66b5ce7a2dd0",
+  "buildsys.buildlib_wheel.x__download__mutmut_9=84710f64c20d35aff3595bb35f31aa560e0c5f9dedf67630eb6e4708fa56b319",
+]
+
 [qualified.budgets]
 source_sha256 = "876bb2c5b2fb641798a2aca20a58bbd7f985387e0345071f0799c6006321725e"
 Linux = [

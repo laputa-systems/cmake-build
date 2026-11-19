@@ -75,6 +75,7 @@ jobs:
           git ls-tree -r --full-tree HEAD -- "${paths[@]}" |
             awk '$1 == "120000" || $1 == "160000" { print "unsupported archive entry: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }'
           case "$MODULE" in
+            buildlib_wheel) tests='["tests/controller/test_buildlib_wheel.py::CacheAdmissionTests"]' ;;
             budgets) tests='["tests/controller/test_budgets.py", "tests/controller/test_package_reproduce.py",
                               "tests/controller/test_package_generations.py", "tests/controller/test_cli.py"]' ;;
             generations) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
@@ -95,12 +96,17 @@ jobs:
           touch "$proof/.work/tmp/.keep"
           export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
           git archive HEAD -- "${paths[@]}" | tar -x -C "$proof"
+          cache_copy=
+          if [ "$MODULE" = buildlib_wheel ]; then
+            (cd "$proof"; uv run --frozen --python 3.15.2 python -c 'from buildsys import WHEEL')
+            cache_copy=', ".work/cache"'
+          fi
           cat >> "$proof/pyproject.toml" <<TOML
 
           [tool.mutmut]
           source_paths = ["buildsys"]
           only_mutate = ["$source"]
-          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"$cache_copy]
           pytest_add_cli_args_test_selection = $tests
           use_setproctitle = false
           TOML
