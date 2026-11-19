@@ -1345,6 +1345,14 @@ Linux-only command test on both sides. Detected identities went
 from 229 to 263. The 101 survivors and the benchmark execution
 scopes remain open. All six focused tests, Ruff and ty passed.
 
+The patch admission fixture verifies early path rejection and the
+directory-open contract for a nested patch. The matched macOS ARM64
+trial with mutmut 3.8.1, CPython 3.15.2 and pytest 9.2.0 caught 137
+of all 139 patch identities, up from 127. The two remaining variants
+change the case of the UTF-8 codec or compare against a dot component
+that `PurePosixPath.parts` has already normalized away. All seven
+focused tests and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
