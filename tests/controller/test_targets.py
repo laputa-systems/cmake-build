@@ -4,8 +4,6 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from buildlib import targets as shared
-
 from buildsys import targets
 
 X86 = "x86_64-unknown-linux-musl"
@@ -24,7 +22,7 @@ class TargetContractTests(unittest.TestCase):
             with self.subTest(triple=triple):
                 description = targets.target(triple)
                 self.assertEqual(description.triple, triple)
-                self.assertEqual(targets._adopt(shared.target_for_triple(triple)), description)
+                self.assertEqual(targets._adopt(targets.shared.target_for_triple(triple)), description)
                 self.assertEqual(
                     (
                         description.machine,
@@ -39,12 +37,12 @@ class TargetContractTests(unittest.TestCase):
 
     def test_target_rejects_unsupported_triples_with_the_supported_list(self) -> None:
         for triple in ("aarch64-apple-darwin", "riscv64-unknown-linux-musl"):
-            with self.subTest(triple=triple), self.assertRaises(shared.UnsupportedTargetError) as caught:
+            with self.subTest(triple=triple), self.assertRaises(targets.UnsupportedTargetError) as caught:
                 targets.target(triple)
             self.assertEqual(str(caught.exception), f"target not implemented: {triple} {SUPPORTED}")
 
     def test_rejects_incomplete_shared_target_descriptions(self) -> None:
-        description = shared.target_for_triple(ARM)
+        description = targets.shared.target_for_triple(ARM)
         cases = (
             replace(description, triple="riscv64-unknown-linux-musl"),
             replace(description, docker_platform=None),
@@ -53,7 +51,7 @@ class TargetContractTests(unittest.TestCase):
             replace(description, elf_machine=None),
         )
         for item in cases:
-            with self.subTest(item=item), self.assertRaises(shared.UnsupportedTargetError) as caught:
+            with self.subTest(item=item), self.assertRaises(targets.UnsupportedTargetError) as caught:
                 targets._adopt(item)
             self.assertEqual(str(caught.exception), f"target not implemented: {item.triple} {SUPPORTED}")
 
@@ -68,7 +66,7 @@ class TargetContractTests(unittest.TestCase):
 
         with (
             patch.object(targets.platform, "machine", return_value="riscv64"),
-            self.assertRaises(shared.UnsupportedTargetError) as caught,
+            self.assertRaises(targets.UnsupportedTargetError) as caught,
         ):
             targets.native_target()
         self.assertIn("no target for host Linux riscv64", str(caught.exception))
