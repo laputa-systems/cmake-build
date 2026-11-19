@@ -416,6 +416,7 @@ def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict
         and inside_loopback.stdout.strip().startswith("DENIED:")
     )
     received_ok = received == [b"cmake-build-network-probe"]
+    worker_stopped = not thread.is_alive()
     return {
         "probe": "TCP connect to a listener held by the controller",
         "listener": f"0.0.0.0:{port}",
@@ -428,12 +429,13 @@ def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict
         "loopback_output": None if inside_loopback is None else inside_loopback.stdout.strip()[:120],
         "listener_received": [value.decode("ascii", "replace") for value in received],
         "errors": errors,
-        "worker_stopped": not thread.is_alive(),
+        "worker_stopped": worker_stopped,
         "ok": (
             outside_ok
             and gateway_denied
             and loopback_denied
             and received_ok
+            and worker_stopped
             and not errors
             and failure is None
         ),
