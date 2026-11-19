@@ -635,6 +635,18 @@ redundant check for a component that the path parser already removes.
 The 22 remaining outcomes stay under DSLP-4. All 26 package tests
 and both linters passed.
 
+**Persisted release budgets**
+
+The budget reader now has a real-file control using the tracked
+release budget. It retains the full parsed document and rejects
+missing files, malformed JSON, a missing object and the wrong
+schema version. The same 420 identities moved from 342 caught and
+11 unexercised to 349 caught with all identities exercised.
+Use the controller archive recipe with `buildsys.budgets.*` and
+`test_budgets.py`, `test_package_reproduce.py`,
+`test_package_generations.py` and `test_cli.py`. The 71 survivors
+remain in DSLP-4. All eight budget tests and both linters passed.
+
 ## Tickets
 
 
