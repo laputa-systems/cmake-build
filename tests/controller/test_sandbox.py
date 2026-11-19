@@ -8,6 +8,7 @@ import os
 import runpy
 import struct
 import subprocess
+import sys
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -557,9 +558,81 @@ class NetworkBoundaryTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, "DENIED:101\n", "")
             return probe(command, cwd, timeout)
 
-        with workspace() as directory, patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"), patch.object(sandbox, "docker_path", return_value="docker"), patch.object(sandbox, "_probe", side_effect=run):
-            result = sandbox.network_boundary_selftest("image", X86, directory)
-        self.assertTrue(result["ok"], result)
+        with (
+            workspace() as directory,
+            patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"),
+            patch.object(sandbox, "docker_path", return_value="docker"),
+            patch.object(sandbox, "_probe", side_effect=run) as invoke,
+        ):
+            workdir = directory / "fresh" / "network"
+            result = sandbox.network_boundary_selftest("image", X86, workdir)
+            port = invoke.call_args_list[0].args[0][-1]
+            self.assertGreater(int(port), 1024)
+            base = ["docker", "run", "--rm", "--network", "none", "--platform", X86.docker_platform,
+                    "image", "python3", "-c", sandbox.PROBE]
+            self.assertEqual(invoke.call_args_list, [
+                call([sys.executable, "-c", sandbox.PROBE, "127.0.0.1", port], workdir, 15),
+                call([*base, "172.17.0.1", port], workdir, 60),
+                call([*base, "127.0.0.1", port], workdir, 60),
+            ])
+        self.assertEqual(result, {
+            "probe": "TCP connect to a listener held by the controller",
+            "listener": f"0.0.0.0:{port}",
+            "host_gateway": "172.17.0.1",
+            "host_returncode": 3,
+            "host_output": "CONNECTED",
+            "gateway_returncode": 0,
+            "gateway_output": "DENIED:101",
+            "loopback_returncode": 0,
+            "loopback_output": "DENIED:101",
+            "listener_received": ["cmake-build-network-probe"],
+            "errors": [],
+            "worker_stopped": True,
+            "ok": True,
+            "error": None,
+        })
+
+    def test_failed_host_probe_closes_listener_and_records_failure(self) -> None:
+        with (
+            workspace() as directory,
+            patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"),
+            patch.object(sandbox, "_probe", side_effect=OSError("fixture probe error")) as invoke,
+        ):
+            report = sandbox.network_boundary_selftest("image", X86, directory)
+        self.assertEqual(invoke.call_count, 1)
+        for name in ("host", "gateway", "loopback"):
+            self.assertIsNone(report[f"{name}_returncode"])
+            self.assertIsNone(report[f"{name}_output"])
+        self.assertEqual(report["listener_received"], [])
+        self.assertEqual(report["worker_stopped"], True)
+        self.assertEqual(report["ok"], False)
+        self.assertEqual(report["error"], "fixture probe error")
+
+
+    def test_reports_failure_when_the_listener_worker_has_not_stopped(self) -> None:
+        probe = sandbox._probe
+
+        class LingeringThread(sandbox.threading.Thread):
+            def is_alive(self) -> bool:
+                return True
+
+        def run(command, cwd, timeout):
+            if command[0] == "docker":
+                return subprocess.CompletedProcess(command, 0, "DENIED:101\n", "")
+            return probe(command, cwd, timeout)
+
+        with (
+            workspace() as directory,
+            patch.object(sandbox, "_host_gateway", return_value="172.17.0.1"),
+            patch.object(sandbox, "docker_path", return_value="docker"),
+            patch.object(sandbox, "_probe", side_effect=run),
+            patch.object(sandbox.threading, "Thread", LingeringThread),
+        ):
+            report = sandbox.network_boundary_selftest("image", X86, directory)
+        self.assertEqual(report["host_returncode"], 3)
+        self.assertEqual(report["listener_received"], ["cmake-build-network-probe"])
+        self.assertEqual(report["worker_stopped"], False)
+        self.assertEqual(report["ok"], False)
 
 
 class ProvenanceTests(unittest.TestCase):
