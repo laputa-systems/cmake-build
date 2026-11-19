@@ -893,6 +893,26 @@ temporary directory. Variants 70, 72 and 76 change
 file and does not consult that setting. Both focused tests
 and Ruff and ty passed.
 
+### Project qualification handoff
+
+The controller fixture verifies four locked archives through
+actual cache verification, extraction and phase publication.
+The phase receipts record both the source digest and the
+controller digest. The child receives each source and the
+relocated CMake stage as read-only mounts. A missing source
+stops before the child, and every missing project result and
+nonzero child exit stops qualification.
+
+At `529d3b52`, mutmut 3.8.1 with pytest 9.2.0 selected 184
+`qualify.projects` variants from a fresh macOS ARM64 archive.
+`tests/controller/test_projects.py::ProjectQualificationTests`
+caught 174. Variants 26, 32 and 75 change path case and
+need a case-sensitive run. Variants 80, 82, 84 and 85
+change the name of a removed temporary directory. Variants
+21, 23 and 27 change the offline flag before a local-only
+`Cache.require` call. All ten focused tests and both
+linters passed. The child process was substituted.
+
 ## Tickets
 
 
