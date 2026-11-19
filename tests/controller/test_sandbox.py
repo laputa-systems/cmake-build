@@ -33,6 +33,90 @@ X86 = target("x86_64-unknown-linux-musl")
 ARM = target("aarch64-unknown-linux-musl")
 
 
+class ContainerTransportTests(unittest.TestCase):
+    def test_docker_command_runs_from_the_requested_directory(self) -> None:
+        with workspace() as directory, patch.dict(os.environ, {'PATH': str(directory)}):
+            with self.assertRaisesRegex(sandbox.SandboxError, '^docker is not installed$'):
+                sandbox.docker_path()
+            docker = directory / 'docker'
+            docker.write_text(
+                '#!/bin/sh\n'
+                'test "$#" -eq 1 || exit 90\n'
+                'if test "$1" = timeout; then exec /bin/sleep 2; fi\n'
+                'printf "%s:%s\\n" "$PWD" "$1"\n'
+                'printf "fixture error\\n" >&2\n'
+                'exit 19\n',
+                encoding='utf-8',
+            )
+            docker.chmod(0o755)
+            workdir = directory / 'fixture with spaces'
+            workdir.mkdir()
+            result = sandbox._docker('two words', cwd=workdir, timeout=10)
+            self.assertEqual(result.args, [str(docker), 'two words'])
+            self.assertEqual((result.returncode, result.stdout, result.stderr),
+                             (19, f'{workdir}:two words\n', 'fixture error\n'))
+            with self.assertRaises(subprocess.TimeoutExpired):
+                sandbox._docker('timeout', cwd=workdir, timeout=0)
+            probe = sandbox._probe([str(docker), 'another argument'], workdir, 8)
+            self.assertEqual((probe.returncode, probe.stdout, probe.stderr),
+                             (19, f'{workdir}:another argument\n', 'fixture error\n'))
+            with self.assertRaises(subprocess.TimeoutExpired):
+                sandbox._probe([str(docker), 'timeout'], workdir, 0)
+
+    def test_docker_default_deadline_is_applied_to_the_command(self) -> None:
+        with (
+            patch.object(sandbox, 'docker_path', return_value='/fixture/docker'),
+            patch.object(sandbox.subprocess, 'run') as invoke,
+        ):
+            sandbox._docker('inspect', 'image')
+        invoke.assert_called_once()
+        self.assertEqual(invoke.call_args.args, (['/fixture/docker', 'inspect', 'image'],))
+        self.assertEqual(invoke.call_args.kwargs['timeout'], 600)
+
+    def test_bridge_gateway_uses_only_successful_inspection_output(self) -> None:
+        for code, output, expected in (
+            (0, '  172.20.0.1\n', '172.20.0.1'),
+            (0, ' \n', '172.17.0.1'),
+            (3, '172.20.0.1\n', '172.17.0.1'),
+        ):
+            result = subprocess.CompletedProcess([], code, output, 'fixture')
+            with self.subTest(code=code, output=output), patch.object(sandbox, '_docker', return_value=result) as docker:
+                self.assertEqual(sandbox._host_gateway(), expected)
+                docker.assert_called_once_with(
+                    'network', 'inspect', 'bridge', '--format', '{{(index .IPAM.Config 0).Gateway}}',
+                )
+
+    def test_container_environment_requires_the_marker_to_be_a_file(self) -> None:
+        with workspace() as directory, patch.object(sandbox, 'Path') as path:
+            marker = directory / '.dockerenv'
+            path.return_value = marker
+            self.assertFalse(sandbox.in_container())
+            marker.mkdir()
+            self.assertFalse(sandbox.in_container())
+            marker.rmdir()
+            marker.touch()
+            self.assertTrue(sandbox.in_container())
+            self.assertEqual(path.call_args_list, [call('/.dockerenv')] * 3)
+
+    def test_locked_image_fingerprint_uses_the_repository_inputs_and_target(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        dockerfile = build.BOOTSTRAP_LOCK.parent / 'docker' / 'builder.Dockerfile'
+        with workspace() as directory:
+            root = directory / 'fixture'
+            (root / 'buildsys').mkdir(parents=True)
+            staged_dockerfile = root / 'docker' / 'builder.Dockerfile'
+            staged_dockerfile.parent.mkdir()
+            staged_dockerfile.write_bytes(dockerfile.read_bytes())
+            (root / 'bootstrap.lock.json').write_bytes(build.BOOTSTRAP_LOCK.read_bytes())
+            with patch.object(sandbox, '__file__', str(root / 'buildsys' / 'sandbox.py')):
+                x86 = sandbox._locked_image_fingerprint(X86)
+                arm = sandbox._locked_image_fingerprint(ARM)
+            self.assertNotEqual(x86, arm)
+            self.assertEqual(x86, sandbox.image_fingerprint(lock, X86, dockerfile))
+            self.assertEqual(arm, sandbox.image_fingerprint(lock, ARM, dockerfile))
+
+
+
 class ReferenceImageTests(unittest.TestCase):
     def test_sealed_container_protects_declared_read_only_inputs(self) -> None:
         created = subprocess.CompletedProcess([], 0, 'container-id\n', '')
@@ -183,6 +267,116 @@ class ReferenceImageTests(unittest.TestCase):
         removed = subprocess.CompletedProcess([], 1, "", "remove failed")
         with patch.object(sandbox, "_docker", side_effect=[created, inspection, started, removed]), self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
             sandbox.run_networked("image", ["test"], target=X86, mounts=[])
+
+    def test_pull_builder_base_uses_locked_image_and_checks_docker_inspection(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        reference = f'alpine@{lock.image_index_digest}'
+        successful = subprocess.CompletedProcess([], 0, '', '')
+        inspect_failed = subprocess.CompletedProcess([], 17, '', 'image unavailable\n')
+        with (
+            patch.object(sandbox, '_docker', side_effect=[successful, inspect_failed]) as docker,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.pull_image(lock, ARM.docker_platform)
+        self.assertEqual(str(error.exception), f'inspect {reference} failed (17): image unavailable')
+        self.assertEqual(docker.call_args_list, [
+            call('pull', '--platform', ARM.docker_platform, reference),
+            call('image', 'inspect', '--format', '{{.Id}}', reference),
+        ])
+
+    def test_failed_pull_diagnoses_the_locked_image_being_fetched(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        failed = subprocess.CompletedProcess([], 12, '', 'pull unavailable\n')
+        for command, reference in (
+            (sandbox.pull_image, f'alpine@{lock.image_index_digest}'),
+            (sandbox.pull_reference, lock.reference_image),
+        ):
+            with (
+                self.subTest(reference=reference),
+                patch.object(sandbox, '_docker', return_value=failed) as docker,
+                self.assertRaises(sandbox.SandboxError) as error,
+            ):
+                command(lock, ARM.docker_platform)
+            self.assertEqual(str(error.exception), f'pull {reference} failed (12): pull unavailable')
+            docker.assert_called_once_with('pull', '--platform', ARM.docker_platform, reference)
+
+    def test_vendoring_passes_the_requested_target_and_reports_process_output(self) -> None:
+        for code in (0, 19):
+            with (
+                self.subTest(code=code),
+                workspace() as directory,
+                patch.object(sandbox.os, 'getuid', return_value=1080),
+                patch.object(sandbox.os, 'getgid', return_value=2104),
+                patch.object(sandbox, '_docker', return_value=subprocess.CompletedProcess(
+                    [], code, 'cargo output\n', 'cargo stderr\n',
+                )) as docker,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                if code:
+                    with self.assertRaises(sandbox.SandboxError) as error:
+                        sandbox.run_fetch('locked-image', ARM, directory, ARM.triple)
+                    self.assertEqual(str(error.exception), 'Rust vendoring failed (19):\ncargo output\n\ncargo stderr\n')
+                    self.assertEqual(stdout.getvalue(), '')
+                else:
+                    sandbox.run_fetch('locked-image', ARM, directory, ARM.triple)
+                    self.assertEqual(stdout.getvalue(), 'cargo output\n')
+                docker.assert_called_once_with(
+                    'run', '--rm', '--network', 'bridge', '--platform', ARM.docker_platform,
+                    '--user', '1080:2104', '--workdir', '/src',
+                    '--volume', f'{directory}:/src:rw', '--env', 'TMPDIR=/src/.work/tmp',
+                    '--env', 'PYTHONPATH=/src', 'locked-image',
+                    'python3', 'build.py', 'fetch', '--target', ARM.triple, '--vendor-in-container',
+                    timeout=1800,
+                )
+
+    def test_reference_runtime_seals_the_copy_and_writes_the_loader_search_path(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'runtime-source\n', '')
+        successful = subprocess.CompletedProcess([], 0, '', '')
+        with workspace() as directory, patch.object(sandbox, '_docker', side_effect=[created, *([successful] * 5)]) as docker:
+            runtime = directory / 'generation' / 'runtime'
+            sandbox.copy_reference_runtime('locked-reference', ARM, runtime)
+            self.assertEqual(docker.call_args_list, [
+                call('create', '--network', 'none', '--platform', ARM.docker_platform, 'locked-reference'),
+                call('cp', '--follow-link', 'runtime-source:/usr/lib', str(runtime / 'usr')),
+                call('cp', '--follow-link', 'runtime-source:/usr/bin/python3', str(runtime / 'usr/python3')),
+                call('cp', '--follow-link', 'runtime-source:/usr/bin/make', str(runtime / 'usr/make')),
+                call('cp', '--follow-link', 'runtime-source:/lib', str(runtime / 'lib')),
+                call('rm', '--force', 'runtime-source'),
+            ])
+            self.assertEqual(
+                sorted(entry.relative_to(runtime).as_posix() for entry in runtime.rglob('*')),
+                ['etc', f'etc/ld-musl-{ARM.machine}.path', 'usr'],
+            )
+            self.assertEqual(
+                (runtime / 'etc' / f'ld-musl-{ARM.machine}.path').read_bytes(),
+                b'/opt/alpine/lib:/opt/alpine/usr/lib\n',
+            )
+
+    def test_reference_runtime_create_failure_does_not_copy_or_remove(self) -> None:
+        failed = subprocess.CompletedProcess([], 11, '', 'cannot create\n')
+        with (
+            workspace() as directory,
+            patch.object(sandbox, '_docker', return_value=failed) as docker,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.copy_reference_runtime('locked-reference', X86, directory / 'runtime')
+        self.assertEqual(str(error.exception), 'create reference runtime source failed (11): cannot create')
+        docker.assert_called_once_with('create', '--network', 'none', '--platform', X86.docker_platform, 'locked-reference')
+
+    def test_reference_copy_failure_takes_precedence_over_cleanup_failure(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'runtime-source\n', '')
+        failed = subprocess.CompletedProcess([], 7, '', 'copy failed\n')
+        cleanup = subprocess.CompletedProcess([], 8, '', 'remove failed\n')
+        with (
+            workspace() as directory,
+            patch.object(sandbox, '_docker', side_effect=[created, failed, cleanup]) as docker,
+            contextlib.redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.copy_reference_runtime('locked-reference', X86, directory / 'runtime')
+        self.assertEqual(str(error.exception), 'copy /usr/lib from reference runtime source failed (7): copy failed')
+        self.assertEqual(stderr.getvalue(), 'container cleanup failed: remove reference runtime source failed (8): remove failed\n')
+        self.assertEqual(docker.call_args_list[-1], call('rm', '--force', 'runtime-source'))
 
     def test_reference_runtime_copy_failure_removes_container(self) -> None:
         created = subprocess.CompletedProcess([], 0, "container-id\n", "")
