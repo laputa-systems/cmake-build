@@ -1,5 +1,39 @@
 # CMake executable performance
 
+## Benchmark entrypoint
+
+`make bench` runs the complete suite and is manual-only. `make bench-list` lists
+workloads, and `make bench-check` checks the selected prerequisites without
+running them. Pass options through `BENCH_ARGS`, for example:
+
+```sh
+make bench-check BENCH_ARGS='--tier edit'
+make bench BENCH_ARGS='--tier edit'
+make bench BENCH_ARGS='--dry-run --area cmake'
+make bench BENCH_ARGS='--workload release-matrix --target x86_64-unknown-linux-musl'
+```
+
+`--tier` is a ceiling: edit, change, scenario, full. Repeat `--workload`,
+`--area`, or `--skip` to select names, areas, or excluded names respectively.
+Unknown selectors and empty selections fail. Dry runs do not check prerequisites
+or write files. Exclusions are shown and recorded. There is no separately
+selectable Change or Scenario workload: the existing coordinator requires its
+complete matrix and at least five repetitions.
+
+| Workload | Tier / area | Purpose and cost | Requirements and output |
+| --- | --- | --- | --- |
+| controller | Edit / harness | Accounting, admission and report tests; estimated seconds | Locked Python environment; per-run log and summary |
+| release-matrix | Full / cmake | Version, script and initial, unchanged, edited and option-changed configure of fmt, zstd, libjpeg-turbo and LLVM/Clang, for product, musl and Kitware; estimated over 10 minutes | Native Linux matching target, Docker, strace, qualified generation, verified baseline and locked inputs; coordinator report here and evidence under `.work/benchmark-results/` |
+
+The driver invokes the coordinator’s archive, phase, lock and budget admission
+checks before running; preparation may discover additional missing inputs later. Host load is informational and does not prove timing
+readiness. Each execution writes a dated directory under
+`.work/benchmark-results/` with logs, exclusions, duration, exit status and
+validity. Edit completion is not a performance verdict. The matrix checks size
+and image RSS; its timing remains inconclusive without host readiness. Its
+coordinator replaces this file with its generated report, so restore this
+entrypoint section when updating that report.
+
 Target: `x86_64-unknown-linux-musl`. Runs per variant: 5.
 
 All three binaries ran in the same native Debian container with the pinned musl toolchain.
