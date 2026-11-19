@@ -1250,6 +1250,15 @@ full match and the first parser rejects malformed members. The two
 `subprocess.run(check=None)` variants are equivalent to the explicit
 false flag. All seven focused tests and both linters passed.
 
+The process accounting fixture checks the positive RSS boundary,
+units, source field, default tracing data, exact errno, and simulated
+wait and exit evidence. The previous Linux-only tests skip on macOS.
+The new five portable cases passed on macOS ARM64, and a fresh
+mutmut 3.8.1 run caught all 44 identities in `_peak` and `_trace`
+using CPython 3.15.2 and pytest 9.2.0. Ruff and ty passed. The
+existing native process tests still own actual RSS and signal
+delivery and the rest of the mutation scope remains open.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
