@@ -360,6 +360,27 @@ archive fixture. The Linux profiling script passes its `Event` fields by
 reference to the kernel. Keep these uses during the remaining structural
 review under DSLP-5.
 
+At `23e6d5a`, Ruff F401/F841 and deptry 0.25.1 passed. Vulture 2.16
+on `buildsys/ build.py scripts/` at confidence 60 reported 30 individual
+findings; these remain discovery only, not a whitelist. They include record
+fields, a signal callback argument, and four functions referenced by test or
+qualification runners outside that scan. The output exceeds the five-entry
+allowlist limit, so DSLP-5 remains open.
+
+The structural review checked `build.py` parser registrations and dispatch,
+Makefile targets, workflow invocations, `scripts/controller_coverage.py`,
+benchmark, TLS and provenance runners, and controller tests. The coverage
+script is invoked by `make coverage`; the benchmark runner and its ordering
+function are used by `benchmark`; the TLS and provenance helpers are invoked
+by their runners and exercised by controller tests. Target selection covers
+both supported Linux musl architectures; native execution of those paths was
+not repeated on this macOS host. Small path and sandbox wrappers still have
+callers, and the historical profiling scripts support documented studies. No
+branch or script was established as safely removable, so there are no removal
+records and no live-behavior tests were deleted. Local `make test` at the
+base ran 335 tests with only `test_audit.py` (native clang missing) and
+`test_tls.py` (offline rustls source missing) failing; `make lint` passed.
+
 
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
