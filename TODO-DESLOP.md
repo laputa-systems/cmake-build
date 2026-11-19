@@ -1312,6 +1312,12 @@ matrix and raised an overflow error for an out-of-range wall time.
 The report tests now require the measurement diagnostic for
 both inputs while continuing to accept the valid 54-scenario matrix.
 
+The benchmark boundary cases check a single interleaved order, zero
+RSS, and the exact results for an empty or incomplete sample matrix.
+Mutmut 3.8.1 ran the same 144 interleaving and summary identities under
+CPython 3.15.2. The added checks caught the remaining six. The wider
+report and coordinator scopes remain open.
+
 The benchmark provenance tests check the locked source and runtime
 identities passed into the report, x86 CPU model parsing and its absent
 label, and the size check's exact input archive. The sample matrix covers
