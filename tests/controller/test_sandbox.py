@@ -268,6 +268,116 @@ class ReferenceImageTests(unittest.TestCase):
         with patch.object(sandbox, "_docker", side_effect=[created, inspection, started, removed]), self.assertRaisesRegex(sandbox.SandboxError, "remove failed"):
             sandbox.run_networked("image", ["test"], target=X86, mounts=[])
 
+    def test_pull_builder_base_uses_locked_image_and_checks_docker_inspection(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        reference = f'alpine@{lock.image_index_digest}'
+        successful = subprocess.CompletedProcess([], 0, '', '')
+        inspect_failed = subprocess.CompletedProcess([], 17, '', 'image unavailable\n')
+        with (
+            patch.object(sandbox, '_docker', side_effect=[successful, inspect_failed]) as docker,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.pull_image(lock, ARM.docker_platform)
+        self.assertEqual(str(error.exception), f'inspect {reference} failed (17): image unavailable')
+        self.assertEqual(docker.call_args_list, [
+            call('pull', '--platform', ARM.docker_platform, reference),
+            call('image', 'inspect', '--format', '{{.Id}}', reference),
+        ])
+
+    def test_failed_pull_diagnoses_the_locked_image_being_fetched(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        failed = subprocess.CompletedProcess([], 12, '', 'pull unavailable\n')
+        for command, reference in (
+            (sandbox.pull_image, f'alpine@{lock.image_index_digest}'),
+            (sandbox.pull_reference, lock.reference_image),
+        ):
+            with (
+                self.subTest(reference=reference),
+                patch.object(sandbox, '_docker', return_value=failed) as docker,
+                self.assertRaises(sandbox.SandboxError) as error,
+            ):
+                command(lock, ARM.docker_platform)
+            self.assertEqual(str(error.exception), f'pull {reference} failed (12): pull unavailable')
+            docker.assert_called_once_with('pull', '--platform', ARM.docker_platform, reference)
+
+    def test_vendoring_passes_the_requested_target_and_reports_process_output(self) -> None:
+        for code in (0, 19):
+            with (
+                self.subTest(code=code),
+                workspace() as directory,
+                patch.object(sandbox.os, 'getuid', return_value=1080),
+                patch.object(sandbox.os, 'getgid', return_value=2104),
+                patch.object(sandbox, '_docker', return_value=subprocess.CompletedProcess(
+                    [], code, 'cargo output\n', 'cargo stderr\n',
+                )) as docker,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                if code:
+                    with self.assertRaises(sandbox.SandboxError) as error:
+                        sandbox.run_fetch('locked-image', ARM, directory, ARM.triple)
+                    self.assertEqual(str(error.exception), 'Rust vendoring failed (19):\ncargo output\n\ncargo stderr\n')
+                    self.assertEqual(stdout.getvalue(), '')
+                else:
+                    sandbox.run_fetch('locked-image', ARM, directory, ARM.triple)
+                    self.assertEqual(stdout.getvalue(), 'cargo output\n')
+                docker.assert_called_once_with(
+                    'run', '--rm', '--network', 'bridge', '--platform', ARM.docker_platform,
+                    '--user', '1080:2104', '--workdir', '/src',
+                    '--volume', f'{directory}:/src:rw', '--env', 'TMPDIR=/src/.work/tmp',
+                    '--env', 'PYTHONPATH=/src', 'locked-image',
+                    'python3', 'build.py', 'fetch', '--target', ARM.triple, '--vendor-in-container',
+                    timeout=1800,
+                )
+
+    def test_reference_runtime_seals_the_copy_and_writes_the_loader_search_path(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'runtime-source\n', '')
+        successful = subprocess.CompletedProcess([], 0, '', '')
+        with workspace() as directory, patch.object(sandbox, '_docker', side_effect=[created, *([successful] * 5)]) as docker:
+            runtime = directory / 'generation' / 'runtime'
+            sandbox.copy_reference_runtime('locked-reference', ARM, runtime)
+            self.assertEqual(docker.call_args_list, [
+                call('create', '--network', 'none', '--platform', ARM.docker_platform, 'locked-reference'),
+                call('cp', '--follow-link', 'runtime-source:/usr/lib', str(runtime / 'usr')),
+                call('cp', '--follow-link', 'runtime-source:/usr/bin/python3', str(runtime / 'usr/python3')),
+                call('cp', '--follow-link', 'runtime-source:/usr/bin/make', str(runtime / 'usr/make')),
+                call('cp', '--follow-link', 'runtime-source:/lib', str(runtime / 'lib')),
+                call('rm', '--force', 'runtime-source'),
+            ])
+            self.assertEqual(
+                sorted(entry.relative_to(runtime).as_posix() for entry in runtime.rglob('*')),
+                ['etc', f'etc/ld-musl-{ARM.machine}.path', 'usr'],
+            )
+            self.assertEqual(
+                (runtime / 'etc' / f'ld-musl-{ARM.machine}.path').read_bytes(),
+                b'/opt/alpine/lib:/opt/alpine/usr/lib\n',
+            )
+
+    def test_reference_runtime_create_failure_does_not_copy_or_remove(self) -> None:
+        failed = subprocess.CompletedProcess([], 11, '', 'cannot create\n')
+        with (
+            workspace() as directory,
+            patch.object(sandbox, '_docker', return_value=failed) as docker,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.copy_reference_runtime('locked-reference', X86, directory / 'runtime')
+        self.assertEqual(str(error.exception), 'create reference runtime source failed (11): cannot create')
+        docker.assert_called_once_with('create', '--network', 'none', '--platform', X86.docker_platform, 'locked-reference')
+
+    def test_reference_copy_failure_takes_precedence_over_cleanup_failure(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'runtime-source\n', '')
+        failed = subprocess.CompletedProcess([], 7, '', 'copy failed\n')
+        cleanup = subprocess.CompletedProcess([], 8, '', 'remove failed\n')
+        with (
+            workspace() as directory,
+            patch.object(sandbox, '_docker', side_effect=[created, failed, cleanup]) as docker,
+            contextlib.redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaises(sandbox.SandboxError) as error,
+        ):
+            sandbox.copy_reference_runtime('locked-reference', X86, directory / 'runtime')
+        self.assertEqual(str(error.exception), 'copy /usr/lib from reference runtime source failed (7): copy failed')
+        self.assertEqual(stderr.getvalue(), 'container cleanup failed: remove reference runtime source failed (8): remove failed\n')
+        self.assertEqual(docker.call_args_list[-1], call('rm', '--force', 'runtime-source'))
+
     def test_reference_runtime_copy_failure_removes_container(self) -> None:
         created = subprocess.CompletedProcess([], 0, "container-id\n", "")
         failed = subprocess.CompletedProcess([], 1, "", "copy failed")

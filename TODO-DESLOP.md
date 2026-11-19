@@ -799,6 +799,19 @@ alias tracked paths on the case-folded fixture volume. Use
 worker. Include `docker`, `patches`, and `scripts` in the archive copy.
 The focused sandbox suite and linters passed.
 
+The reference image and runtime fixtures exercise locked image pull and
+inspection, vendoring arguments and output, the sealed copy paths, and
+cleanup failure ordering. The macOS ARM64 trial caught 251 of 252
+mutations in `pull_image`, `pull_reference`, `run_fetch`, and
+`copy_reference_runtime`. Variant 75 in the last function changes the
+loader write directory from `etc` to `ETC`; the case-folded macOS volume
+maps both names to the directory already created as `etc`.
+Use `tests/controller/test_sandbox.py`, mutmut 3.8.1 and pytest 9.2.0
+with one mutation worker and include `docker`, `patches`, and `scripts`
+in the archive's `also_copy`. All focused sandbox tests and linters
+passed.
+
+
 ## Tickets
 
 
