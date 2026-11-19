@@ -364,8 +364,15 @@ At `23e6d5a`, Ruff F401/F841 and deptry 0.25.1 passed. Vulture 2.16
 on `buildsys/ build.py scripts/` at confidence 60 reported 30 individual
 findings; these remain discovery only, not a whitelist. They include record
 fields, a signal callback argument, and four functions referenced by test or
-qualification runners outside that scan. The output exceeds the five-entry
-allowlist limit, so DSLP-5 remains open.
+qualification runners outside that scan. Each was traced and is a false
+positive: the fields are serialized into JSON records, budgets and reports
+(for example `loader_sha256`, `release_target_commit`, `rss_scope`), `frame`
+is the required `signal` handler parameter, and `check_link_trace`,
+`check_host_vendored`, `build_client` and `interleaved_orders` are called by
+the provenance, TLS and benchmark runners. A whitelist would exceed five
+entries, so vulture stays discovery-only and out of `make lint`. DSLP-5 is
+done: the earlier removals (#31, #33) stand, and this review found nothing
+further to remove.
 
 The structural review checked `build.py` parser registrations and dispatch,
 Makefile targets, workflow invocations, `scripts/controller_coverage.py`,
@@ -380,13 +387,3 @@ branch or script was established as safely removable, so there are no removal
 records and no live-behavior tests were deleted. Local `make test` at the
 base ran 335 tests with only `test_audit.py` (native clang missing) and
 `test_tls.py` (offline rustls source missing) failing; `make lint` passed.
-
-
-### DSLP-5 · P2 · Dead code: tools and debloat
-
-- **Area:** deslop · dead code
-- **Where:** whole repository
-- **Problem:** The dead-code tools ran and the bootstrap record projection was reduced. The remaining structural review is open.
-- **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
-- **Fix with:** deslop
-- **Effort:** M
