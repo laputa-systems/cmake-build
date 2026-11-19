@@ -784,6 +784,21 @@ that the listener still owned a live descriptor. Both checks now see
 a closed descriptor and no probe invocations. Run
 `python -m unittest discover -s tests/controller -p test_sandbox.py -k closes_the_listener`.
 
+The sandbox transport fixture runs a local child to verify argument
+boundaries, working directory, stdout, stderr, exit status and
+deadline. It also checks bridge gateway fallback and independently
+stages the lock and Dockerfile under a fixture checkout root.
+
+The matching macOS ARM64 selection for `_docker`, `_probe`,
+`_host_gateway`, `_locked_image_fingerprint`, `docker_path`, and
+`in_container` caught 82 of 89, compared with 9 before the transport
+fixture. `_docker` 6 and 12 and `_probe` 5 and 11 retain the same
+falsey subprocess check. `_locked_image_fingerprint` 13, 16 and 17
+alias tracked paths on the case-folded fixture volume. Use
+`tests/controller/test_sandbox.py`, mutmut 3.8.1, pytest 9.2.0 and one
+worker. Include `docker`, `patches`, and `scripts` in the archive copy.
+The focused sandbox suite and linters passed.
+
 ## Tickets
 
 
