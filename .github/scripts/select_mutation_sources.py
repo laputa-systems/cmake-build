@@ -10,6 +10,7 @@ from importlib import import_module
 from pathlib import Path, PurePosixPath
 
 CRITICAL = frozenset({
+    "buildsys/budgets.py",
     "buildsys/generations.py",
     "buildsys/inputs.py",
     "buildsys/phases.py",
