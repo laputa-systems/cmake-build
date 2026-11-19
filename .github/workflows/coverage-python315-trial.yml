@@ -27,5 +27,7 @@ jobs:
       - name: Run the retained coverage entry point
         run: |
           make coverage TARGET=x86_64-unknown-linux-musl
+          jaq -e '.files["buildsys/inputs.py"].summary.covered_branches > 0' \
+            .work/coverage/controller-x86_64-unknown-linux-musl.json
           jaq '.totals | {covered_lines, num_statements, covered_branches, num_branches}' \
             .work/coverage/controller-x86_64-unknown-linux-musl.json
