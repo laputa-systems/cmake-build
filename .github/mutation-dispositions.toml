@@ -166,3 +166,31 @@ Darwin = [
   "buildsys.phases.x__write_json__mutmut_9=1f36eff4e2dc4cf13386da167352be393d0098a31596ebfb83b1e9166e065710",
   "buildsys.phases.xǁPhaseCacheǁ_read__mutmut_6=867c4e6ea9b30a1064bbfc669d470454bd0a703ea19fce2f603e9875ff3bcff8",
 ]
+
+[qualified.reproduce]
+source_sha256 = "1ea7610382b14131cc2fce250abe854221b7fb1f1facd8ee0fb00d5d776dcd8d"
+Linux = [
+  "buildsys.reproduce.x_run__mutmut_115=8d5c1ffb39e7284cfafff8b704dcfd29a654b2e578976648e12a092ac8d65609",
+  "buildsys.reproduce.x_run__mutmut_172=a4825154635093f8da00e6bd2179ed853ecce006c8ba178a12ec34b3335cce89",
+  "buildsys.reproduce.x_run__mutmut_190=7a450ad68f396631a8c1f76d94378b25298f612d36389cf86564ff80cd6ca4eb",
+  "buildsys.reproduce.x_run__mutmut_193=6e4df788f1d1ed682beb3d36217873f89a6481cbf2e97036ea68ab62314fd034",
+  "buildsys.reproduce.x_run__mutmut_33=e78313286f331137ed91329570ade279f7092f39f7ccbdf7bb56925fb1a686da",
+]
+Darwin = [
+  "buildsys.reproduce.x_run__mutmut_115=8d5c1ffb39e7284cfafff8b704dcfd29a654b2e578976648e12a092ac8d65609",
+  "buildsys.reproduce.x_run__mutmut_133=a221ff1ac39a295aeab5f89b25cd3cd86b3447bacb039c87bc218b3fda2250f5",
+  "buildsys.reproduce.x_run__mutmut_161=7692bad23135a12cd4259970a686d6ba0020335eaddf1691c940b023b621ef64",
+  "buildsys.reproduce.x_run__mutmut_172=a4825154635093f8da00e6bd2179ed853ecce006c8ba178a12ec34b3335cce89",
+  "buildsys.reproduce.x_run__mutmut_190=7a450ad68f396631a8c1f76d94378b25298f612d36389cf86564ff80cd6ca4eb",
+  "buildsys.reproduce.x_run__mutmut_193=6e4df788f1d1ed682beb3d36217873f89a6481cbf2e97036ea68ab62314fd034",
+  "buildsys.reproduce.x_run__mutmut_33=e78313286f331137ed91329570ade279f7092f39f7ccbdf7bb56925fb1a686da",
+  "buildsys.reproduce.x_run__mutmut_56=456fdf4bee6524f9c71264888fecce3bacd8261e6491960644a05b6371a96ac1",
+  "buildsys.reproduce.x_run__mutmut_68=c8ed0142ec3da1825f0e12d11e60c7005752d243c0e60377d973b4dff9d82694",
+  "buildsys.reproduce.x_run__mutmut_71=2bd7a5300d05b0eee89107903fbe4610a2facb673899b8e4b2a5b270234c3893",
+  "buildsys.reproduce.x_run__mutmut_74=9596b92be91b258eaf05a005c75ed2b970d3c4b255244fa9c7f068234c41bf4e",
+  "buildsys.reproduce.x_run__mutmut_76=0a1f6473193f484a61da7b1946cceda0708f7ddccf9674b588d7686a3f6444c7",
+  "buildsys.reproduce.x_run__mutmut_83=0e6029000f9d010596533655a323ebba382e33aaa5dd5031f9db79120a45aecc",
+  "buildsys.reproduce.x_run__mutmut_85=db45528e32915664b400a1a1b5c4c071106bde8f72c95a99e96f0733a73f14a2",
+  "buildsys.reproduce.x_run__mutmut_92=fb5f52f63150130ad2040dd6519e47ed68e12c716694b4e2ba38ec92a386dee6",
+  "buildsys.reproduce.x_run__mutmut_94=b48462d8d80761778bfbcafcdaf5181d44b7da4a175f4fc34612a3a040ff599e",
+]

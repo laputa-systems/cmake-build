@@ -14,6 +14,7 @@ CRITICAL = frozenset({
     "buildsys/generations.py",
     "buildsys/inputs.py",
     "buildsys/phases.py",
+    "buildsys/reproduce.py",
 })
 
 CONFIGURATION = frozenset({
