@@ -1056,6 +1056,24 @@ controller suite keeps the two real vendored-graph cases.
 `check_host_vendored` and `build_client` remain separate mutation
 scopes.
 
+**TLS client build handoff**
+
+The fixture verifies the locked source request, target-specific
+toolchain and image selection, and the complete bootstrap,
+cmcurl configure, make and static PIE link commands. It reads
+both written phase records. An image change rebuilds both
+phases, an unchanged image reuses them, and a flat source
+archive fails before a build command runs. The commands are
+recorded at the subprocess boundary.
+
+At `4e67c9bb`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 304 `buildsys.tls.build_client` identities with
+`tests/controller/test_tls.py` on macOS ARM64. The baseline
+caught 134. The new fixture caught 302. Variants 223 and 224
+change only the path casing of the Rustls source manifest on
+the case-insensitive filesystem. They need a case-sensitive
+native run. All 12 focused tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
