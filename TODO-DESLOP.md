@@ -571,6 +571,23 @@ change a private same-directory temporary suffix, and 9, 10, 12–15
 change whitespace or key ordering in decoded JSON. All ten phase
 tests and both linters passed.
 
+**Candidate generation activation**
+
+The existing package suite exercised all 468 package and generation
+identities at `46be173`. Package caught 291 of 327. Generation caught
+101 of 141. The new generation cases intercept a failed active-pointer
+swap, confirm that the previous tree stays active and the temporary
+link is removed, and retry with the retained candidate. Separate cases
+reject empty qualification results and bytes changed during copying.
+
+Using that same source and exact spans, the generation selection
+now catches 107 of 141. Reuse the controller archive recipe with
+`test_package_archive.py`, `test_package_generations.py` and
+`test_package_commands.py` as the test paths, and select
+`buildsys.generations.*` under mutmut 3.8.1 and pytest 9.2.0.
+All 21 package tests and both linters passed. The remaining generation
+and package variants stay in DSLP-4.
+
 ## Tickets
 
 
