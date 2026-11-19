@@ -14,10 +14,11 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, call, patch
 
-from helpers import workspace
+from helpers import archive, workspace
 
 import build
 from buildsys import sandbox
+from buildsys import toolchain as compiler
 from buildsys.inputs import Cache, Input, InputError, load_bootstrap
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
 from buildsys.targets import target
@@ -514,31 +515,150 @@ class ToolchainTests(unittest.TestCase):
     def test_accepts_pinned_identity(self) -> None:
         with workspace() as directory:
             toolchain = fake_toolchain(directory / "tc")
-            report = verify(toolchain, X86, environ={"PATH": str(directory / "empty")})
-            self.assertEqual(report["clang"], CLANG_VERSION)
+            for description in (X86, ARM):
+                with self.subTest(target=description.triple):
+                    environ = {"PATH": str(toolchain / "bin")}
+                    with patch.object(compiler.subprocess, "run", wraps=subprocess.run) as run:
+                        report = verify(toolchain, description, environ=environ)
+                    self.assertEqual([launch.args[0] for launch in run.call_args_list], [
+                        [str(toolchain / "bin/clang"), "--version"],
+                        [str(toolchain / "bin/ld.lld"), "--version"],
+                    ])
+                    for launch in run.call_args_list:
+                        self.assertEqual(launch.kwargs.get("env"), environ)
+                        self.assertEqual(launch.kwargs.get("timeout"), 60)
+                    self.assertEqual(report, {
+                        "release": compiler.LLVM_RELEASE,
+                        "release_target_commit": compiler.RELEASE_TARGET_COMMIT,
+                        "clang": CLANG_VERSION,
+                        "lld": f"{LLD_VERSION} (compatible with GNU linkers)",
+                        "target": description.triple,
+                        "tools": {name: str((toolchain / "bin" / name).resolve()) for name in TOOLS},
+                    })
+
+    def test_checks_every_tool_before_invoking_the_compiler(self) -> None:
+        with workspace() as directory:
+            toolchain = directory / "toolchain"
+            with self.assertRaisesRegex(ToolchainError, r": missing bin directory$"):
+                verify(toolchain, ARM, environ={})
+            fake_toolchain(toolchain)
+            binary = toolchain / "bin/llvm-readelf"
+            binary.unlink()
+            with self.assertRaisesRegex(ToolchainError, r"/llvm-readelf: missing$"):
+                verify(toolchain, ARM, environ={})
+            binary.write_text("fixture")
+            binary.chmod(0o644)
+            with self.assertRaisesRegex(ToolchainError, r"/llvm-readelf: not executable$"):
+                verify(toolchain, ARM, environ={})
+            binary.unlink()
+            external = directory / "other-readelf"
+            external.write_text("#!/bin/sh\nexit 0\n")
+            external.chmod(0o755)
+            binary.symlink_to(external)
+            with self.assertRaisesRegex(ToolchainError, r"/llvm-readelf: resolves outside "):
+                verify(toolchain, ARM, environ={})
+
+    def test_reports_compiler_launch_and_version_process_failures(self) -> None:
+        with workspace() as directory:
+            toolchain = fake_toolchain(directory / "toolchain")
+            clang = toolchain / "bin/clang"
+            environ = {"PATH": str(toolchain / "bin"), "FIXTURE_NAME": "locked compiler"}
+            clang.write_text("#!/bin/sh\nprintf ' %s \\n' \"$FIXTURE_NAME\" >&2\nexit 23\n")
+            with self.assertRaisesRegex(ToolchainError, r"/clang: exit 23: locked compiler$"):
+                verify(toolchain, X86, environ=environ)
+            clang.write_text("#!/nonexistent-controller-test-interpreter\n")
+            with self.assertRaisesRegex(ToolchainError, r"/clang: cannot execute: "):
+                verify(toolchain, X86, environ=environ)
+            clang.write_text("#!/bin/sh\nexit 0\n")
+            with self.assertRaisesRegex(ToolchainError, r"clang version 'missing'"):
+                verify(toolchain, X86, environ=environ)
+            clang.write_text(f"#!/bin/sh\necho '{CLANG_VERSION}'\n")
+            (toolchain / "bin/ld.lld").write_text("#!/bin/sh\nexit 0\n")
+            with self.assertRaisesRegex(ToolchainError, r"ld.lld version 'missing'"):
+                verify(toolchain, X86, environ=environ)
+
+    def test_installs_flat_and_wrapped_archives_and_rejects_replacement(self) -> None:
+        for prefix in ("", "llvm-release/"):
+            with self.subTest(prefix=prefix), workspace() as directory:
+                source = archive(directory / "llvm.tar.gz", [
+                    (f"{prefix}bin/clang", b"fixture compiler", None),
+                    (f"{prefix}README", b"fixture release", None),
+                ])
+                destination = directory / "installed"
+                staging = directory / ".installed.extract"
+                staging.mkdir()
+                (staging / "stale").touch()
+                self.assertEqual(compiler.install(source, destination), destination)
+                self.assertEqual(sorted(path.name for path in destination.iterdir()), ["README", "bin"])
+                self.assertEqual((destination / "bin/clang").read_bytes(), b"fixture compiler")
+                self.assertFalse(staging.exists())
+                with self.assertRaisesRegex(ToolchainError, r"/installed: already exists$"):
+                    compiler.install(source, destination)
+                self.assertEqual((destination / "README").read_bytes(), b"fixture release")
+
+    def test_install_removes_partially_extracted_staging_after_failure(self) -> None:
+        with workspace() as directory:
+            source = directory / "broken.tar.gz"
+            destination = directory / "installed"
+            staging = directory / ".installed.extract"
+
+            def fail_extraction(archive_path: Path, extracted: Path) -> Path:
+                self.assertEqual(archive_path, source)
+                self.assertEqual(extracted, staging)
+                extracted.mkdir()
+                (extracted / "partial").touch()
+                raise InputError("truncated fixture archive")
+
+            with (patch.object(compiler, "safe_extract", side_effect=fail_extraction),
+                  self.assertRaisesRegex(InputError, r"^truncated fixture archive$")):
+                compiler.install(source, destination)
+            self.assertFalse(destination.exists())
+            self.assertFalse(staging.exists())
+
+    def test_musl_flags_and_tool_environment_use_the_requested_target(self) -> None:
+        for description in (X86, ARM):
+            with self.subTest(target=description.triple), workspace() as directory:
+                toolchain = directory / "fixture toolchain"
+                sysroot = directory / "fixture sysroot"
+                flags = [f"--target={description.triple}", f"--sysroot={sysroot}",
+                         "-fuse-ld=lld", "--rtlib=compiler-rt", "--unwindlib=libunwind"]
+                self.assertEqual(compiler.flags(description, sysroot), flags)
+                self.assertEqual(compiler.cxx_flags(description, sysroot), [*flags, "-stdlib=libc++"])
+                self.assertEqual(compiler.environment(toolchain, description), {
+                    "CC": str(toolchain / "bin/clang"),
+                    "CXX": str(toolchain / "bin/clang++"),
+                    "AR": str(toolchain / "bin/llvm-ar"),
+                    "RANLIB": str(toolchain / "bin/llvm-ranlib"),
+                    "NM": str(toolchain / "bin/llvm-nm"),
+                    "STRIP": str(toolchain / "bin/llvm-strip"),
+                    "OBJCOPY": str(toolchain / "bin/llvm-objcopy"),
+                    "READELF": str(toolchain / "bin/llvm-readelf"),
+                    "TARGET": description.triple,
+                })
 
     def test_wrong_version_string_fails(self) -> None:
         with workspace() as directory:
             toolchain = fake_toolchain(directory / "tc", clang_version="clang version 22.0.0")
-            with self.assertRaisesRegex(ToolchainError, "!= 'clang version 23.1.5'"):
+            with self.assertRaisesRegex(ToolchainError, r"clang version 'clang version 22\.0\.0' !="):
                 verify(toolchain, X86, environ={"PATH": str(directory / "empty")})
 
     def test_lld_version_prefix_is_not_enough(self) -> None:
         with workspace() as directory:
             toolchain = fake_toolchain(directory / "tc", lld="LLD 23.1.50")
-            with self.assertRaisesRegex(ToolchainError, "ld.lld version"):
+            with self.assertRaisesRegex(ToolchainError, r"ld\.lld version 'LLD 23\.1\.50 .*' !="):
                 verify(toolchain, X86, environ={"PATH": str(directory / "empty")})
 
-    def test_fake_clang_earlier_on_path_fails(self) -> None:
-        with workspace() as directory:
-            toolchain = fake_toolchain(directory / "tc")
-            elsewhere = directory / "elsewhere"
-            elsewhere.mkdir()
-            fake = elsewhere / "clang"
-            fake.write_text("#!/bin/sh\necho 'clang version 23.1.5'\n")
-            fake.chmod(0o755)
-            with self.assertRaisesRegex(ToolchainError, "resolves outside the pinned toolchain"):
-                verify(toolchain, X86, environ={"PATH": str(elsewhere)})
+    def test_path_shadowing_fails_even_when_earlier_tools_are_absent(self) -> None:
+        for name in ("clang", "llvm-ar"):
+            with self.subTest(tool=name), workspace() as directory:
+                toolchain = fake_toolchain(directory / "tc")
+                elsewhere = directory / "elsewhere"
+                elsewhere.mkdir()
+                fake = elsewhere / name
+                fake.write_text("#!/bin/sh\nexit 0\n")
+                fake.chmod(0o755)
+                with self.assertRaisesRegex(ToolchainError, f"{name} resolves outside the pinned toolchain"):
+                    verify(toolchain, X86, environ={"PATH": str(elsewhere)})
 
 
 class MachineTests(unittest.TestCase):
