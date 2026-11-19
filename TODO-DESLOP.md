@@ -1232,6 +1232,24 @@ equivalent. The probe replacement variant remains open for
 the wider text check. All ten focused tests and both
 linters passed.
 
+**ELF archive selection and link output**
+
+The portable fixtures inspect duplicate archive members, relative and
+absolute archive paths, preservation of the original when stripping,
+and the order of the probe, archive inspection and final link. They
+check the exact rewritten probe arguments and verify that a rejected
+final result removes the output and preserves the original diagnostic.
+
+At `56902fb90`, mutmut 3.8.1, CPython 3.15.2 and pytest 9.2.0
+selected the same 267 identities for `_selected_members`,
+`audit_archives`, `strip_debug` and `prelink` on macOS ARM64.
+The prior portable test selection reached none. The added
+`tests/controller/test_elf_tools.py` caught 262. Three diagnostic-only
+variants are unreachable because the two archive parsers use the same
+full match and the first parser rejects malformed members. The two
+`subprocess.run(check=None)` variants are equivalent to the explicit
+false flag. All seven focused tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
