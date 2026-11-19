@@ -16,16 +16,22 @@ jobs:
       contents: read
     outputs:
       modules: ${{ steps.select.outputs.modules }}
+      buildlib: ${{ steps.buildlib.outputs.revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - id: buildlib
+        run: |
+          revision=$(cat .github/mutation-buildlib-revision)
+          [[ $revision =~ ^[a-f0-9]{40}$ ]]
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: laputa-systems/buildlib
-          ref: 6b2f4deb0a9afe024665863b6dd629fcfbd3c918
+          ref: ${{ steps.buildlib.outputs.revision }}
           path: .work/buildlib
           persist-credentials: false
       - id: select
@@ -50,15 +56,17 @@ jobs:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
     env:
       MODULE: ${{ matrix.module }}
+      BASE_REVISION: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: laputa-systems/buildlib
-          ref: 6b2f4deb0a9afe024665863b6dd629fcfbd3c918
+          ref: ${{ needs.plan.outputs.buildlib }}
           path: .work/buildlib
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -67,99 +75,7 @@ jobs:
       - run: uv python install 3.15.2
       - name: Verify mutation results
         run: |
-          root="$PWD"
-          reader="$root/.work/buildlib/scripts"
-          mkdir -p "$root/.work/tmp"
-          export TMPDIR="$root/.work/tmp"
-          source="buildsys/$MODULE.py"
-          paths=(build.py buildsys tests .github bootstrap.lock.json sources.lock.json
-                 release-budgets.json pyproject.toml uv.lock docker patches scripts)
-          git ls-tree -r --full-tree HEAD -- "${paths[@]}" |
-            awk '$1 == "120000" || $1 == "160000" { print "unsupported archive entry: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }'
-          module_copy=
-          case "$MODULE" in
-            bootstrap)
-              tests='["tests/controller/test_bootstrap.py"]'
-              module_copy=', "docker", "patches", "scripts"'
-              ;;
-            buildlib_wheel) tests='["tests/controller/test_buildlib_wheel.py::CacheAdmissionTests"]' ;;
-            budgets) tests='["tests/controller/test_budgets.py", "tests/controller/test_package_reproduce.py",
-                              "tests/controller/test_package_generations.py", "tests/controller/test_cli.py"]' ;;
-            cmake)
-              tests='["tests/controller/test_cmake.py"]'
-              module_copy=', "docker", "patches", "scripts"'
-              ;;
-            generations) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
-                                  "tests/controller/test_package_commands.py"]' ;;
-            licenses|stage) tests='["tests/controller/test_licenses.py"]' ;;
-            inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;
-            reference) tests='["tests/controller/test_reference.py"]' ;;
-            reproduce) tests='["tests/controller/test_package_reproduce.py", "tests/host/test_reproduction_git.py"]' ;;
-            package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
-                              "tests/controller/test_package_commands.py"]' ;;
-            phases) tests='["tests/controller/test_phases.py"]' ;;
-            qualify)
-              tests='["tests/controller/test_projects.py", "tests/controller/test_network_qualification.py",
-                      "tests/controller/test_parity_qualification.py"]'
-              module_copy=', "docker", "patches", "scripts"'
-              mkdir -p "$root/.work/tools"
-              jaq_blob=$(uv run --frozen --python 3.15.2 python -c '
-          from pathlib import Path
-          import sys
-          from buildsys.inputs import Cache, load_sources
-
-          entry = next(item for item in load_sources(Path("sources.lock.json")) if item.name == sys.argv[1])
-          print(Cache(Path(".work/cache")).fetch(entry))
-          ' "jaq-$(uname -m)")
-              install -m 0755 "$jaq_blob" "$root/.work/tools/jaq"
-              export PATH="$root/.work/tools:$PATH"
-              ;;
-            rust)
-              tests='["tests/controller/test_sandbox.py", "tests/controller/test_tls.py", "tests/controller/test_rust.py",
-                       "tests/controller/test_kache.py", "-k", "not locked_graph and not locked_dependency_graph"]'
-              module_copy=', "docker", "patches", "scripts"'
-              ;;
-            sandbox|sysroot|toolchain)
-              tests='["tests/controller/test_sandbox.py"]'
-              module_copy=', "docker", "patches", "scripts"'
-              ;;
-            tls)
-              tests='["tests/controller/test_tls.py", "-k", "not locked_graph and not locked_dependency_graph"]'
-              module_copy=', "docker", "patches", "scripts"'
-              ;;
-            *) exit 2 ;;
-          esac
-          export PYTHONCOERCECLOCALE=0 PYTHONUTF8=0
-          if [ "$(uname -s)" = Darwin ]; then
-            export LC_ALL=en_US.UTF-8
-          else
-            export LC_ALL=C.UTF-8
-          fi
-          proof="$root/.work/tmp/whole-change-$MODULE"
-          mkdir -p "$proof/.work/tmp"
-          touch "$proof/.work/tmp/.keep"
-          export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
-          git archive HEAD -- "${paths[@]}" | tar -x -C "$proof"
-          cache_copy=
-          if [ "$MODULE" = buildlib_wheel ]; then
-            (cd "$proof"; uv run --frozen --python 3.15.2 python -c 'from buildsys import WHEEL')
-            cache_copy=', ".work/cache"'
-          fi
-          cat >> "$proof/pyproject.toml" <<TOML
-
-          [tool.mutmut]
-          source_paths = ["buildsys"]
-          only_mutate = ["$source"]
-          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"$cache_copy$module_copy]
-          pytest_add_cli_args_test_selection = $tests
-          use_setproctitle = false
-          TOML
-          uv run --frozen --python 3.15.2 --with mutmut==3.8.1 --with pytest==9.2.0 bash -euc '
-            cd "$1"
-            python -m mutmut run --max-children 1 "buildsys.$2.*"
-          ' cmake-proof "$proof" "$MODULE"
-          uv run --frozen --python 3.15.2 python .github/scripts/check_mutation_results.py \
-            "$source" "$proof" .github/mutation-dispositions.toml "$reader"
+          make mutants-diff MUTATION_BASE="$BASE_REVISION" MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib
 
   whole-change:
     if: always()

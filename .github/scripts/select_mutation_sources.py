@@ -76,6 +76,7 @@ def main() -> None:
     parser.add_argument("base")
     parser.add_argument("buildlib_scripts", type=Path)
     parser.add_argument("--qualified-modules", type=Path)
+    parser.add_argument("--lines", action="store_true")
     args = parser.parse_args()
     sys.path.insert(0, str(args.buildlib_scripts.resolve(strict=True)))
     parse_changes = import_module("mutants_gate").parse_changes
@@ -95,7 +96,10 @@ def main() -> None:
     unqualified = set(modules) - dispositions["qualified"].keys()
     if unknown or unqualified:
         raise ValueError(f"sources still need qualification: {sorted(unknown | unqualified)}")
-    print(json.dumps(modules))
+    if args.lines:
+        print(*modules, sep="\n", end="\n" if modules else "")
+    else:
+        print(json.dumps(modules))
 
 
 if __name__ == "__main__":

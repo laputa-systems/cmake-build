@@ -1266,6 +1266,18 @@ full match and the first parser rejects malformed members. The two
 `subprocess.run(check=None)` variants are equivalent to the explicit
 false flag. All seven focused tests and both linters passed.
 
+The 18-scope native head `c5c89e0ff` passed all 38 jobs,
+including both distribution scopes on both Linux architectures.
+[Native run](https://github.com/laputa-systems/cmake-build/actions/runs/44516789463)
+
+The trial now uses the same `make mutants-diff MUTATION_BASE=<commit>`
+command as the local check. `MUTATION_SCOPE` selects one member of
+the computed change union. The Buildlib reader is archived from the
+pinned revision in `.github/mutation-buildlib-revision`. Set
+`MUTATION_BUILDLIB` to a checkout containing that commit when it
+is outside the default local path. Every invocation uses fresh
+scratch for the selected scopes.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
