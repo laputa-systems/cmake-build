@@ -954,6 +954,26 @@ creation for the scratch path. The admitted build already has its
 `.work` parent because the source phase is there. All ten focused
 cases and both linters passed.
 
+**Qualification report boundaries**
+
+The JUnit fixture exercises malformed XML through the installed
+`jaq` and verifies the text diagnostic. It also isolates an
+empty result, invalid case data and a missing baseline failure.
+The report fixture replaces both a middle and a final section.
+A simulated flush failure removes the temporary file before
+raising. Publication preserves the original error and report.
+
+On macOS ARM64 the three report helpers caught 135 of the same
+143 variants at base `18da34d7`, up from 122. Use mutmut 3.8.1
+and pytest 9.2.0 with `UpstreamReportTests` and
+`QualificationSectionTests` in `tests/controller/test_projects.py`.
+`_junit` variants 10 and 15 retain the default falsey subprocess
+check. `_write_section` variant 12 selects the same location for
+the single managed heading. Variants 37, 41, 46 and 47 change
+the name of a removed temporary file. Variant 39 passes a falsey
+temporary-file deletion switch. All eleven focused cases and both
+linters passed.
+
 ## Tickets
 
 

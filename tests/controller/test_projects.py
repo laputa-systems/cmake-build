@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 import unittest
-from contextlib import nullcontext, redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -169,6 +169,8 @@ class ProjectQualificationTests(unittest.TestCase):
 class UpstreamReportTests(unittest.TestCase):
     def test_only_failures_reproduced_by_the_baseline_are_shared(self) -> None:
         _check_baseline_failures({'a'}, {'a': 'fail'})
+        with self.assertRaisesRegex(QualificationError, r"^candidate-only upstream failures: \['a'\]$"):
+            _check_baseline_failures({'a', 'z'}, {'a': 'run', 'z': 'fail'})
         for baseline in ({'a': 'run'}, {}, {'a': 'fail', 'b': 'fail'}):
             with self.subTest(baseline=baseline), self.assertRaises(QualificationError):
                 _check_baseline_failures({'a'}, baseline)
@@ -178,7 +180,11 @@ class UpstreamReportTests(unittest.TestCase):
             report = directory / 'report.xml'
             report.write_text('<testsuite><testcase name="a" status="run"/><testcase name="b" status="fail"/></testsuite>')
             self.assertEqual(_junit(report), {'a': 'run', 'b': 'fail'})
-            for text in ('<testsuite', '<testsuite/>', '<testsuite><testcase name="a" status="run"/><testcase name="a" status="fail"/></testsuite>',
+            report.write_text('<testsuite')
+            with self.assertRaisesRegex(QualificationError, '^cannot parse upstream report: ') as error:
+                _junit(report)
+            self.assertNotIn("upstream report: b'", str(error.exception))
+            for text in ('<testsuite/>', '<testsuite><testcase name="a" status="run"/><testcase name="a" status="fail"/></testsuite>',
                          '<testsuite><testcase name="a" status="notrun"/></testsuite>'):
                 with self.subTest(report=text), self.assertRaises(QualificationError):
                     report.write_text(text)
@@ -190,7 +196,7 @@ class UpstreamReportTests(unittest.TestCase):
             for attributes in ('status="run"', 'name="" status="run"'):
                 with self.subTest(attributes=attributes):
                     report.write_text(f'<testsuite><testcase {attributes}/></testsuite>')
-                    with self.assertRaisesRegex(QualificationError, 'upstream report has invalid test cases'):
+                    with self.assertRaisesRegex(QualificationError, '^upstream report has invalid test cases$'):
                         _junit(report)
 
 
@@ -217,11 +223,16 @@ class UpstreamReportTests(unittest.TestCase):
             self.assertEqual(len(command), 6)
             self.assertEqual(command[-1], str(report))
             self.assertEqual(run.call_args.kwargs['timeout'], 60)
-            for output in ('...', '{}', '[42]', '[{"name":"a","status":null}]'):
+            invalid = 'upstream report has invalid test cases'
+            inadmissible = 'upstream report is empty, duplicated, or contains skipped tests'
+            for output, message in (
+                ('...', invalid), ('{}', invalid), ('[42]', invalid), ('[]', inadmissible),
+                ('[{"name":"a","status":null}]', inadmissible),
+            ):
                 with (
                     self.subTest(output=output),
                     patch.object(qualify.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output, '')),
-                    self.assertRaisesRegex(QualificationError, '^upstream report '),
+                    self.assertRaisesRegex(QualificationError, f'^{message}$'),
                 ):
                     _junit(report)
 
@@ -236,7 +247,8 @@ class QualificationSectionTests(unittest.TestCase):
             marker = '## Latest upstream subset: aarch64-unknown-linux-musl'
             initial = (
                 '# Qualification\n\n## Intro\n\nFixture note.\n\n'
-                f'{marker}\n\nOld receipt.\n\n## Retained checks\n\nUnrelated receipt.\n'
+                f'{marker}\n\nOld receipt.\n\n## Retained checks\n\nUnrelated receipt.\n\n'
+                '## Other target\n\nOther receipt.\n'
             )
             report.write_text(initial, encoding='utf-8')
             qualify._write_section(root, marker, 'Verified receipt.\n')
@@ -246,6 +258,10 @@ class QualificationSectionTests(unittest.TestCase):
             self.assertEqual(report.read_text(encoding='utf-8').count(marker), 1)
             qualify._write_section(root, '## New evidence', 'Independent receipt.')
             self.assertTrue(report.read_text(encoding='utf-8').endswith('\n\n## New evidence\n\nIndependent receipt.\n'))
+            qualify._write_section(root, '## New evidence', 'Updated independent receipt.')
+            self.assertEqual(report.read_text(encoding='utf-8'), (
+                expected.rstrip() + '\n\n## New evidence\n\nUpdated independent receipt.\n'
+            ))
             self.assertEqual(list(scratch.iterdir()), [])
 
     def test_failed_publication_preserves_previous_report_and_removes_scratch(self) -> None:
@@ -266,6 +282,34 @@ class QualificationSectionTests(unittest.TestCase):
             with (
                 patch.object(Path, 'replace', autospec=True, side_effect=reject),
                 self.assertRaisesRegex(PermissionError, '^fixture cannot replace report$'),
+            ):
+                qualify._write_section(root, '## Candidate', 'New evidence.')
+            self.assertEqual(report.read_bytes(), original)
+            self.assertEqual(list(scratch.iterdir()), [])
+
+    def test_failed_flush_preserves_the_original_error_after_scratch_disappears(self) -> None:
+        with workspace() as root:
+            scratch = root / '.work/tmp'
+            scratch.mkdir(parents=True)
+            report = root / 'docs/qualification.md'
+            report.parent.mkdir()
+            original = b'# Qualification\n\nPrior evidence.\n'
+            report.write_bytes(original)
+            real_temporary = qualify.tempfile.NamedTemporaryFile
+
+            @contextmanager
+            def fail_flush(**options):
+                with real_temporary(**options) as temporary:
+                    def fail():
+                        Path(temporary.name).unlink()
+                        raise OSError('fixture cannot flush report')
+
+                    with patch.object(temporary, 'flush', side_effect=fail):
+                        yield temporary
+
+            with (
+                patch.object(qualify.tempfile, 'NamedTemporaryFile', side_effect=fail_flush),
+                self.assertRaisesRegex(OSError, '^fixture cannot flush report$'),
             ):
                 qualify._write_section(root, '## Candidate', 'New evidence.')
             self.assertEqual(report.read_bytes(), original)
