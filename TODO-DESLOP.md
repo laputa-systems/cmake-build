@@ -1279,6 +1279,15 @@ tests still exercise actual child processes, RSS and signal delivery.
 - **Fix with:** deslop
 - **Effort:** M
 
+The benchmark admission suite exercises the exact committed target,
+qualified archive hash and size, every prerequisite suite, and
+both build phase records and their locked inputs. Each negative
+fixture checks the diagnostic before tracer execution. The fresh
+macOS ARM64 run caught 254 of the same 950 benchmark coordinator
+identities, up from six, with no timeouts. Both trials used mutmut
+3.8.1, CPython 3.15.2 and pytest 9.2.0. All six cases and both
+linters passed. Tracer setup, execution and reporting remain open.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.
