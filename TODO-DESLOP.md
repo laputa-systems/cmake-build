@@ -1215,6 +1215,23 @@ fail before hashing, and verified locked outputs contain
 neither alternate name. All 13 focused tests and both
 linters passed.
 
+**ELF tool reports and audit diagnostics**
+
+The fixture checks both accepted linkage report shapes,
+bounded interpreter reads, and exact locked tool calls. The
+mocked reports exercise missing sections, disallowed linkage,
+compiler and symbol provenance, and build-host paths. Existing
+hardening cases still exercise file admission before tool use.
+
+The matched macOS ARM64 run selected 315 identities in
+`buildsys.elf.audit` and `_tool`, using mutmut 3.8.1, CPython
+3.15.2 and pytest 9.2.0. The previous suite caught 11 and left
+18 untested. The new suite caught 312. The ASCII codec case
+variant and the case-insensitive probe regex variant are
+equivalent. The probe replacement variant remains open for
+the wider text check. All ten focused tests and both
+linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
