@@ -221,7 +221,7 @@ def render(records: list[Measurement], repetitions: int, metadata: ReportMetadat
     return '\n'.join(lines).rstrip() + '\n'
 
 
-def run(root: Path, target: Target, repetitions: int = 5) -> None:
+def admit(root: Path, target: Target, repetitions: int = 5):
     if platform.system() != 'Linux':
         raise BenchmarkError('benchmarking requires a native Linux host')
     if repetitions < 5:
@@ -285,6 +285,13 @@ def run(root: Path, target: Target, repetitions: int = 5) -> None:
             raise BenchmarkError(f'unmodified baseline {name} lock inputs have changed')
     reference = next(item for item in sources if item.name == f'cmake-reference-{target.machine}')
     version = next(item.version for item in sources if item.name == 'cmake-source')
+    return (phases, archive, archive_sha256, budget_path, budget_document, budget_digest,
+            reference_phase, reference_record, sources, lock, locked, reference, version)
+
+
+def run(root: Path, target: Target, repetitions: int = 5) -> None:
+    (phases, archive, archive_sha256, budget_path, budget_document, budget_digest,
+     reference_phase, reference_record, sources, lock, locked, reference, version) = admit(root, target, repetitions)
     scratch = root / '.work/tmp'
     scratch.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='benchmark-', dir=scratch) as temporary:
