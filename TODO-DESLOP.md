@@ -482,6 +482,16 @@ moved from 34 to 36 caught. All nine extraction cases and both
 linters passed. Use the input recipe above and select
 `buildsys.inputs.x_safe_extract__mutmut_*` to reproduce.
 
+At `2bf6fdb8`, the input and phase tests caught 522 of the current
+568 input identities. The new unreadable-archive fixture verifies
+that an open failure leaves neither staging nor a destination.
+It preserves the existing result map. The local-file cache fixture
+also checks the default 120-second transport budget and a supplied
+override. Use the input recipe and select
+`buildsys.inputs.xǁCacheǁfetch__mutmut_*`. The same 12 fetch
+identities went from 11 catches to 12, with matching source spans.
+All 35 input tests and both linters passed.
+
 ## Tickets
 
 
