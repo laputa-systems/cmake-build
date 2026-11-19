@@ -560,3 +560,14 @@ Darwin = [
 source_sha256 = "28a1528c3bfa375dac518bed423082858e56444beefd4d5990f0bc04be7875c6"
 Linux = ["buildsys.benchmark_process.x_run__mutmut_48=fbe78abdd5a73a4bb058cf5cd67f8046f32658f5eaa01c8dd2741314d67b3f1d"]
 Darwin = ["buildsys.benchmark_process.x_run__mutmut_48=fbe78abdd5a73a4bb058cf5cd67f8046f32658f5eaa01c8dd2741314d67b3f1d"]
+
+[qualified.patches]
+source_sha256 = "46f0bd705710f9d2234118a57fe97ea06dbb09b665d7c43314982ae70ad87438"
+Linux = [
+  "buildsys.patches.x__read__mutmut_9=652677208960ce5207dcf0648afb80b3b91d3cc7018adcfe508966e8f10c6ddc",
+  "buildsys.patches.x_verify_inventory__mutmut_13=aad28f53a61a18a3963cead30f9e962822086d43c3ffeef1b44d179e67282225",
+]
+Darwin = [
+  "buildsys.patches.x__read__mutmut_9=652677208960ce5207dcf0648afb80b3b91d3cc7018adcfe508966e8f10c6ddc",
+  "buildsys.patches.x_verify_inventory__mutmut_13=aad28f53a61a18a3963cead30f9e962822086d43c3ffeef1b44d179e67282225",
+]

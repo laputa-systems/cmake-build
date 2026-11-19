@@ -64,6 +64,7 @@ run_module() (
     reproduce) tests='["tests/controller/test_package_reproduce.py", "tests/host/test_reproduction_git.py"]' ;;
     package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                       "tests/controller/test_package_commands.py"]' ;;
+    patches) tests='["tests/controller/test_patches.py"]' ;;
     phases) tests='["tests/controller/test_phases.py"]' ;;
     qualify)
       tests='["tests/controller/test_projects.py", "tests/controller/test_network_qualification.py",
