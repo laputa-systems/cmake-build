@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import signal
 import socket
 import subprocess
 import sys
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +21,97 @@ from buildsys.tls import TlsError, build_client, check_host_vendored, check_tree
 
 
 class DependencyTests(unittest.TestCase):
+    def test_dependency_check_runs_locked_offline_provider_query(self) -> None:
+        cargo = Path("toolchain/bin/cargo")
+        manifest = Path("vendored/source/rustls/Cargo.toml")
+        description = target("aarch64-unknown-linux-musl")
+        launcher = ("/locked/musl", "--library-path", "/locked/lib")
+        env = {"CARGO_HOME": "/prepared/cargo"}
+        graph = "rustls-ffi v0.15.7\n\nrustls-graviola v0.4.0\ngraviola v0.4.4\n"
+        with patch.object(tls, "_run", return_value=graph) as run:
+            tls.check_dependencies(cargo, manifest, description.triple, env, launcher)
+        run.assert_called_once_with(
+            [
+                *launcher, str(cargo.resolve()), "tree", "--manifest-path", str(manifest.resolve()),
+                "--locked", "--offline", "--no-default-features", "--features", "graviola",
+                "--target", description.triple, "-e", "normal", "--prefix", "none", "--format", "{p}",
+            ],
+            cwd=manifest.resolve().parent,
+            env=env,
+        )
+
+        error = RustError("locked Cargo graph could not be read")
+        with patch.object(tls, "_run", side_effect=error), self.assertRaises(TlsError) as raised:
+            tls.check_dependencies(cargo, manifest, description.triple, env)
+        self.assertEqual(str(raised.exception), str(error))
+        self.assertIs(raised.exception.__cause__, error)
+
+        with patch.object(tls, "_run", return_value=graph + "ring v1.0.0\n"), self.assertRaisesRegex(
+            TlsError, r"missing \[\], forbidden \['ring'\]",
+        ):
+            tls.check_dependencies(cargo, manifest, description.triple, env)
+
+    def test_vendored_dependency_check_sets_up_and_removes_cargo_home(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        with workspace() as directory:
+            vendored = directory / "vendored"
+            project = vendored / "source/rustls"
+            project.mkdir(parents=True)
+            tools = directory / "toolchain/bin"
+            homes = []
+
+            def check(cargo, manifest, triple, env):
+                self.assertEqual(cargo, tools / "cargo")
+                self.assertEqual(manifest, project / "Cargo.toml")
+                self.assertEqual(triple, description.triple)
+                cargo_home = Path(env["CARGO_HOME"])
+                self.assertEqual(cargo_home.parent, directory)
+                self.assertTrue(cargo_home.name.startswith("cargo-check-"))
+                self.assertEqual(
+                    tomllib.loads((cargo_home / "config.toml").read_text()),
+                    {"source": {
+                        "crates-io": {"replace-with": "vendored-sources"},
+                        "vendored-sources": {"directory": str(vendored / "vendor")},
+                    }},
+                )
+                self.assertEqual(env["RUSTC"], str(tools / "rustc"))
+                self.assertEqual(env["RUSTC_WRAPPER"], "")
+                self.assertEqual(env["PATH"], f"{tools}{os.pathsep}{host_path}")
+                self.assertEqual(env["TMPDIR"], str(directory))
+                self.assertNotIn("RUSTFLAGS", env)
+                homes.append(cargo_home)
+
+            for host_path, inherited in [
+                ("/host/bin", {"PATH": "/host/bin", "RUSTFLAGS": "from-host"}),
+                ("", {"RUSTFLAGS": "from-host"}),
+            ]:
+                with self.subTest(host_path=host_path), patch.dict(os.environ, inherited, clear=True), patch.object(
+                    tls, "check_dependencies", side_effect=check,
+                ) as check_dependencies:
+                    tls.check_vendored(vendored, tools, description.triple, directory)
+                    check_dependencies.assert_called_once()
+            self.assertEqual(len(homes), 2)
+            self.assertTrue(all(not home.exists() for home in homes))
+
+    def test_vendored_dependency_check_rejects_invalid_source_layouts(self) -> None:
+        description = target("x86_64-unknown-linux-musl")
+        with workspace() as directory, patch.object(tls, "check_dependencies") as check:
+            source = directory / "source"
+            source.mkdir()
+            entry = source / "rustls"
+            for layout in ("empty", "file", "multiple directories"):
+                if layout == "file":
+                    entry.touch()
+                elif layout == "multiple directories":
+                    entry.unlink()
+                    entry.mkdir()
+                    (source / "second").mkdir()
+                with self.subTest(layout=layout), self.assertRaisesRegex(
+                    TlsError, "^vendored Rustls source has an invalid layout$",
+                ):
+                    tls.check_vendored(directory, directory / "toolchain/bin", description.triple, directory)
+            check.assert_not_called()
+
     def test_client_rebuilds_when_builder_image_changes(self) -> None:
         description = target("x86_64-unknown-linux-musl")
         source = Input(name="cmake-source", version="4.4.5", urls=("https://example.invalid/cmake",), sha256="a" * 64, role="source", target="all", size=1)
@@ -164,8 +257,12 @@ class DependencyTests(unittest.TestCase):
         for package in ("ring", "aws-lc-rs", "aws-lc-sys", "openssl", "openssl-sys", "native-tls"):
             with self.subTest(package=package), self.assertRaises(TlsError):
                 check_tree(f"rustls-ffi v0.15.7\nrustls-graviola v0.4.0\ngraviola v0.4.4\n{package} v1.0.0\n")
-        with self.assertRaises(TlsError):
-            check_tree("rustls-ffi v0.15.7\n")
+        required = ("rustls-ffi", "rustls-graviola", "graviola")
+        for missing in required:
+            graph = "\n".join(f"{package} v1.0.0" for package in required if package != missing)
+            with self.subTest(missing=missing), self.assertRaises(TlsError) as error:
+                check_tree(graph)
+            self.assertEqual(str(error.exception), f"TLS dependency closure: missing ['{missing}'], forbidden []")
 
 
 if __name__ == "__main__":

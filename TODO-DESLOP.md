@@ -1034,6 +1034,28 @@ selected 268 `buildsys.bootstrap` variants with
 22 and left 93 untested. All 268 were caught with the new fixture
 on macOS ARM64. The four focused tests and both linters passed.
 
+**Locked TLS dependency checks**
+
+The controller cases check the exact offline Cargo tree
+query, its launcher, the selected dependency closure, and
+delivery of a Rust process error to the caller. They run
+vendored-source admission against real directories and a
+temporary Cargo home. They verify Cargo source replacement,
+tool and environment selection, and cleanup with or without
+an inherited PATH. The Cargo subprocess is substituted.
+
+At `f594774b`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 140 identities on macOS ARM64. The baseline caught
+29, with one survivor and 110 untested. The new fixture
+caught all 140. Select `check_tree`, `check_dependencies` and
+`check_vendored` in `buildsys/tls.py`, with the cases in
+`tests/controller/test_tls.py` and pytest selection
+`-k 'not locked_graph and not locked_dependency_graph'`.
+All 12 selected tests and both linters passed. The full native
+controller suite keeps the two real vendored-graph cases.
+`check_host_vendored` and `build_client` remain separate mutation
+scopes.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
