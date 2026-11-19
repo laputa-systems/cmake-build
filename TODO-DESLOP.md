@@ -1405,6 +1405,16 @@ The initial broader trial exceeded the local CPU guard. The matched
 rerun uses only isolated dispatch and simulated subprocesses.
 All eight focused cases and both linters passed.
 
+The qualification entry point tests candidate identity, archive
+hash and size, missing-candidate preparation, the exact locked
+builder image, and all extracted-archive admission checks. The
+matched macOS ARM64 trial with mutmut 3.8.1, CPython 3.15.2 and
+pytest 9.2.0 selected 206 identities. The previous isolated
+dispatch fixture reached none. The new tests caught 198.
+Six variants alter unused names in the suite iteration. Two path
+capitalization variants need Linux evidence. All three focused
+cases, Ruff and ty passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
