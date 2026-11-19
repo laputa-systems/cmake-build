@@ -69,7 +69,7 @@ def prepare_tools(work: Path, architecture: str, cache: Cache) -> None:
         ]
         python.extractall(work, members=runtime, filter="data")
     with zipfile.ZipFile(wheel) as coverage:
-        coverage.extractall(work / "site")
+        coverage.extractall(work / "python" / "lib" / f"python{PYTHON_VERSION.rsplit('.', 1)[0]}" / "site-packages")
     (work / "coverage.ini").write_text(COVERAGE_CONFIG, encoding="utf-8")
 
 
@@ -96,12 +96,12 @@ def main(requested: str) -> int:
             target=machine,
             mounts=[
                 (ROOT, "/src"), (work, "/coverage-run"),
-                (work / "python", "/coverage-python"), (work / "site", "/coverage-site"),
+                (work / "python", "/coverage-python"),
             ],
-            read_only=frozenset({"/coverage-python", "/coverage-site"}),
+            read_only=frozenset({"/coverage-python"}),
             env={
                 "PATH": "/coverage-python/bin:/src/.work/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-                "PYTHONPATH": "/coverage-site:/src",
+                "PYTHONPATH": "/src",
                 "TMPDIR": "/src/.work/tmp",
                 "COVERAGE_RCFILE": "/coverage-run/coverage.ini",
                 "COVERAGE_FILE": "/coverage-run/.coverage",
