@@ -1352,6 +1352,16 @@ case reached none of them. The seven new portable cases caught
 302 without timeouts and passed both linters. The 69 survivors and
 inner build-phase mutations remain open.
 
+The inner configure and build fixtures verify locked bootstrap
+versions, phase record digests, patch and mode identities, exact tool
+inputs, and both built and reused diagnostics. Compilers, tool setup
+and phase execution are simulated with actual record files. On macOS
+ARM64, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0 selected the
+same 334 identities for `_configure_inside` and `_build_inside`.
+The prior host cases reached none. The new cases caught 329 with no
+timeouts. The remaining five are `phase.json` path-case variants on
+this filesystem. All four focused tests and both linters passed.
+
 The distribution fixture checks the staged layout, executable bytes
 and modes, resource and license symlinks, artifact metadata, and
 failure diagnostics for missing executables and incomplete license
