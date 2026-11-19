@@ -978,22 +978,6 @@ linters passed.
 
 
 
-**Whole qualification controller**
-
-At `b0256cdba`, a fresh macOS ARM64 archive ran the three
-controller suites in the trial's `qualify` case with CPython
-3.15.2, mutmut 3.8.1, and pytest 9.2.0. All 1,215 variants
-ran. The suites caught 1,157, and the checker verified all 58
-survivors against the controller and generated-body hashes.
-
-The dispositions above cover temporary names, default falsey
-arguments, local-only cache access, the single managed report
-heading, and the existing scratch parent. The 18 case-only path
-changes are allowed on Darwin's case-folded trial volume. Both
-Linux jobs caught 1,175 of 1,215 variants, including all 18
-case-only changes. Both installed the locked native `jaq` for
-the XML cases. [Native trial](https://github.com/laputa-systems/cmake-build/actions/runs/44487514643)
-
 **Compiler installation and verification**
 
 The controller tests install flat and wrapped archives and check
@@ -1286,44 +1270,106 @@ and its sole read is the same truth test in either case.
 All nine portable cases and both linters passed. Ordinary native
 tests still exercise actual child processes, RSS and signal delivery.
 
-The 18-scope native head `c5c89e0ff` passed all 38 jobs,
-including both distribution scopes on both Linux architectures.
-[Native run](https://github.com/laputa-systems/cmake-build/actions/runs/44516789463)
+[Controller mutation gate](docs/controller-mutation.md) records the
+native trials, invocation, and hosted controls.
 
-The trial now uses the same `make mutants-diff MUTATION_BASE=<commit>`
-command as the local check. `MUTATION_SCOPE` selects one member of
-the computed change union. The Buildlib reader is archived from the
-pinned revision in `.github/mutation-buildlib-revision`. Set
-`MUTATION_BUILDLIB` to a checkout containing that commit when it
-is outside the default local path. Every invocation uses fresh
-scratch for the selected scopes.
+### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
-**Hosted whole-change controls**
+- **Area:** deslop · tests
+- **Where:** test suites and CI
+- **Problem:** Native branch coverage and the current input scope are accounted for. The remaining critical controller functions and whole-change mutation lane need verification.
+- **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
+- **Fix with:** deslop
+- **Effort:** M
 
-- A documentation-only change selected no modules. The plan and
-  final check passed with the controller matrix skipped.
-  [Documentation control](https://github.com/laputa-systems/cmake-build/actions/runs/44518341877)
-- The input branch with no witness reopened five identities on both
-  Linux hosts and failed the aggregate.
-  [Uncovered branch](https://github.com/laputa-systems/cmake-build/actions/runs/44518353110)
-- Removing the license witness passed ordinary CI and reopened the
-  same three identities on both Linux hosts. Adding an unrelated
-  covered bootstrap edit retained those failures and selected bootstrap.
-  Both bootstrap jobs caught all 268 identities. The corresponding
-  macOS deletion trial also left two capitalization variants alive.
-  [Test deletion](https://github.com/laputa-systems/cmake-build/actions/runs/44518364284) ·
-  [Mixed diff](https://github.com/laputa-systems/cmake-build/actions/runs/44518378427)
-- The x86-64 license job exhausted a one-second budget. The ARM64
-  license job rejected absent results, and the x86-64 stage job
-  rejected an absent scope. Those three jobs and the aggregate failed.
-  [Incomplete results and budget](https://github.com/laputa-systems/cmake-build/actions/runs/44518766634)
+The benchmark admission suite exercises the exact committed target,
+qualified archive hash and size, every prerequisite suite, and
+both build phase records and their locked inputs. Each negative
+fixture checks the diagnostic before tracer execution. The fresh
+macOS ARM64 run caught 254 of the same 950 benchmark coordinator
+identities, up from six, with no timeouts. Both trials used mutmut
+3.8.1, CPython 3.15.2 and pytest 9.2.0. All six cases and both
+linters passed. Tracer setup, execution and reporting remain open.
 
-The clean 18-scope Make runs at `08d86c45b` and `e03d6d515` passed all
-38 jobs each. GitHub job timestamps show per-run medians of 33 and
-35 seconds among 36 native jobs in each run. The maximums were 163
-and 150 seconds. The runs used 1,648 and 1,583 runner seconds including
-plan and final jobs, with 227 and 469 wall seconds including queueing.
-The second runs mutmut under the shared 600-second deadline. Neither
-sample exceeds the campaign's ten-minute per-job median target.
-[Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44517720657) ·
-[Budgeted Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44518717818)
+The budget boundary follow-up exercises symlink and missing entrypoints,
+invalid numeric limits, exact report fields, partial memory records,
+and the acceptance boundary for the median and interquartile spread.
+The unchanged 420-identity budget scope now catches 406. The other 14
+include a case-sensitive path variant, the library's default quartile
+count, a second-read diagnostic and optional archive arguments to the
+already measured baseline branch. All 11 focused tests and both
+linters passed.
+
+The distribution fixture checks the staged layout, executable bytes
+and modes, resource and license symlinks, artifact metadata, and
+failure diagnostics for missing executables and incomplete license
+closures. The two production modules stayed byte-identical.
+On macOS ARM64, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+caught 154 of the same 159 identities, up from 105. The remaining
+two path case variants concern source paths on this filesystem.
+The three directory symlink flag variants are equivalent on both
+supported hosts because POSIX symlinks carry no directory flag.
+All five focused tests and both linters passed.
+
+The target contract checks both Linux build triples and their
+CPU baselines, native aliases, exact unsupported-target diagnostics,
+and rejection of incomplete shared target records. With mutmut 3.8.1,
+Python 3.15.2 and pytest 9.2.0 on macOS ARM64, the prior CLI selection
+caught none of the 37 target identities. Adding
+`tests/controller/test_targets.py` caught 35 in a fresh trial. The two
+variants that omit the machine argument delegate to the identical
+`platform.machine()` fallback in Buildlib. All four focused tests
+and both linters passed.
+
+The dependency fixture checks exact rendered versions, root
+reachability, archive evidence, missing reports, malformed UTF-8,
+and cycle completion independently of traversal order. The fresh
+macOS ARM64 comparison of 260 identities caught 249, up from 60 with
+190 previously untested. The same mutmut 3.8.1 and pytest 9.2.0
+versions ran on CPython 3.15.2. No outcomes timed out. The cycle
+witness interrupts a stalled traversal and reports failure.
+
+Four path capitalization variants need the case-sensitive native
+run. The seven other variants leave the first split field or default
+decoding unchanged, pass an unused version for a versioned source,
+or change an empty-output diagnostic after two rows have already
+been added. All seven focused cases, Ruff and ty passed.
+
+The patch inventory fixture verifies ordering, exact contents and
+digests, malformed rows and encoding, an empty or duplicate inventory,
+and the ordinary diagnostics for unreadable and nonregular entries.
+At the same source, the fresh macOS ARM64 mutmut 3.8.1 trial with
+CPython 3.15.2 and pytest 9.2.0 caught 127 of the same 139 identities,
+up from 98. The path-admission and descriptor flag variants need
+disposition before this scope can join the native gate. All five
+focused tests and both linters passed.
+
+The benchmark report fixture checks rotation order, rejected samples,
+sample uniqueness, exact summary statistics, provenance fields, sizes
+and trace sections. The existing repetition witness now supplies only
+the host admission result so it can check the same limit on macOS.
+The native Linux benchmark contract is separate.
+
+The fresh mutmut 3.8.1, CPython 3.15.2 and pytest 9.2.0 comparison
+selected the same 364 identities across `interleaved_orders`,
+`summarize` and `render` on macOS ARM64. It excluded the existing
+Linux-only command test on both sides. Detected identities went
+from 229 to 263. The 101 survivors and the benchmark execution
+scopes remain open. All six focused tests, Ruff and ty passed.
+
+The patch admission fixture verifies early path rejection and the
+directory-open contract for a nested patch. The matched macOS ARM64
+trial with mutmut 3.8.1, CPython 3.15.2 and pytest 9.2.0 caught 137
+of all 139 patch identities, up from 127. The two remaining variants
+change the case of the UTF-8 codec or compare against a dot component
+that `PurePosixPath.parts` has already normalized away. All seven
+focused tests and both linters passed.
+
+### DSLP-5 · P2 · Dead code: tools and debloat
+
+- **Area:** deslop · dead code
+- **Where:** whole repository
+- **Problem:** The dead-code tools ran and the bootstrap record projection was reduced. The remaining structural review is open.
+- **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
+- **Fix with:** deslop
+- **Effort:** M

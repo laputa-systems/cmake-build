@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from helpers import workspace
 
+from buildsys import patches as patch_module
 from buildsys.patches import Patch, PatchError, verify_inventory
 
 
@@ -17,6 +20,30 @@ def inventory(directory: Path, rows: list[tuple[int, str, bytes]]) -> None:
 
 
 class PatchInventoryTests(unittest.TestCase):
+    def test_rejects_invalid_inventory_names_before_opening_files(self) -> None:
+        with workspace() as directory:
+            for name in ("", ".", str(directory / "fixture.patch"), "folder\\sample.patch"):
+                with (
+                    self.subTest(name=name),
+                    patch.object(patch_module.os, "open", side_effect=AssertionError("invalid name reached the filesystem")),
+                    self.assertRaises(PatchError) as caught,
+                ):
+                    patch_module._read(directory, name)
+                self.assertEqual(str(caught.exception), f"invalid patch inventory path: {name!r}")
+
+    def test_opens_nested_patch_from_the_inventory_directory(self) -> None:
+        with workspace() as directory:
+            (directory / "nested").mkdir()
+            (directory / "nested/fixture.patch").write_bytes(b"contents")
+            with patch.object(patch_module.os, "open", wraps=os.open) as opened:
+                self.assertEqual(patch_module._read(directory, "nested/fixture.patch"), b"contents")
+            entries = opened.call_args_list
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            self.assertEqual(
+                [entry.args for entry in entries],
+                [(directory, directory_flags), ("nested", directory_flags), ("fixture.patch", os.O_RDONLY | os.O_NOFOLLOW)],
+            )
+
     def test_preserves_declared_order_exact_bytes_and_digests(self) -> None:
         with workspace() as directory:
             patches = directory / "patches"
@@ -104,8 +131,9 @@ class PatchInventoryTests(unittest.TestCase):
             outside = directory / "outside.patch"
             outside.write_bytes(b"outside")
             inventory(patches, [(1, "../outside.patch", b"outside")])
-            with self.assertRaises(PatchError):
+            with self.assertRaises(PatchError) as caught:
                 verify_inventory(patches)
+            self.assertEqual(str(caught.exception), "invalid patch inventory path: '../outside.patch'")
             (patches / "link.patch").symlink_to(outside)
             inventory(patches, [(1, "link.patch", b"outside")])
             with self.assertRaises(PatchError):
