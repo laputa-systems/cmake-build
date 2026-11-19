@@ -283,6 +283,8 @@ class UpstreamQualificationTests(unittest.TestCase):
             source_tree = root / '.work/build' / machine.triple / 'phases/cmake/build/bin'
             source_tree.mkdir(parents=True)
             (source_tree / 'cmake').write_bytes(b'previous binary')
+            (source_tree / 'ctest').symlink_to('cmake')
+            phases = source_tree.parents[2]
             reference = source_tree.parents[1].with_name('reference')
             reference.mkdir()
             report = root / 'docs/qualification.md'
@@ -302,61 +304,98 @@ class UpstreamQualificationTests(unittest.TestCase):
                 environment = options['env']
                 name = environment['UPSTREAM_PHASE']
                 phase_mount = f'{build_root}/{name}'
-                expected_destinations = {
-                    '/qualification', phase_mount, f'{build_root}/prepare', f'{build_root}/bootstrap',
-                    f'/src/.work/rust/{machine.triple}/phases/staticlib', '/suite', '/selection/upstream-subset.txt',
+                results = mounted['/qualification']
+                self.assertEqual(results.parent.parent, root / '.work/tmp')
+                self.assertEqual({item.name for item in results.iterdir()}, {'tmp'})
+                selection = mounted['/selection/upstream-subset.txt']
+                expected_mounts = {
+                    '/qualification': results, phase_mount: results.parent / f'{name}-phase',
+                    f'{build_root}/prepare': phases / 'prepare', f'{build_root}/bootstrap': phases / 'bootstrap',
+                    f'/src/.work/rust/{machine.triple}/phases/staticlib':
+                        root / '.work/rust' / machine.triple / 'phases/staticlib',
+                    '/suite': root / 'tests/projects', '/selection/upstream-subset.txt': selection,
                 }
                 if name == 'cmake':
                     candidate_mount = f'{phase_mount}/build/bin/cmake'
-                    expected_destinations.add(candidate_mount)
-                    self.assertEqual(mounted[candidate_mount], candidate)
+                    expected_mounts[candidate_mount] = candidate
                     self.assertEqual((mounted[phase_mount] / 'build/bin/cmake').read_bytes(), b'candidate')
-                    self.assertEqual(mounted['/selection/upstream-subset.txt'], subset)
+                    self.assertEqual((mounted[phase_mount] / 'build/bin/ctest').readlink(), Path('cmake'))
+                    self.assertEqual(selection, subset)
                 else:
-                    selection = mounted['/selection/upstream-subset.txt']
-                    self.assertEqual(selection.read_text(), '^Build\\.Verify$\n')
+                    self.assertEqual(selection, results.parent / 'reference-selection.txt')
+                    self.assertEqual(selection.read_text(), '^Build\\.Verify$\n^Other\\[Case\\]$\n')
                     self.assertTrue(mounted[phase_mount].is_dir())
-                self.assertEqual(set(mounted), expected_destinations)
-                self.assertEqual(options['read_only'], expected_destinations - {'/qualification', phase_mount})
+                self.assertEqual(mounted, expected_mounts)
+                self.assertEqual(options['read_only'], set(expected_mounts) - {'/qualification', phase_mount})
                 self.assertEqual((options['workdir'], options['timeout']), ('/qualification', 1260))
                 self.assertEqual(environment['TMPDIR'], '/qualification/tmp')
                 self.assertEqual(environment['CMAKE_BUILD_PARALLEL_LEVEL'], '8')
                 self.assertEqual(environment['PATH'], f'{prepare}/toolchain/bin:{build_root}/bootstrap/ninja-build:/usr/bin:/bin')
+                self.assertEqual(environment['CC'], f'{prepare}/toolchain/bin/clang')
                 self.assertIn(prepare + '/sysroot', environment['CFLAGS'])
                 self.assertIn(prepare + '/sysroot', environment['CXXFLAGS'])
-                self.assertTrue((mounted['/qualification'] / 'tmp').is_dir())
 
                 count, status, code = outcomes[name]
                 if status != 'no-report':
-                    (mounted['/qualification'] / 'upstream.xml').write_text(
-                        f'<testsuite><testcase name="Build.Verify" status="{status}"/></testsuite>'
+                    cases = (
+                        '<testcase name="Other[Case]" status="fail"/><testcase name="Build.Verify" status="fail"/>'
+                        if status == 'two-fail' else f'<testcase name="Build.Verify" status="{status}"/>'
                     )
-                summary = 'fixture unexpected stdout' if count is None else f'upstream subset: {count} tests executed\n'
+                    (results / 'upstream.xml').write_text(f'<testsuite>{cases}</testsuite>')
+                summary = 'fixture unexpected stdout' if count is None else (
+                    f'child setup\nupstream subset: {count} tests executed\nchild done\n'
+                )
                 return sandbox.SealedResult(code, summary, 'fixture child stderr', 'none', {})
 
-            with patch.object(sandbox, 'run_sealed', side_effect=run_child), redirect_stdout(io.StringIO()):
+            copy = qualify.shutil.copy2
+
+            def corrupt_after_copy(source, destination):
+                installed = copy(source, destination)
+                Path(installed).write_bytes(b'wrong candidate')
+                return installed
+
+            with (
+                patch.object(qualify.shutil, 'copy2', side_effect=corrupt_after_copy),
+                patch.object(sandbox, 'run_sealed') as sealed,
+                self.assertRaisesRegex(QualificationError, '^upstream test executable differs from the candidate$'),
+            ):
+                qualify.upstream(root=root, phase=phase, image='fixture', target=machine)
+            sealed.assert_not_called()
+            self.assertEqual(report.read_text(), original)
+
+            with patch.object(sandbox, 'run_sealed', side_effect=run_child), redirect_stdout(io.StringIO()) as stdout:
                 for outcomes_to_reject, diagnostic in (
                     ({'cmake': (1, 'no-report', 0)}, '^cmake upstream subset produced no report:\nfixture child stderr$'),
                     ({'cmake': (None, 'run', 0)}, '^cmake upstream subset produced no report:\nfixture child stderr$'),
                     ({'cmake': (2, 'run', 0)}, '^cmake upstream summary reports 2 tests but JUnit contains 1$'),
                     ({'cmake': (1, 'fail', 0)}, '^cmake upstream result disagrees with its report:'),
-                    ({'cmake': (1, 'fail', 1), 'reference': (2, 'fail', 1)}, '^reference upstream summary reports 2 tests but JUnit contains 1$'),
+                    ({'cmake': (2, 'two-fail', 1), 'reference': (3, 'two-fail', 1)}, '^reference upstream summary reports 3 tests but JUnit contains 2$'),
                 ):
                     with self.subTest(outcomes=outcomes_to_reject), self.assertRaisesRegex(QualificationError, diagnostic):
                         outcomes.update(outcomes_to_reject)
                         qualify.upstream(root=root, phase=phase, image='fixture', target=machine)
                     self.assertEqual(report.read_text(), original)
+                    self.assertEqual(list((root / '.work/tmp').iterdir()), [])
+                stdout.seek(0)
+                stdout.truncate()
                 outcomes.update(cmake=(1, 'run', 0), reference=(1, 'fail', 1))
                 qualify.upstream(root=root, phase=phase, image='fixture', target=machine)
-                self.assertIn('Executed 1 tests. 1 passed.', report.read_text())
-                self.assertTrue(report.read_text().startswith(original))
-                outcomes['cmake'] = (1, 'fail', 1)
+                section = f'{original.rstrip()}\n\n## Latest upstream subset: {machine.triple}\n\n'
+                identity = f'Executable SHA-256: `{file_sha256(candidate)}`.\n\n'
+                self.assertEqual(report.read_text(), section + identity + 'Executed 1 tests. 1 passed.\n\nNo failures were observed.\n')
+                self.assertEqual(stdout.getvalue(), (
+                    'child setup\nupstream subset: 1 tests executed\nchild done\n'
+                    'upstream: 1 tests, 0 shared baseline failures\n\n'
+                ))
+                outcomes.update(cmake=(2, 'two-fail', 1), reference=(2, 'two-fail', 1))
                 qualify.upstream(root=root, phase=phase, image='fixture', target=machine)
-                content = report.read_text()
-                self.assertTrue(content.startswith(original))
-                self.assertEqual(content.count('## Latest upstream subset:'), 1)
-                self.assertIn('Executed 1 tests. 0 passed.', content)
-                self.assertIn('- `Build.Verify`', content)
+                self.assertEqual(report.read_text(), section + identity + (
+                    'Executed 2 tests. 0 passed.\n\n'
+                    'The following failures also occurred in the unmodified static-PIE baseline:\n\n'
+                    '- `Build.Verify`\n\n- `Other[Case]`\n'
+                ))
+                self.assertEqual((source_tree / 'cmake').read_bytes(), b'previous binary')
+                self.assertEqual(list((root / '.work/tmp').iterdir()), [])
 
 
 if __name__ == '__main__':

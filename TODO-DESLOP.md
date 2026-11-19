@@ -934,6 +934,26 @@ path case on the case-folded volume. Variants 39, 41, 43 and
 `Cache.require` call. All four focused cases and both linters
 passed. The subprocess boundary was substituted.
 
+**Upstream executable and report evidence**
+
+The upstream fixture now changes the copied candidate after
+the copy completes. Qualification rejects the mismatched
+digest before starting the sealed child and keeps the prior
+report intact. A sealed successful fixture checks the copied
+tool symlink, all host mounts, multiline output, and published
+candidate digest. The two-failure fixture checks sorted, escaped
+reference selection and the published baseline result.
+
+On macOS ARM64 the same 270 `qualify.upstream` variants went
+from 217 catches to 258 at base `28b14155`. Select
+`tests/controller/test_projects.py::UpstreamQualificationTests`
+with mutmut 3.8.1 and pytest 9.2.0. Variants 23, 97, 100, 104 and
+183 change path case. Variants 25, 27, 29 and 30 change a temporary
+directory's diagnostic name. Variants 5, 7 and 9 omit parent
+creation for the scratch path. The admitted build already has its
+`.work` parent because the source phase is there. All ten focused
+cases and both linters passed.
+
 ## Tickets
 
 
