@@ -870,7 +870,7 @@ archive and select `buildsys.qualify.x_basic__mutmut_*` with
 `tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0.
 All eight focused tests and both linters passed.
 
-### Network qualification handoff
+**Network qualification handoff**
 
 The controller fixture verifies a cached OpenSSL archive before
 extracting it and mounts the relocated stage and local suite
@@ -893,7 +893,7 @@ temporary directory. Variants 70, 72 and 76 change
 file and does not consult that setting. Both focused tests
 and Ruff and ty passed.
 
-### Project qualification handoff
+**Project qualification handoff**
 
 The controller fixture verifies four locked archives through
 actual cache verification, extraction and phase publication.
@@ -912,6 +912,27 @@ change the name of a removed temporary directory. Variants
 21, 23 and 27 change the offline flag before a local-only
 `Cache.require` call. All ten focused tests and both
 linters passed. The child process was substituted.
+
+**Parity qualification handoff**
+
+The controller fixture verifies a locked reference archive
+with the actual cache and extraction code. It checks the
+candidate and reference mounts, interpreter and runtime
+selection across all four child calls. An invalid archive
+layout or failed or incomplete child leaves the prior report
+untouched. Equal graph output replaces the earlier result, and
+changed output records the exact unified diff, including an
+empty context line. The neighboring report section remains.
+
+At `0a28b62f`, mutmut 3.8.1 with pytest 9.2.0 selected 297
+`qualify.parity` variants from a fresh macOS ARM64 archive.
+`tests/controller/test_parity_qualification.py` caught 282.
+Variants 15, 20, 87, 229, 231, 233, 240 and 247 change only
+path case on the case-folded volume. Variants 39, 41, 43 and
+44 change the name of a removed temporary directory. Variants
+82, 84 and 88 change the offline flag before a local-only
+`Cache.require` call. All four focused cases and both linters
+passed. The subprocess boundary was substituted.
 
 ## Tickets
 
