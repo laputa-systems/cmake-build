@@ -274,6 +274,22 @@ exercises multiple missing destination directories and a payload with only
 the other-execute bit set. At `c533a06` the same 327 identities moved from
 284 caught and 43 missed to 291 caught and 36 missed.
 
+**Verified wheel cache**
+
+The direct cache cases exercise a cached symlink, corrupt bytes,
+a missing cache hierarchy, the bounded transport read, an absent
+source, and failed publication. The failed replacement leaves
+the prior object and removes the staging file. The subprocess
+smokes continue to verify that the resulting pinned wheel imports.
+
+The direct `CacheAdmissionTests` selection caught 151 of the 153
+`buildsys.buildlib_wheel.*` identities on macOS ARM64. The remaining
+two change HTTP header-name case. urllib canonicalizes both to the
+same request header. Use the controller archive recipe with the
+verified `.work/cache/objects` wheel copied into the archive and
+listed in `also_copy`. All nine normal wheel tests and both linters
+passed.
+
 **Native controller cache**
 
 [CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
