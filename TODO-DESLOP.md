@@ -993,6 +993,25 @@ changes are allowed on Darwin's case-folded trial volume. Linux
 must catch them. The hosted trial installs the locked native
 `jaq` to exercise real XML parsing on both Linux architectures.
 
+**Compiler installation and verification**
+
+The controller tests install flat and wrapped archives and check
+the installed tree. A failed extraction removes the partial tree
+and preserves the original error. The toolchain cases exercise
+both target records, the exact compiler and linker probes and
+their deadlines, missing and invalid tools, and a later shadowed
+tool even when earlier tools are absent from PATH. They compare
+the full C and C++ flags and the tool environment.
+
+At `b0256cdba`, mutmut 3.8.1 with pytest 9.2.0 and CPython
+3.15.2 selected the same 225 `buildsys.toolchain` variants using
+`tests/controller/test_sandbox.py`. On macOS ARM64 the baseline
+caught 74 and left 103 untested. With these fixtures all ran
+and 223 were caught. The two remaining `_run` variants remove
+`check=False` or replace it with `None`. Both retain default
+subprocess behavior. All ten focused tests and both linters
+passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
