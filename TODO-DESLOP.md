@@ -826,6 +826,21 @@ in the archive's `also_copy`. All focused sandbox tests and linters
 passed.
 
 
+The upstream report follow-up exercises tool startup and timeout
+errors, malformed tool output, and publication of multiple report
+sections. A failed rename leaves the previous report intact and
+removes the staged file. The tests compare the staged bytes before
+the failure and verify that replacing one section preserves the
+following receipt.
+
+On macOS ARM64 at `3d80e135`, the same upstream qualification scope
+caught 293 of 413 variants, up from 263. The remaining 120 stay open
+with the qualification controller in DSLP-4. Use
+`tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0,
+with the `upstream`, `_junit`, `_write_section` and
+`_check_baseline_failures` selectors. All seven focused tests and
+both linters passed.
+
 ## Tickets
 
 

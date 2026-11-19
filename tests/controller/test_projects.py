@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import subprocess
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -38,6 +39,84 @@ class UpstreamReportTests(unittest.TestCase):
                     report.write_text(f'<testsuite><testcase {attributes}/></testsuite>')
                     with self.assertRaisesRegex(QualificationError, 'upstream report has invalid test cases'):
                         _junit(report)
+
+
+    def test_reports_jaq_process_and_output_failures(self) -> None:
+        with workspace() as directory:
+            report = directory / 'report.xml'
+            for failure in (OSError('fixture tool missing'), subprocess.TimeoutExpired(['jaq'], 60)):
+                with (
+                    self.subTest(failure=failure),
+                    patch.object(qualify.subprocess, 'run', side_effect=failure),
+                    self.assertRaises(QualificationError) as error,
+                ):
+                    _junit(report)
+                self.assertEqual(str(error.exception), f'cannot run jaq for upstream report: {failure}')
+            with (
+                patch.object(qualify.subprocess, 'run', return_value=subprocess.CompletedProcess(
+                    [], 8, '[]', 'fixture invalid XML',
+                )) as run,
+                self.assertRaisesRegex(QualificationError, '^cannot parse upstream report: fixture invalid XML$'),
+            ):
+                _junit(report)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:4], ['jaq', '--from', 'xml', '--slurp'])
+            self.assertEqual(len(command), 6)
+            self.assertEqual(command[-1], str(report))
+            self.assertEqual(run.call_args.kwargs['timeout'], 60)
+            for output in ('...', '{}', '[42]', '[{"name":"a","status":null}]'):
+                with (
+                    self.subTest(output=output),
+                    patch.object(qualify.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output, '')),
+                    self.assertRaisesRegex(QualificationError, '^upstream report '),
+                ):
+                    _junit(report)
+
+
+class QualificationSectionTests(unittest.TestCase):
+    def test_replaces_only_the_requested_section_and_cleans_scratch(self) -> None:
+        with workspace() as root:
+            scratch = root / '.work/tmp'
+            scratch.mkdir(parents=True)
+            report = root / 'docs/qualification.md'
+            report.parent.mkdir()
+            marker = '## Latest upstream subset: aarch64-unknown-linux-musl'
+            initial = (
+                '# Qualification\n\n## Intro\n\nFixture note.\n\n'
+                f'{marker}\n\nOld receipt.\n\n## Retained checks\n\nUnrelated receipt.\n'
+            )
+            report.write_text(initial, encoding='utf-8')
+            qualify._write_section(root, marker, 'Verified receipt.\n')
+            expected = initial.replace('Old receipt.', 'Verified receipt.')
+            self.assertEqual(report.read_text(encoding='utf-8'), expected)
+            self.assertEqual(list(scratch.iterdir()), [])
+            self.assertEqual(report.read_text(encoding='utf-8').count(marker), 1)
+            qualify._write_section(root, '## New evidence', 'Independent receipt.')
+            self.assertTrue(report.read_text(encoding='utf-8').endswith('\n\n## New evidence\n\nIndependent receipt.\n'))
+            self.assertEqual(list(scratch.iterdir()), [])
+
+    def test_failed_publication_preserves_previous_report_and_removes_scratch(self) -> None:
+        with workspace() as root:
+            scratch = root / '.work/tmp'
+            scratch.mkdir(parents=True)
+            report = root / 'docs/qualification.md'
+            report.parent.mkdir()
+            original = b'# Qualification\n\nPrior evidence.\n'
+            report.write_bytes(original)
+
+            def reject(staged: Path, destination: Path) -> None:
+                self.assertEqual(staged.parent, scratch)
+                self.assertEqual(destination, report)
+                self.assertEqual(staged.read_bytes(), original + b'\n## Candidate\n\nNew evidence.\n')
+                raise PermissionError('fixture cannot replace report')
+
+            with (
+                patch.object(Path, 'replace', autospec=True, side_effect=reject),
+                self.assertRaisesRegex(PermissionError, '^fixture cannot replace report$'),
+            ):
+                qualify._write_section(root, '## Candidate', 'New evidence.')
+            self.assertEqual(report.read_bytes(), original)
+            self.assertEqual(list(scratch.iterdir()), [])
 
 
 class UpstreamQualificationTests(unittest.TestCase):
