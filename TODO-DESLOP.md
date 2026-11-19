@@ -716,6 +716,22 @@ which changes the contents of a stack used only for depth,
 archive, generation and command tests with `buildsys.package.*`.
 All 28 package tests and both linters passed.
 
+
+**Upstream report admission**
+
+A runner summary for two cases and a valid JUnit report containing
+one case previously published a green qualification. The candidate
+now checks the count for both the packaged and reference runs.
+The fixtures verify the packaged executable used for validation,
+reference rerun selection, disagreement between status and JUnit,
+and preservation of the previous qualification on rejection.
+
+The macOS ARM64 controller trial caught 263 of 413 identities in
+`upstream`, `_junit`, `_check_baseline_failures` and `_write_section`
+with `tests/controller/test_projects.py`. All four focused tests
+and both linters passed. The wider qualification scope remains in
+DSLP-4.
+
 ## Tickets
 
 

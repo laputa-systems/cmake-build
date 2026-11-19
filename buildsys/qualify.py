@@ -233,9 +233,13 @@ def upstream(*, root: Path, phase: Path, image: str, target: Target) -> None:
                                                             if destination not in ('/qualification', f'/src/.work/build/{target.triple}/phases/{name}')))
             print(result.stdout, end='')
             report = results / 'upstream.xml'
-            if 'upstream subset:' not in result.stdout or not report.is_file():
+            summary = re.search(r'^upstream subset: ([0-9]+) tests executed$', result.stdout, re.MULTILINE)
+            if summary is None or not report.is_file():
                 raise QualificationError(f'{name} upstream subset produced no report:\n{result.stderr}')
             cases = _junit(report)
+            reported_count = int(summary.group(1))
+            if reported_count != len(cases):
+                raise QualificationError(f'{name} upstream summary reports {reported_count} tests but JUnit contains {len(cases)}')
             failed = {case for case, status in cases.items() if status == 'fail'}
             if result.returncode != (1 if failed else 0):
                 raise QualificationError(f'{name} upstream result disagrees with its report:\n{result.stderr}')
