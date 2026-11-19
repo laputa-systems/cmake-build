@@ -551,6 +551,26 @@ in the pinned ARM64 builder passed all 36 input tests and covered
 [Retained command](https://github.com/laputa-systems/cmake-build/pull/51) ·
 [Native branch coverage](https://github.com/laputa-systems/cmake-build/actions/runs/44445064389)
 
+**Phase record completion**
+
+The phase reader now has a UTF-8 record witness under an ASCII locale.
+A separate fixture removes the transient state during the action. It
+checks that completion still writes a reusable final record. The
+private JSON writer uses the directory already created by its only
+caller.
+
+On CPython 3.15.2, run the existing phase selection with
+`LC_ALL=en_US.UTF-8 PYTHONCOERCECLOCALE=0 PYTHONUTF8=0` on macOS.
+The fixture switches CTYPE to C for its read, while mutmut can still
+render its generated identifiers. The current source catches 169 of
+178 identities. Six old identities disappeared with the redundant
+directory creation. The character encoding check and both missing-state
+cleanup variants now fail. The nine remaining variants preserve
+behavior: `_read` 6 selects the same UTF-8 codec, `_write_json` 4 and 5
+change a private same-directory temporary suffix, and 9, 10, 12–15
+change whitespace or key ordering in decoded JSON. All ten phase
+tests and both linters passed.
+
 ## Tickets
 
 
