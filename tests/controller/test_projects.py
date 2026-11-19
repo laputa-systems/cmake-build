@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import subprocess
 import unittest
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +11,65 @@ from helpers import workspace
 
 from buildsys import qualify, sandbox, targets
 from buildsys.qualify import QualificationError, _check_baseline_failures, _junit
+
+
+class BasicQualificationTests(unittest.TestCase):
+    def test_relocates_candidate_and_checks_sealed_execution_result(self) -> None:
+        target = targets.target('x86_64-unknown-linux-musl')
+        for code in (0, 9):
+            with self.subTest(code=code), workspace() as root:
+                if code:
+                    (root / '.work/tmp').mkdir(parents=True)
+                phase = root / 'candidate'
+                executable = phase / 'bin/cmake'
+                executable.parent.mkdir(parents=True)
+                executable.write_bytes(b'candidate')
+                (phase / 'bin/cpack').symlink_to('cmake')
+                for state in ('phase.json', 'state.json'):
+                    (phase / state).write_text('controller state', encoding='utf-8')
+
+                def run_child(image, command, *, mounts: list[tuple[Path, str]], exit_code=code, **options):
+                    paths = {destination: path for path, destination in mounts}
+                    prefix = paths['/qualification']
+                    relocated = prefix / 'relocated cmake'
+                    phases = root / '.work/build' / target.triple / 'phases'
+                    prepare = f'/src/.work/build/{target.triple}/phases/prepare'
+                    self.assertEqual(prefix.parent, root / '.work/tmp')
+                    self.assertEqual({entry.name for entry in prefix.iterdir()}, {'relocated cmake'})
+                    self.assertEqual(paths, {
+                        '/qualification': prefix,
+                        '/qualification/relocated cmake': relocated,
+                        '/suite': root / 'tests/acceptance/basic',
+                        prepare: phases / 'prepare',
+                        '/tools/toolchain.cmake': phases / 'bootstrap/toolchain.cmake',
+                        '/tools/ninja': phases / 'bootstrap/ninja-build/ninja',
+                    })
+                    self.assertEqual((relocated / 'bin/cmake').read_bytes(), b'candidate')
+                    self.assertTrue((relocated / 'bin/cpack').is_symlink())
+                    self.assertEqual((relocated / 'bin/cpack').readlink(), Path('cmake'))
+                    self.assertEqual({entry.name for entry in relocated.iterdir()}, {'bin'})
+                    self.assertEqual((image, command), ('fixture-image', ['python3', '/suite/run.py']))
+                    self.assertEqual(options, {
+                        'target': target, 'env': {'TMPDIR': '/qualification'},
+                        'workdir': '/qualification', 'timeout': 1800,
+                        'read_only': frozenset(paths) - {'/qualification'},
+                    })
+                    return sandbox.SealedResult(exit_code, 'fixture stdout\n', 'fixture stderr', 'none', {})
+
+                error = nullcontext() if code == 0 else self.assertRaisesRegex(
+                    QualificationError, r'^basic qualification failed \(9\):\nfixture stderr$',
+                )
+                with (
+                    patch.object(sandbox, 'run_sealed', side_effect=run_child) as sealed,
+                    redirect_stdout(io.StringIO()) as stdout,
+                    error,
+                ):
+                    qualify.basic(root=root, phase=phase, image='fixture-image', target=target)
+                self.assertEqual(stdout.getvalue(), 'fixture stdout\n')
+                self.assertEqual(sealed.call_count, 1)
+                self.assertEqual(list((root / '.work/tmp').iterdir()), [])
+                self.assertTrue((phase / 'phase.json').is_file())
+                self.assertTrue((phase / 'state.json').is_file())
 
 
 class UpstreamReportTests(unittest.TestCase):
