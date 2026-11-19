@@ -1034,6 +1034,22 @@ that is filtered out of the link-driver flags. Variant 253
 affects the diagnostic for an unsupported internal mode. All
 five focused tests and both linters passed.
 
+**CMake bootstrap handoff**
+
+The fixture extracts three actual source archives, verifies the
+staged files and rejects a flat or multi-root layout. The recorded
+subprocess arguments verify Samurai, Ninja, the CMake configure,
+and the native toolchain check. It also checks the generated
+toolchain file, inherited environment, known and unknown CPU
+counts, and the exact diagnostic for wrong or missing CMake
+version output. The real build subprocesses are substituted.
+
+At `9d2c18d0`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 268 `buildsys.bootstrap` variants with
+`tests/controller/test_bootstrap.py`. The original fixture caught
+22 and left 93 untested. All 268 were caught with the new fixture
+on macOS ARM64. The four focused tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
