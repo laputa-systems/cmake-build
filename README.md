@@ -28,3 +28,5 @@ embedded metadata.
 
 See [building](docs/building.md), [build measurements](docs/build-system.md), [executable performance](docs/performance.md), [dependencies](docs/dependencies.md),
 [qualification](docs/qualification.md), [CI and prereleases](docs/ci-and-releases.md), and [Laputa integration](docs/laputa-integration.md).
+
+The controller test instructions are in AGENTS.md.
