@@ -20,7 +20,7 @@ from .buildlib_wheel import object_path
 from .targets import TARGETS
 
 ROLES = ("source", "build-source", "reference", "test")
-ALL_TARGETS: str = "all"
+ALL_TARGETS = "all"
 
 
 class InputError(Exception):
