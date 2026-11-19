@@ -1288,6 +1288,15 @@ identities, up from six, with no timeouts. Both trials used mutmut
 3.8.1, CPython 3.15.2 and pytest 9.2.0. All six cases and both
 linters passed. Tracer setup, execution and reporting remain open.
 
+The simulated benchmark execution checks tracer dependencies,
+read-only mounts, subprocess failures, input identity after execution,
+RSS provenance, initial and existing budgets, rejected reports and
+atomic publication cleanup. The fresh macOS ARM64 trial with mutmut
+3.8.1 caught 695 of the same 950 coordinator identities and all 21
+atomic writer identities. It had no timeouts. All 13 portable tests,
+Ruff and ty passed. The native benchmark remains the live workload
+proof, and the surviving coordinator identities need disposition.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.
