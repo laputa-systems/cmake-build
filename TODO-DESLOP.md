@@ -1312,6 +1312,19 @@ up from 98. The path-admission and descriptor flag variants need
 disposition before this scope can join the native gate. All five
 focused tests and both linters passed.
 
+The benchmark report fixture checks rotation order, rejected samples,
+sample uniqueness, exact summary statistics, provenance fields, sizes
+and trace sections. The existing repetition witness now supplies only
+the host admission result so it can check the same limit on macOS.
+The native Linux benchmark contract is separate.
+
+The fresh mutmut 3.8.1, CPython 3.15.2 and pytest 9.2.0 comparison
+selected the same 364 identities across `interleaved_orders`,
+`summarize` and `render` on macOS ARM64. It excluded the existing
+Linux-only command test on both sides. Detected identities went
+from 229 to 263. The 101 survivors and the benchmark execution
+scopes remain open. All six focused tests, Ruff and ty passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
