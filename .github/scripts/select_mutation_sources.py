@@ -15,14 +15,15 @@ CRITICAL = frozenset({
 })
 
 CONFIGURATION = frozenset({
+    ".gitattributes",
     ".gitignore",
     "Makefile",
     "bootstrap.lock.json",
     "buildsys/__init__.py",
     "pyproject.toml",
+    "release-budgets.json",
     "sources.lock.json",
     "uv.lock",
-    "versions.toml",
 })
 
 def production_source(path: str) -> bool:
@@ -40,7 +41,7 @@ def select(changes: Mapping[str, str]) -> tuple[str, ...]:
     for path, status in sorted(changes.items()):
         if status not in {"A", "D", "M"}:
             raise ValueError(f"unsupported change status {status}: {path}")
-        if path in CONFIGURATION or path.startswith((".github/", "docker/", "provenance/", "scripts/", "tests/", "patches/")):
+        if path in CONFIGURATION or path.startswith((".github/", "docker/", "licenses/", "patches/", "scripts/", "tests/")):
             broad_change = True
         elif production_source(path):
             if status == "D":

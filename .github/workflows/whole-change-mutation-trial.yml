@@ -70,7 +70,10 @@ jobs:
           mkdir -p "$root/.work/tmp"
           export TMPDIR="$root/.work/tmp"
           source="buildsys/$MODULE.py"
-          git ls-tree -r --full-tree HEAD | awk '$1 == "120000" || $1 == "160000" { exit 1 }'
+          paths=(build.py buildsys tests .github bootstrap.lock.json sources.lock.json
+                 release-budgets.json pyproject.toml uv.lock docker patches scripts)
+          git ls-tree -r --full-tree HEAD -- "${paths[@]}" |
+            awk '$1 == "120000" || $1 == "160000" { print "unsupported archive entry: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }'
           case "$MODULE" in
             inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;
             phases) tests='["tests/controller/test_phases.py"]' ;;
@@ -86,13 +89,13 @@ jobs:
           mkdir -p "$proof/.work/tmp"
           touch "$proof/.work/tmp/.keep"
           export TMPDIR="$proof/.work/tmp" PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
-          git archive HEAD | tar -x -C "$proof"
+          git archive HEAD -- "${paths[@]}" | tar -x -C "$proof"
           cat >> "$proof/pyproject.toml" <<TOML
 
           [tool.mutmut]
           source_paths = ["buildsys"]
           only_mutate = ["$source"]
-          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"]
           pytest_add_cli_args_test_selection = $tests
           use_setproctitle = false
           TOML
