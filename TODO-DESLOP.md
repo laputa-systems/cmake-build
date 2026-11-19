@@ -1259,6 +1259,17 @@ using CPython 3.15.2 and pytest 9.2.0. Ruff and ty passed. The
 existing native process tests still own actual RSS and signal
 delivery and the rest of the mutation scope remains open.
 
+The lifecycle fixture simulates every process effect. It checks
+child setup and diagnostic encoding, the time of the image RSS
+measurement, error cleanup, and stopped-child reaping. The
+macOS ARM64 trial with mutmut 3.8.1, CPython 3.15.2 and pytest
+9.2.0 caught 192 of all 193 process-accounting identities.
+The one survivor replaces an initial false flag with `None`.
+The flag is otherwise assigned from wait status or set to true,
+and its sole read is the same truth test in either case.
+All nine portable cases and both linters passed. Ordinary native
+tests still exercise actual child processes, RSS and signal delivery.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
