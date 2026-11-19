@@ -5,7 +5,7 @@ from helpers import workspace
 from buildsys import reproduce
 
 
-class ReproduceTest(unittest.TestCase):
+class ReproduceTreeTest(unittest.TestCase):
     def test_reports_content_modes_types_and_link_targets(self) -> None:
         with workspace() as root:
             first, second = root / 'first', root / 'second'

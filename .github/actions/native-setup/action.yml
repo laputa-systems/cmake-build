@@ -21,7 +21,7 @@ runs:
         printf '%s\n' '.work/' >> .git/info/exclude
         mkdir -p .work/tmp .work/tools
         digest=$(git ls-files -z -- build.py buildsys docker patches tests licenses NOTICE \
-          sources.lock.json bootstrap.lock.json ':(exclude)tests/controller' | python3 -c '
+          sources.lock.json bootstrap.lock.json ':(exclude)tests/controller' ':(exclude)tests/host' | python3 -c '
         import hashlib, os, stat, sys
         result = hashlib.sha256()
         for raw in sys.stdin.buffer.read().split(b"\0"):

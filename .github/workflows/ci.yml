@@ -21,6 +21,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Verify reproduction with host Git
+        run: make reproduction-git-test
       - uses: ./.github/actions/native-setup
         with:
           target: x86_64-unknown-linux-musl

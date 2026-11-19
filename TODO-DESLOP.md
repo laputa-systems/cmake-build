@@ -635,6 +635,26 @@ redundant check for a component that the path parser already removes.
 The 22 remaining outcomes stay under DSLP-4. All 26 package tests
 and both linters passed.
 
+**Reproduction worktree cleanup**
+
+The reproduction cases create two real detached worktrees in a
+temporary Git fixture and package the staged fixture binaries.
+They verify copied cache and Rust phase files, identical archives,
+payload and checkout-path differences, and cleanup after a failed
+second build. A failed removal previously stopped the cleanup loop
+and left the other worktree registered. Cleanup now attempts both
+removals before reporting failures.
+
+The prior reproduction selection caught 46 of 238 identities and
+marked 185 unexercised. The current source catches 206 of 246 with
+the real-worktree cases. Select `buildsys.reproduce.*` with the
+controller archive recipe, `tests/controller/test_package_reproduce.py`, and
+`tests/host/test_reproduction_git.py`. Run `make reproduction-git-test` on the
+host to exercise real Git worktrees. CI runs this before the sealed controller
+suite because the minimum builder image has no Git.
+All five reproduction tests and both linters passed. Wider rejection
+and diagnostic variants remain in DSLP-4.
+
 **Persisted release budgets**
 
 The budget reader now has a real-file control using the tracked
