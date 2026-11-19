@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TypedDict
 
@@ -112,6 +113,14 @@ def _valid_sample_number(value: object) -> bool:
     )
 
 
+def _sample_median(values: Iterable[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return statistics.mean((ordered[middle - 1], ordered[middle]))
+
+
 def summarize(
     records: list[Measurement], repetitions: int
 ) -> dict[tuple[str, str, str], MeasurementSummary]:
@@ -142,8 +151,8 @@ def summarize(
         if len(samples) != repetitions or {sample['iteration'] for sample in samples} != set(range(repetitions)):
             raise BenchmarkError(f'incomplete benchmark samples: {key}')
     return {
-        key: {'median_seconds': statistics.median(sample['seconds'] for sample in samples),
-              'median_cpu_seconds': statistics.median(sample['cpu_seconds'] for sample in samples),
+        key: {'median_seconds': _sample_median(sample['seconds'] for sample in samples),
+              'median_cpu_seconds': _sample_median(sample['cpu_seconds'] for sample in samples),
               'min_seconds': min(sample['seconds'] for sample in samples),
               'max_seconds': max(sample['seconds'] for sample in samples),
               'max_rss_kib': max(sample['max_rss_kib'] for sample in samples)}
