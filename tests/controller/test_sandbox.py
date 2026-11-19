@@ -9,7 +9,7 @@ import struct
 import subprocess
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from helpers import workspace
 
@@ -41,15 +41,123 @@ class ReferenceImageTests(unittest.TestCase):
             output = directory / 'output'
             inputs.mkdir()
             output.mkdir()
-            sandbox.run_sealed('image', ['test'], target=X86, mounts=[(inputs, '/inputs'), (output, '/output')],
-                               read_only=frozenset({'/inputs'}))
+            result = sandbox.run_sealed('image', ['test'], target=X86, mounts=[(inputs, '/inputs'), (output, '/output')],
+                                        read_only=frozenset({'/inputs'}))
+            self.assertEqual(result.networks, {})
             create = docker.call_args_list[0].args
             self.assertIn(f'{inputs}:/inputs:ro', create)
             self.assertIn(f'{output}:/output:rw', create)
+            self.assertEqual(create[create.index('--workdir') + 1], '/src')
+            self.assertEqual(docker.call_args_list[2], call('start', '--attach', 'container-id', timeout=3600))
         with patch.object(sandbox, '_docker') as docker:
-            with self.assertRaises(sandbox.SandboxError):
+            with self.assertRaisesRegex(sandbox.SandboxError, '^read-only destinations must be declared mounts$'):
                 sandbox.run_sealed('image', ['test'], target=X86, mounts=[], read_only=frozenset({'/missing'}))
             docker.assert_not_called()
+
+    def test_sealed_execution_forwards_exit_output_and_timeout(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'candidate-container\n', '')
+        inspection = subprocess.CompletedProcess([], 0, json.dumps([{
+            'HostConfig': {'NetworkMode': 'none'}, 'NetworkSettings': {'Networks': {}},
+        }]), '')
+        started = subprocess.CompletedProcess([], 7, 'child output\n', 'child error\n')
+        removed = subprocess.CompletedProcess([], 0, '', '')
+        with (
+            workspace() as directory,
+            patch.object(sandbox, '_docker', side_effect=[created, inspection, started, removed]) as docker,
+            patch.object(sandbox.os, 'getuid', return_value=1080),
+            patch.object(sandbox.os, 'getgid', return_value=2104),
+        ):
+            source = directory / 'source with spaces'
+            target_dir = directory / 'output'
+            result = sandbox.run_sealed(
+                'locked-image', ['python3', 'build.py', 'test'], target=ARM,
+                mounts=[(source, '/source'), (target_dir, '/output')],
+                read_only=frozenset({'/source'}), env={'TMPDIR': '/output/tmp', 'MODE': 'fixture'},
+                workdir='/output', timeout=23,
+            )
+            self.assertEqual(result, sandbox.SealedResult(7, 'child output\n', 'child error\n', 'none', {}))
+            self.assertEqual(docker.call_args_list, [
+                call('create', '--network', 'none', '--platform', ARM.docker_platform,
+                     '--user', '1080:2104', '--workdir', '/output', '--volume', f'{source}:/source:ro',
+                     '--volume', f'{target_dir}:/output:rw', '--env', 'TMPDIR=/output/tmp',
+                     '--env', 'MODE=fixture', 'locked-image', 'python3', 'build.py', 'test'),
+                call('inspect', 'candidate-container'),
+                call('start', '--attach', 'candidate-container', timeout=23),
+                call('rm', '--force', 'candidate-container'),
+            ])
+
+    def test_networked_execution_forwards_supported_options_and_network_evidence(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'candidate-container\n', '')
+        networks: dict[str, object] = {'bridge': {'Driver': 'bridge'}}
+        inspection = subprocess.CompletedProcess([], 0, json.dumps([{
+            'HostConfig': {'NetworkMode': 'bridge'}, 'NetworkSettings': {'Networks': networks},
+        }]), '')
+        started = subprocess.CompletedProcess([], 0, 'child output\n', '')
+        removed = subprocess.CompletedProcess([], 0, '', '')
+        with workspace() as directory:
+            source = directory / 'input'
+            for custom in (False, True):
+                with (
+                    self.subTest(custom=custom),
+                    patch.object(sandbox, '_docker', side_effect=[created, inspection, started, removed]) as docker,
+                ):
+                    mounts = [(source, '/input')]
+                    if custom:
+                        result = sandbox.run_networked(
+                            'locked-image', ['test'], target=ARM, mounts=mounts,
+                            workdir='/input', timeout=17, env={'MODE': 'fixture'},
+                            read_only=frozenset({'/input'}),
+                        )
+                    else:
+                        result = sandbox.run_networked('locked-image', ['test'], target=ARM, mounts=mounts)
+                    self.assertEqual(result, sandbox.SealedResult(0, 'child output\n', '', 'bridge', networks))
+                    create = docker.call_args_list[0].args
+                    self.assertEqual(create[create.index('--workdir') + 1], '/input' if custom else '/src')
+                    self.assertIn(f'{source}:/input:{"ro" if custom else "rw"}', create)
+                    self.assertEqual(create[-2:], ('locked-image', 'test'))
+                    if custom:
+                        self.assertIn('MODE=fixture', create)
+                    self.assertEqual(
+                        docker.call_args_list[2], call('start', '--attach', 'candidate-container', timeout=17 if custom else 3600),
+                    )
+
+    def test_missing_inspection_network_mode_keeps_the_child_from_starting(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'candidate-container\n', '')
+        inspection = subprocess.CompletedProcess([], 0, '[{}]', '')
+        removed = subprocess.CompletedProcess([], 0, '', '')
+        with (
+            patch.object(sandbox, '_docker', side_effect=[created, inspection, removed]) as docker,
+            self.assertRaisesRegex(sandbox.SandboxError, '^container network mode is not none$'),
+        ):
+            sandbox.run_sealed('image', ['build'], target=X86, mounts=[])
+        self.assertEqual(docker.call_args_list[1:], [
+            call('inspect', 'candidate-container'), call('rm', '--force', 'candidate-container'),
+        ])
+
+    def test_cleanup_failure_preserves_the_original_inspection_failure(self) -> None:
+        created = subprocess.CompletedProcess([], 0, 'candidate-container\n', '')
+        inspection = subprocess.CompletedProcess([], 7, '', 'cannot inspect\n')
+        removed = subprocess.CompletedProcess([], 6, '', 'cannot remove\n')
+        with (
+            patch.object(sandbox, '_docker', side_effect=[created, inspection, removed]) as docker,
+            contextlib.redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaisesRegex(sandbox.SandboxError, r'^inspect container failed \(7\): cannot inspect$'),
+        ):
+            sandbox.run_sealed('image', ['build'], target=X86, mounts=[])
+        self.assertEqual(docker.call_args_list[1:], [
+            call('inspect', 'candidate-container'),
+            call('rm', '--force', 'candidate-container'),
+        ])
+        self.assertEqual(stderr.getvalue(), 'container cleanup failed: remove container failed (6): cannot remove\n')
+
+    def test_create_failure_stops_before_inspection_and_cleanup(self) -> None:
+        failed = subprocess.CompletedProcess([], 12, '', 'cannot create\n')
+        with (
+            patch.object(sandbox, '_docker', return_value=failed) as docker,
+            self.assertRaisesRegex(sandbox.SandboxError, r'^create none container failed \(12\): cannot create$'),
+        ):
+            sandbox.run_sealed('image', ['build'], target=X86, mounts=[])
+        self.assertEqual(docker.call_count, 1)
 
     def test_fetch_uses_locked_reference_index(self) -> None:
         lock = load_bootstrap(build.BOOTSTRAP_LOCK)
