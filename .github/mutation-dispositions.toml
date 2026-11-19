@@ -472,3 +472,10 @@ Darwin = [
   "buildsys.sysroot.x_trace_paths__mutmut_14=7fff5aee24b50ea75107b40fb7739b952cf212f4d8ad1a634517494c32578643",
   "buildsys.sysroot.x_verify__mutmut_7=00b74d42a95c110c7f990b844096d324fab150d5fadc77c6eb246295b08dd937",
 ]
+
+[qualified.reference]
+source_sha256 = "01be5d586bb797fef75c412bae532c1543a208b591f3b5f38c052d78182382f3"
+Linux = []
+Darwin = [
+  "buildsys.reference.x_build__mutmut_5=56ef8b74848f7b5ff7e0c4829867b7667a9619c5a3987cf84e9c6ecef06eb62c",
+]

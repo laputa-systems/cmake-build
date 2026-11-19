@@ -92,6 +92,7 @@ jobs:
             generations) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                                   "tests/controller/test_package_commands.py"]' ;;
             inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;
+            reference) tests='["tests/controller/test_reference.py"]' ;;
             reproduce) tests='["tests/controller/test_package_reproduce.py", "tests/host/test_reproduction_git.py"]' ;;
             package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                               "tests/controller/test_package_commands.py"]' ;;
