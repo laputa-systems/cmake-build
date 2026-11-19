@@ -42,6 +42,59 @@ class PackageTest(unittest.TestCase):
             self.assertEqual(artifact['files']['usr/share/link']['target'], '../bin/cmake')
             self.assertNotIn('usr/share/doc/cmake-build/artifact.json', artifact['files'])
 
+    def test_preserves_a_nested_relative_link_in_the_package(self):
+        shared = self.stage / 'share'
+        (shared / 'component/deep').mkdir(parents=True)
+        (shared / 'configuration').write_bytes(b'fixture config')
+        target = 'component/deep/../../configuration'
+        (shared / 'default').symlink_to(target)
+        destination = self.root / 'cmake.tar.xz'
+        package.create(self.stage, destination, {}, 0)
+        package.inspect(destination)
+        with tarfile.open(destination, 'r:xz') as archive:
+            member = archive.getmember('usr/share/default')
+            self.assertTrue(member.issym())
+            self.assertEqual(member.linkname, target)
+        self.assertEqual((shared / 'default').read_bytes(), b'fixture config')
+
+    def test_inspection_requires_xz_and_unique_members_under_usr(self):
+        original = self.root / 'original.tar.xz'
+        changed = self.root / 'candidate.tar.xz'
+        package.create(self.stage, original, {}, 0)
+        cases = (
+            ('w', None, 'invalid package:'),
+            ('w:xz', 'usr/bin/cmake', '^invalid or duplicate archive member: usr/bin/cmake$'),
+            ('w:xz', 'README', '^invalid or duplicate archive member: README$'),
+            ('w:xz', 'usr/share/../README', r'^invalid or duplicate archive member: usr/share/\.\./README$'),
+            ('w:xz', '.', r'^invalid or duplicate archive member: \.$'),
+        )
+        for mode, extra, error in cases:
+            with self.subTest(mode=mode, member=extra):
+                with tarfile.open(original, 'r:xz') as source, tarfile.open(changed, mode) as output:
+                    for member in source:
+                        output.addfile(member, source.extractfile(member) if member.isfile() else None)
+                    if extra == 'usr/bin/cmake':
+                        member = source.getmember(extra)
+                        output.addfile(member, source.extractfile(member))
+                    elif extra is not None:
+                        member = tarfile.TarInfo(extra)
+                        member.type = tarfile.DIRTYPE
+                        output.addfile(member)
+                with self.assertRaisesRegex(package.PackageError, error):
+                    package.inspect(changed)
+
+    def test_inspection_rejects_an_unpopulated_link_target(self):
+        original = self.root / 'original.tar.xz'
+        changed = self.root / 'candidate.tar.xz'
+        package.create(self.stage, original, {}, 0)
+        with tarfile.open(original, 'r:xz') as source, tarfile.open(changed, 'w:xz') as output:
+            for member in source:
+                if member.name == 'usr/share/link':
+                    member.linkname = ''
+                output.addfile(member, source.extractfile(member) if member.isfile() else None)
+        with self.assertRaisesRegex(package.PackageError, '^unsafe symlink usr/share/link: $'):
+            package.inspect(changed)
+
     def test_rejects_a_symlink_outside_the_package(self):
         (self.stage / 'share/escape').symlink_to('../../../outside')
         with self.assertRaisesRegex(package.PackageError, 'escaping symlink usr/share/escape'):

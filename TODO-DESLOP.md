@@ -622,6 +622,19 @@ path. The two Linux jobs check those case-sensitive paths. Variants
 Variants 84, 85, 87, 88, 97 and 98 change JSON formatting or key order.
 All 23 package tests and both linters passed.
 
+**Package archive admission**
+
+The archive tests now check xz compression, unique members under
+`usr`, rejection of an empty link target, and an ordinary nested
+relative link that resolves to a retained configuration file. The
+link walk uses the normalized POSIX components directly.
+
+The package selection catches 303 of 325 identities. The earlier
+source caught 291 of 327. Two identities disappeared with the
+redundant check for a component that the path parser already removes.
+The 22 remaining outcomes stay under DSLP-4. All 26 package tests
+and both linters passed.
+
 ## Tickets
 
 
