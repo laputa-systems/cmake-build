@@ -326,6 +326,18 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.assertEqual(metadata["cpu_model"], "fixture cpu")
         self.assertEqual(metadata["strace_version"], "fixture strace")
         self.assertEqual(metadata["cpus"], [0, 2])
+        sources = {item.name: item for item in benchmark.load_sources(self.root / "sources.lock.json")}
+        self.assertEqual(metadata["target"], self.target.triple)
+        self.assertEqual(metadata["host"], "fixture host")
+        self.assertEqual(metadata["container"], lock.reference_image)
+        self.assertEqual(metadata["official_sha256"], sources["cmake-reference-aarch64"].sha256)
+        self.assertEqual(metadata["projects"], [sources[name] for name in project_names])
+        self.assertEqual(metadata["cmake_sha256"], sources["cmake-source"].sha256)
+        self.assertEqual(metadata["toolchain_sha256"], sources["llvm-toolchain-aarch64"].sha256)
+        self.assertEqual(metadata["runner_sha256"], benchmark.sha256_file(self.provenance[0]))
+        self.assertEqual(metadata["implementation_sha256"], benchmark.sha256_file(Path(benchmark.__file__)))
+        self.assertEqual(metadata["rss_implementation_sha256"], benchmark.sha256_file(self.provenance[1]))
+        self.assertEqual(metadata["profiles"], [])
         self.assertEqual(
             metadata["sizes"],
             {
@@ -334,11 +346,21 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
                 "kitware": {"executable": 14, "files": 20, "archive": self.official_archive.stat().st_size},
             },
         )
-        self.check_size.assert_called_once()
+        self.check_size.assert_called_once_with({}, self.target.triple, scratch / "candidate", self.archive)
         self.apply.assert_called_once_with({}, self.target.triple, self.digest, self.archive.stat().st_size, [])
         self.release.assert_called_once_with(
             {}, self.target.triple, self.digest, self.archive.stat().st_size, benchmark.sha256_file(self.budget_path), 5, [],
         )
+
+    def test_report_identifies_x86_cpu_or_uses_the_missing_label(self) -> None:
+        for cpuinfo, expected in (
+            ("processor: 0\nmodel name\t: x86 fixture CPU  \n", "x86 fixture CPU"),
+            ("processor: 0\n", "not reported"),
+        ):
+            with self.subTest(cpuinfo=cpuinfo):
+                self.cpuinfo.write_text(cpuinfo)
+                benchmark.run(self.root, self.target)
+                self.assertEqual(self.render.call_args.args[2]["cpu_model"], expected)
 
     def test_tracer_dependencies_must_be_complete_before_launch(self) -> None:
         cases = (
