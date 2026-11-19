@@ -12,7 +12,7 @@ import sys
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 from helpers import workspace
 
@@ -719,6 +719,56 @@ class NetworkBoundaryTests(unittest.TestCase):
         self.assertEqual(report["ok"], False)
         self.assertEqual(report["error"], "fixture probe error")
 
+
+    def test_probe_reports_bounded_output_and_worker_socket_failures(self) -> None:
+        listener = Mock()
+        listener.getsockname.return_value = ('0.0.0.0', 20000)
+        delivered = Mock()
+        delivered.recv.side_effect = [b'\xffa', b'b', b'']
+        rejected = Mock()
+        rejected.recv.side_effect = OSError('fixture receive error')
+        listener.accept.side_effect = [
+            TimeoutError('fixture idle interval'),
+            (delivered, ('127.0.0.1', 20001)),
+            (rejected, ('127.0.0.1', 20002)),
+            OSError('fixture accept error'),
+        ]
+        worker = Mock()
+        worker.is_alive.return_value = False
+
+        def create_worker(*, target):
+            worker.start.side_effect = target
+            return worker
+
+        host = subprocess.CompletedProcess([], 3, ' ' + 'H' * 130 + '\n', '')
+        gateway = subprocess.CompletedProcess([], 0, ' DENIED:' + 'G' * 130 + '\n', '')
+        loopback = subprocess.CompletedProcess([], 0, ' DENIED:' + 'L' * 130 + '\n', '')
+        with (
+            workspace() as directory,
+            patch.object(sandbox.socket, 'socket', return_value=listener),
+            patch.object(sandbox.threading, 'Thread', side_effect=create_worker),
+            patch.object(sandbox, '_host_gateway', return_value='172.17.0.1'),
+            patch.object(sandbox, 'docker_path', return_value='docker'),
+            patch.object(sandbox, '_probe', side_effect=[host, gateway, loopback]),
+        ):
+            report = sandbox.network_boundary_selftest('image', X86, directory)
+        self.assertEqual(report['listener_received'], ['\ufffdab'])
+        self.assertEqual(report['errors'], ['fixture receive error', 'fixture accept error'])
+        self.assertEqual(report['host_output'], 'H' * 120)
+        self.assertEqual(report['gateway_output'], 'DENIED:' + 'G' * 113)
+        self.assertEqual(report['loopback_output'], 'DENIED:' + 'L' * 113)
+        self.assertEqual(report['worker_stopped'], True)
+        self.assertEqual(report['ok'], False)
+        self.assertIsNone(report['error'])
+        listener.setsockopt.assert_called_once_with(sandbox.socket.SOL_SOCKET, sandbox.socket.SO_REUSEADDR, 1)
+        listener.listen.assert_called_once_with(4)
+        listener.settimeout.assert_called_once_with(0.2)
+        listener.close.assert_called_once_with()
+        worker.join.assert_called_once_with(timeout=3)
+        delivered.settimeout.assert_called_once_with(3)
+        self.assertEqual(delivered.recv.call_args_list, [call(64)] * 3)
+        delivered.close.assert_called_once_with()
+        rejected.close.assert_called_once_with()
 
     def test_reports_failure_when_the_listener_worker_has_not_stopped(self) -> None:
         probe = sandbox._probe
