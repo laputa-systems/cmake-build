@@ -410,3 +410,8 @@ Darwin = [
   "buildsys.cmake.x_build__mutmut_55=1d11ecd68ae982466a4d38fe1e650a3c87809cbd4f0fb089886783817b1310a0",
   "buildsys.cmake.x_build__mutmut_56=3f4037b20b8850576afbe34f6d1f9f5a91b45d380d33812591292ae4b0e2e7b1",
 ]
+
+[qualified.bootstrap]
+source_sha256 = "ded6797fd55b1942c7d9beac506fcfef8ad7bd44eb834b522cd919fe53cd07b0"
+Linux = []
+Darwin = []
