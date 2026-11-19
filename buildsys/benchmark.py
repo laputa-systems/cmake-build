@@ -10,8 +10,9 @@ import sys
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from buildlib.hashing import digest_file, sha256_file
 from buildlib.locks import Input
@@ -19,6 +20,7 @@ from buildlib.locks import Input
 from . import budgets, package, sandbox, stage
 from .buildlib_wheel import cache_root
 from .inputs import (
+    BootstrapLock,
     Cache,
     bootstrap_inputs,
     load_bootstrap,
@@ -221,7 +223,24 @@ def render(records: list[Measurement], repetitions: int, metadata: ReportMetadat
     return '\n'.join(lines).rstrip() + '\n'
 
 
-def admit(root: Path, target: Target, repetitions: int = 5):
+@dataclass(frozen=True)
+class Admission:
+    phases: Path
+    archive: Path
+    archive_sha256: str
+    budget_path: Path
+    budget_document: dict[str, object]
+    budget_digest: str
+    reference_phase: Path
+    reference_record: dict[str, Any]
+    sources: list[Input]
+    lock: BootstrapLock
+    locked: dict[str, Input]
+    reference: Input
+    version: str
+
+
+def admit(root: Path, target: Target, repetitions: int = 5) -> Admission:
     if platform.system() != 'Linux':
         raise BenchmarkError('benchmarking requires a native Linux host')
     if repetitions < 5:
@@ -285,13 +304,17 @@ def admit(root: Path, target: Target, repetitions: int = 5):
             raise BenchmarkError(f'unmodified baseline {name} lock inputs have changed')
     reference = next(item for item in sources if item.name == f'cmake-reference-{target.machine}')
     version = next(item.version for item in sources if item.name == 'cmake-source')
-    return (phases, archive, archive_sha256, budget_path, budget_document, budget_digest,
-            reference_phase, reference_record, sources, lock, locked, reference, version)
+    return Admission(phases, archive, archive_sha256, budget_path, budget_document, budget_digest,
+                     reference_phase, reference_record, sources, lock, locked, reference, version)
 
 
 def run(root: Path, target: Target, repetitions: int = 5) -> None:
-    (phases, archive, archive_sha256, budget_path, budget_document, budget_digest,
-     reference_phase, reference_record, sources, lock, locked, reference, version) = admit(root, target, repetitions)
+    admitted = admit(root, target, repetitions)
+    phases, archive, archive_sha256 = admitted.phases, admitted.archive, admitted.archive_sha256
+    budget_path, budget_document, budget_digest = admitted.budget_path, admitted.budget_document, admitted.budget_digest
+    reference_phase, reference_record = admitted.reference_phase, admitted.reference_record
+    sources, lock, locked = admitted.sources, admitted.lock, admitted.locked
+    reference, version = admitted.reference, admitted.version
     scratch = root / '.work/tmp'
     scratch.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='benchmark-', dir=scratch) as temporary:
