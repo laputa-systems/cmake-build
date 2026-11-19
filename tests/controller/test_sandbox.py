@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -8,8 +9,9 @@ import runpy
 import struct
 import subprocess
 import unittest
+from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from helpers import workspace
 
@@ -80,6 +82,95 @@ class ReferenceImageTests(unittest.TestCase):
         with workspace() as directory, patch.object(sandbox, "_docker", side_effect=[created, failed, removed]) as docker, self.assertRaisesRegex(sandbox.SandboxError, "copy failed"):
             sandbox.copy_reference_runtime("image", X86, directory / "runtime")
         self.assertEqual(docker.call_args_list[-1].args, ("rm", "--force", "container-id"))
+
+
+class BuilderImageContextTests(unittest.TestCase):
+    def test_stable_builder_context_stages_only_native_verified_apks(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        self.assertEqual(
+            build.DOCKERFILE.read_text().splitlines()[0],
+            f'FROM {sandbox.image_reference(lock)}',
+        )
+        for machine in (X86, ARM):
+            with self.subTest(target=machine.triple), workspace() as directory:
+                inputs = []
+                payloads = {}
+                cache = Cache(directory / 'cache', offline=True)
+                seed = directory / 'seed'
+                for item in lock.targets[machine.triple]:
+                    if item.target != machine.triple:
+                        inputs.append(item)
+                        continue
+                    name = Path(item.url).name
+                    body = name.encode('utf-8')
+                    seed.write_bytes(body)
+                    fixture = replace(item, sha256=hashlib.sha256(body).hexdigest(), size=len(body))
+                    cache.store(seed, fixture)
+                    inputs.append(fixture)
+                    payloads[name] = body
+                prepared = replace(lock, targets={**lock.targets, machine.triple: tuple(inputs)})
+                fingerprint = sandbox.image_fingerprint(prepared, machine, build.DOCKERFILE)
+                expected_tag = f'cmake-build-builder:{fingerprint[:16]}'
+                context_root = directory / 'contexts'
+                context = context_root / fingerprint
+                if machine == X86:
+                    context.mkdir(parents=True)
+                    (context / 'stale').write_text('previous build')
+                missing = subprocess.CompletedProcess([], 1, '', 'no image')
+                complete = subprocess.CompletedProcess([], 0, '', '')
+                with patch.object(sandbox, '_docker', side_effect=[missing, complete, complete]) as docker:
+                    self.assertEqual(sandbox.build_image(prepared, machine, build.DOCKERFILE, cache, context_root), expected_tag)
+                    self.assertEqual(sandbox.build_image(prepared, machine, build.DOCKERFILE, cache, context_root), expected_tag)
+                self.assertEqual(docker.call_args_list, [
+                    call('image', 'inspect', expected_tag),
+                    call('build', '--network', 'none', '--platform', machine.docker_platform,
+                         '--tag', expected_tag, '--file', str(context / 'Dockerfile'), str(context), timeout=1800),
+                    call('image', 'inspect', expected_tag),
+                ])
+                self.assertEqual((context / 'Dockerfile').read_bytes(), build.DOCKERFILE.read_bytes())
+                self.assertEqual({apk.name: apk.read_bytes() for apk in (context / 'apks').iterdir()}, payloads)
+                self.assertEqual({entry.name for entry in context.iterdir()}, {'Dockerfile', 'apks'})
+                failed = subprocess.CompletedProcess([], 7, '', 'fixture build failed')
+                with (
+                    patch.object(sandbox, '_docker', side_effect=[missing, failed]),
+                    self.assertRaisesRegex(sandbox.SandboxError, f'^build {expected_tag} failed \\(7\\): fixture build failed$'),
+                ):
+                    sandbox.build_image(prepared, machine, build.DOCKERFILE, cache, context_root)
+
+    def test_image_fingerprint_depends_on_base_and_apks_but_excludes_rust_components(self) -> None:
+        lock = load_bootstrap(build.BOOTSTRAP_LOCK)
+        with workspace() as directory:
+            dockerfile = directory / 'Dockerfile'
+            dockerfile.write_bytes(build.DOCKERFILE.read_bytes())
+            fingerprint = sandbox.image_fingerprint(lock, X86, dockerfile)
+            inputs = lock.targets[X86.triple]
+            material = {
+                'base': lock.image_index_digest,
+                'platform': X86.docker_platform,
+                'dockerfile': hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
+                'packages': sorted((item.name, item.version, item.sha256) for item in inputs if item.target == X86.triple),
+            }
+            canonical = json.dumps(material, sort_keys=True, separators=(',', ':')).encode()
+            self.assertEqual(fingerprint, hashlib.sha256(canonical).hexdigest())
+            self.assertNotEqual(sandbox.image_fingerprint(lock, ARM, dockerfile), fingerprint)
+            changed_base = replace(lock, image_index_digest=f'sha256:{"a" * 64}')
+            self.assertNotEqual(sandbox.image_fingerprint(changed_base, X86, dockerfile), fingerprint)
+            entries = lock.targets[X86.triple]
+            for role, should_change in ((X86.triple, True), ('all', False)):
+                changed = tuple(replace(entry, sha256='f' * 64) if entry.target == role else entry for entry in entries)
+                variant = replace(lock, targets={**lock.targets, X86.triple: changed})
+                self.assertEqual(
+                    sandbox.image_fingerprint(variant, X86, dockerfile) != fingerprint,
+                    should_change,
+                )
+            reversed_items = replace(lock, targets={**lock.targets, X86.triple: tuple(reversed(entries))})
+            self.assertEqual(sandbox.image_fingerprint(reversed_items, X86, dockerfile), fingerprint)
+            original = dockerfile.read_bytes()
+            modified = original.replace(b'WORKDIR /src', b'WORKDIR /tmp')
+            self.assertEqual(len(original), len(modified))
+            self.assertNotEqual(original, modified)
+            dockerfile.write_bytes(modified)
+            self.assertNotEqual(sandbox.image_fingerprint(lock, X86, dockerfile), fingerprint)
 
 
 def fake_toolchain(directory: Path, *, clang_version: str = CLANG_VERSION, lld: str = LLD_VERSION) -> Path:

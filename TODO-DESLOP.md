@@ -290,6 +290,24 @@ verified `.work/cache/objects` wheel copied into the archive and
 listed in `also_copy`. All nine normal wheel tests and both linters
 passed.
 
+**Stable builder context**
+
+Both target fixtures load the tracked Alpine lock, supply verified
+native APK bytes from an offline cache, and verify the image build
+uses the pinned base, no network and the expected target platform.
+They exercise fresh, stale and already-built contexts, failure
+reporting and the absence of Rust artifacts from the APK directory.
+The image fingerprint changes for the base, APKs, architecture and
+Dockerfile bytes. Reordering entries and changing Rust pins keep it.
+
+The six-function image and context selection caught 149 of 152
+identities. Two variants change a Rust name filter after the locked
+architecture selection excludes those inputs. One changes the APK
+directory case on the macOS volume. Use the controller archive recipe
+with `docker` included and select
+`test_sandbox.py::BuilderImageContextTests`. All 24 local sandbox
+tests and lint passed.
+
 **Native controller cache**
 
 [CMake #29](https://github.com/laputa-systems/cmake-build/pull/29) leaves
