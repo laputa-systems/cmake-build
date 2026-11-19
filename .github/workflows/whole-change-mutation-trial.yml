@@ -81,6 +81,10 @@ jobs:
             buildlib_wheel) tests='["tests/controller/test_buildlib_wheel.py::CacheAdmissionTests"]' ;;
             budgets) tests='["tests/controller/test_budgets.py", "tests/controller/test_package_reproduce.py",
                               "tests/controller/test_package_generations.py", "tests/controller/test_cli.py"]' ;;
+            cmake)
+              tests='["tests/controller/test_cmake.py"]'
+              module_copy=', "docker", "patches", "scripts"'
+              ;;
             generations) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                                   "tests/controller/test_package_commands.py"]' ;;
             inputs) tests='["tests/controller/test_inputs.py", "tests/controller/test_phases.py"]' ;;

@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 CRITICAL = frozenset({
     "buildsys/budgets.py",
     "buildsys/buildlib_wheel.py",
+    "buildsys/cmake.py",
     "buildsys/generations.py",
     "buildsys/inputs.py",
     "buildsys/package.py",

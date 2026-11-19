@@ -380,3 +380,33 @@ Darwin = [
   "buildsys.toolchain.x__run__mutmut_11=c83e214d1ece1a3a022c178a6a4ee45402b06923c5cdafa597a2a10ec653ab56",
   "buildsys.toolchain.x__run__mutmut_5=de88b773c51a7a358b5c051e79c9f80868c5e0bb92e24a5c43fb43a02cdb4c0e",
 ]
+
+[qualified.cmake]
+source_sha256 = "6524dd675ad675f767672a0db2126d336505f5bcbc824d4aeffdcd3831164366"
+Linux = [
+  "buildsys.cmake.x_build__mutmut_235=e1912e7e1e464d57ddf458b93988c39d43794d4d2c3fa6e0a6b30fc46e4b7064",
+  "buildsys.cmake.x_build__mutmut_236=63bfa6c76317a6d77d732ce2e71d9c59a8ebf909014a3415729b47f3bba758dd",
+  "buildsys.cmake.x_build__mutmut_253=cd423995b17394cab99b620e0c8eb7c12760c5d8c16ee29f6433dfaadb9ead70",
+  "buildsys.cmake.x_build__mutmut_47=2c70b63916f0ff687b7e8a36baa2118ab8d731a929f14a1b1c341d9722c3ee53",
+  "buildsys.cmake.x_build__mutmut_48=f75f11d23788bf3cd7ab9e20e22ff92363b8390d58b6e4ad1e48b0d41480a3fc",
+  "buildsys.cmake.x_build__mutmut_50=1bfc33678cfb90119d61f7fbb2ec1ef9b99bcc0ff849da6d49d1f1d1601425d2",
+  "buildsys.cmake.x_build__mutmut_51=f0cca8c45b9caa75c3263ec33598817643d5a8743d203c6f9463ec692f8ec4c2",
+  "buildsys.cmake.x_build__mutmut_53=caaa086a886efacb973ccd975142aa25078b3bf8c5efb37c280b638cef3aab7b",
+  "buildsys.cmake.x_build__mutmut_54=1d1a0146ca2de6c45dffc7c43615a84a0c525f66cd1b3953265d43e31e41e209",
+  "buildsys.cmake.x_build__mutmut_55=1d11ecd68ae982466a4d38fe1e650a3c87809cbd4f0fb089886783817b1310a0",
+  "buildsys.cmake.x_build__mutmut_56=3f4037b20b8850576afbe34f6d1f9f5a91b45d380d33812591292ae4b0e2e7b1",
+]
+Darwin = [
+  "buildsys.cmake.x_build__mutmut_235=e1912e7e1e464d57ddf458b93988c39d43794d4d2c3fa6e0a6b30fc46e4b7064",
+  "buildsys.cmake.x_build__mutmut_236=63bfa6c76317a6d77d732ce2e71d9c59a8ebf909014a3415729b47f3bba758dd",
+  "buildsys.cmake.x_build__mutmut_253=cd423995b17394cab99b620e0c8eb7c12760c5d8c16ee29f6433dfaadb9ead70",
+  "buildsys.cmake.x_build__mutmut_47=2c70b63916f0ff687b7e8a36baa2118ab8d731a929f14a1b1c341d9722c3ee53",
+  "buildsys.cmake.x_build__mutmut_48=f75f11d23788bf3cd7ab9e20e22ff92363b8390d58b6e4ad1e48b0d41480a3fc",
+  "buildsys.cmake.x_build__mutmut_5=e7fe2d616900f618101f953078eb7bd6e1b593b49a563c7e6bd8e8f7fe6fbefe",
+  "buildsys.cmake.x_build__mutmut_50=1bfc33678cfb90119d61f7fbb2ec1ef9b99bcc0ff849da6d49d1f1d1601425d2",
+  "buildsys.cmake.x_build__mutmut_51=f0cca8c45b9caa75c3263ec33598817643d5a8743d203c6f9463ec692f8ec4c2",
+  "buildsys.cmake.x_build__mutmut_53=caaa086a886efacb973ccd975142aa25078b3bf8c5efb37c280b638cef3aab7b",
+  "buildsys.cmake.x_build__mutmut_54=1d1a0146ca2de6c45dffc7c43615a84a0c525f66cd1b3953265d43e31e41e209",
+  "buildsys.cmake.x_build__mutmut_55=1d11ecd68ae982466a4d38fe1e650a3c87809cbd4f0fb089886783817b1310a0",
+  "buildsys.cmake.x_build__mutmut_56=3f4037b20b8850576afbe34f6d1f9f5a91b45d380d33812591292ae4b0e2e7b1",
+]
