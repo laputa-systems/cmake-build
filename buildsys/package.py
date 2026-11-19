@@ -51,7 +51,7 @@ def _safe_link(name: str, target: str) -> None:
             depth -= 1
             if depth < 1:
                 raise PackageError(f'escaping symlink {name}: {target}')
-        elif part != '.':
+        else:
             depth += 1
 
 
