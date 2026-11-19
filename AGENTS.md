@@ -8,6 +8,7 @@ Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl` and
 ```sh
 make lint                                   # ruff and ty
 make test                                   # controller suite
+make coverage                               # branch coverage in the prepared native builder
 make fetch TARGET=x86_64-unknown-linux-musl   # also: build, package, verify (qualify), repro (reproduce), clean
 python3 build.py controller-test            # controller suite, exit 0 or 1
 python3 build.py controller-test -k tls     # module-name filter
@@ -25,6 +26,10 @@ python3 build.py benchmark --target x86_64-unknown-linux-musl
 
 Run `fetch` for the native target before `controller-test`; the TLS dependency
 gate checks the locked, vendored Cargo graph offline without Docker.
+Run `make coverage` after preparing the native compiler and the pinned
+`jaq` under `.work/tools`, as in the hosted controller job. It measures the
+same suite in the sealed Alpine builder and writes
+`.work/coverage/controller-<target>.json`.
 `package` creates a candidate archive; `qualify` runs the project and upstream
 suites and qualifies the extracted archive before activation. `benchmark`
 requires a qualified generation, an unmodified musl baseline, and host `strace`.

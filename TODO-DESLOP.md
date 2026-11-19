@@ -510,6 +510,36 @@ AST after normalizing those diagnostic arguments preserves every
 other node. The eight remaining member decisions are 2, 3, 6,
 28, 29, 38, 68 and 69. They still need dispositions.
 
+The archive membership check now uses the POSIX path predicate
+for absolute names. The contained-link fixture goes up one directory
+inside the archive. The new rejection cases check a nonportable
+absolute link and an absent hard-link source, preserving both the
+archive and its empty destination namespace. All 36 input tests
+and both linters passed.
+
+The complete input and phase selection catches 535 of the current
+565 identities at input source SHA-256
+`a5f481a06a20ced2e77f012972c462fb49e96e3782d8812dc55ffb2531272831`.
+The changed membership function has a new identity inventory.
+Its 14 remaining suffixes (5, 9, 15, 19, 23, 27, 45, 49, 56, 60,
+63, 67, 72, 76) all preserve rejection and change only diagnostic
+arguments. The other 16 outcomes are the nine extraction defaults
+and staging names above, the four cache staging names, the two
+tree-sort equivalents and the unreachable JSON key-type check.
+The current input selection is fully dispositioned. The remaining
+critical controller functions and whole-change verification stay
+in DSLP-4.
+
+The pinned standalone CPython 3.15.2 and mirrored Coverage.py 7.17.3
+wheel ran the full x86-64 controller in the ordinary Alpine 3.24.2
+builder with networking disabled. All 145 tests across 21 modules
+passed. The ARM64 input selection also loaded the coverage C
+extension and ran all 36 input cases in the sealed builder.
+`make coverage` uses the same prepared native toolchain, verifies
+the two coverage-tool inputs and publishes its report after a
+successful run. The builder image and archive inputs are unchanged.
+[Native branch coverage](https://github.com/laputa-systems/cmake-build/actions/runs/44442133490)
+
 ## Tickets
 
 
@@ -518,7 +548,7 @@ other node. The eight remaining member decisions are 2, 3, 6,
 
 - **Area:** deslop · tests
 - **Where:** test suites and CI
-- **Problem:** The native branch coverage baseline and scoped input, phase and package mutation results are recorded above. A compatible mirrored coverage wheel, remaining critical decisions and the retained whole-change lane remain open.
+- **Problem:** Native branch coverage and the current input scope are accounted for. The remaining critical controller functions and whole-change mutation lane need verification.
 - **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
 - **Fix with:** deslop
 - **Effort:** M

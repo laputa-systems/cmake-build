@@ -418,9 +418,9 @@ class ExtractTests(unittest.TestCase):
                 payload = tarfile.TarInfo("top/file")
                 payload.size = 4
                 tar.addfile(payload, io.BytesIO(b"data"))
-                symlink = tarfile.TarInfo("top/symlink")
+                symlink = tarfile.TarInfo("top/detail/symlink")
                 symlink.type = tarfile.SYMTYPE
-                symlink.linkname = "file"
+                symlink.linkname = "../file"
                 tar.addfile(symlink)
                 hardlink = tarfile.TarInfo("top/hardlink")
                 hardlink.type = tarfile.LNKTYPE
@@ -431,8 +431,8 @@ class ExtractTests(unittest.TestCase):
             self.assertEqual(safe_extract(bundle, destination), destination)
             self.assertEqual(list(destination.parent.iterdir()), [destination])
             top = destination / "top"
-            self.assertEqual(os.readlink(top / "symlink"), "file")
-            self.assertEqual((top / "symlink").read_bytes(), b"data")
+            self.assertEqual(os.readlink(top / "detail" / "symlink"), "../file")
+            self.assertEqual((top / "detail" / "symlink").read_bytes(), b"data")
             self.assertTrue((top / "hardlink").samefile(top / "file"))
 
     def test_refuses_to_replace_an_existing_destination(self) -> None:
@@ -477,6 +477,21 @@ class ExtractTests(unittest.TestCase):
 
             self.assertEqual(list(directory.iterdir()), [bundle])
             self.assertEqual(bundle.read_bytes(), b"ordinary non-archive input")
+
+    def test_nonportable_and_unbound_links_leave_no_destination(self) -> None:
+        for link_type, reason in ((tarfile.SYMTYPE, "link-escape"), (tarfile.LNKTYPE, "dangling hardlink")):
+            with self.subTest(link_type=link_type), workspace() as directory:
+                destination = directory / "out"
+                bundle = directory / "links.tar.gz"
+                with tarfile.open(bundle, "w:gz") as tar:
+                    link = tarfile.TarInfo("alias")
+                    link.type = link_type
+                    link.linkname = str(destination / "file") if link_type == tarfile.SYMTYPE else "file"
+                    tar.addfile(link)
+
+                with self.assertRaisesRegex(InputError, reason):
+                    safe_extract(bundle, destination)
+                self.assertEqual(list(directory.iterdir()), [bundle])
 
     def test_traversal_archive(self) -> None:
         with workspace() as directory:
