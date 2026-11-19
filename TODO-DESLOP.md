@@ -411,9 +411,9 @@ controller command under branch coverage in the network-sealed builder,
 combine the subprocess data, and inspect the JSON report. The wheel's
 SHA-256 is `21745c08f2835b847a16887b748d3084dddeb0571ae2a0d62e33644413568b99`.
 The configured mirror rejected reads of the pure-Python and CPython 3.14
-musl variants with HTTP 404. The retained coverage entry point needs a
-compatible mirrored wheel. The native artifact trial above covers the
-packaged runtime. Wider controller mutation remains open.
+musl variants with HTTP 404 at this revision. The later retained command
+uses the mirrored CPython 3.15 musl wheel described below. The native
+artifact trial above covers the packaged runtime.
 
 **Bootstrap input metadata**
 
@@ -530,15 +530,26 @@ The current input selection is fully dispositioned. The remaining
 critical controller functions and whole-change verification stay
 in DSLP-4.
 
-The pinned standalone CPython 3.15.2 and mirrored Coverage.py 7.17.3
-wheel ran the full x86-64 controller in the ordinary Alpine 3.24.2
-builder with networking disabled. All 145 tests across 21 modules
-passed. The ARM64 input selection also loaded the coverage C
-extension and ran all 36 input cases in the sealed builder.
-`make coverage` uses the same prepared native toolchain, verifies
-the two coverage-tool inputs and publishes its report after a
-successful run. The builder image and archive inputs are unchanged.
-[Native branch coverage](https://github.com/laputa-systems/cmake-build/actions/runs/44442133490)
+**Retained native controller coverage**
+
+Prepare the native qualification build and pinned jaq, then run
+`make coverage TARGET=x86_64-unknown-linux-musl`. The command verifies
+the standalone CPython 3.15.2 runtime and the mirrored Coverage.py
+7.17.3 musl wheel. It stages only the runtime bin and lib directories
+and installs the wheel in that interpreter's site-packages. Coverage's
+startup hook then runs in controller children when they replace
+`PYTHONPATH`. The prepared Alpine 3.24.2 builder runs without network
+access. The toolchain, builder image and archive inputs stay the same.
+
+The hosted qualification matched the merged command in #51 and passed
+146 tests across 21 controller modules. The report at
+`.work/coverage/controller-x86_64-unknown-linux-musl.json` counts
+2,003 of 3,158 statements and 541 of 968 branches. The trial also
+verified branch data from the input-test subprocess. A focused run
+in the pinned ARM64 builder passed all 36 input tests and covered
+244 of 247 input statements and 104 of 106 input branches.
+[Retained command](https://github.com/laputa-systems/cmake-build/pull/51) ·
+[Native branch coverage](https://github.com/laputa-systems/cmake-build/actions/runs/44445064389)
 
 ## Tickets
 
