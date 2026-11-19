@@ -763,7 +763,7 @@ All 28 package tests and both linters passed.
 
 
 The network probe trial at `2f308d09` now catches 213 of 214
-`network_boundary_selftest` variants on macOS ARM64, up from 181.
+`network_boundary_selftest` variants on macOS ARM64, up from 191.
 The remaining variant 196 changes the ASCII encoding name to
 uppercase, which resolves to the same Python codec.
 
