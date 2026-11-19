@@ -415,3 +415,19 @@ Darwin = [
 source_sha256 = "ded6797fd55b1942c7d9beac506fcfef8ad7bd44eb834b522cd919fe53cd07b0"
 Linux = []
 Darwin = []
+
+[qualified.tls]
+source_sha256 = "b07f950befac53d950fe8f4df96f2a1809392231fea3c37b9b101533f7ad38cb"
+Linux = [
+  "buildsys.tls.x_check_host_vendored__mutmut_136=34ec32639b18f96ffb7d171e1af92b5264c1f2cf8a1d3cf378919d418b5ffe07",
+  "buildsys.tls.x_check_host_vendored__mutmut_66=73e45b60549c8f2bca5d032efae06d8b7d1f66eac6a2cadb3569706ddec9844c",
+  "buildsys.tls.x_check_host_vendored__mutmut_67=07f67f5d5a8f279bcf8c04a678b86cebaf6cae855397f6c9816d3aea10de87ca",
+]
+Darwin = [
+  "buildsys.tls.x_build_client__mutmut_223=0704349380a1efb79cfca7e6733a90d5cf05cab91c43748fa855e32df7b17ee6",
+  "buildsys.tls.x_build_client__mutmut_224=b8818de8c89dedcb42fac5e282c696a1bb65b8a4dbf13c1220576fd29fa694bc",
+  "buildsys.tls.x_check_host_vendored__mutmut_136=34ec32639b18f96ffb7d171e1af92b5264c1f2cf8a1d3cf378919d418b5ffe07",
+  "buildsys.tls.x_check_host_vendored__mutmut_66=73e45b60549c8f2bca5d032efae06d8b7d1f66eac6a2cadb3569706ddec9844c",
+  "buildsys.tls.x_check_host_vendored__mutmut_67=07f67f5d5a8f279bcf8c04a678b86cebaf6cae855397f6c9816d3aea10de87ca",
+  "buildsys.tls.x_check_host_vendored__mutmut_83=3af082b76824a621583c89e9bfa72550883b58d12345ff18750c658469f94249",
+]

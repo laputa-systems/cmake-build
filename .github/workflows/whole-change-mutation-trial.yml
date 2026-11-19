@@ -116,6 +116,10 @@ jobs:
               tests='["tests/controller/test_sandbox.py"]'
               module_copy=', "docker", "patches", "scripts"'
               ;;
+            tls)
+              tests='["tests/controller/test_tls.py", "-k", "not locked_graph and not locked_dependency_graph"]'
+              module_copy=', "docker", "patches", "scripts"'
+              ;;
             *) exit 2 ;;
           esac
           export PYTHONCOERCECLOCALE=0 PYTHONUTF8=0
