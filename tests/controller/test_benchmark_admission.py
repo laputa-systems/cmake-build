@@ -114,6 +114,13 @@ class BenchmarkAdmissionTests(BenchmarkWorkspace):
         self.assert_rejected("qualify a candidate before benchmarking")
         self.inspect.assert_not_called()
 
+    def test_repetitions_must_cover_the_minimum_before_admission(self) -> None:
+        with self.assertRaises(benchmark.BenchmarkError) as caught:
+            benchmark.run(self.root, self.target, 4)
+        self.assertEqual(str(caught.exception), "benchmarking requires at least five repetitions")
+        self.inspect.assert_not_called()
+        self.local_process.assert_not_called()
+
     def test_archive_digest_and_size_must_match_independently(self) -> None:
         actual_size = self.archive.stat().st_size
         for digest, size in (("previous", actual_size), (self.digest, actual_size + 1)):
@@ -220,7 +227,7 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.render = self.enterContext(patch.object(benchmark, "render", return_value="measured report\n"))
         self.check_size = self.enterContext(patch.object(benchmark.budgets, "check_size"))
         self.apply = self.enterContext(patch.object(benchmark.budgets, "apply_memory", return_value=False))
-        self.evidence = {"fixture": "accepted"}
+        self.evidence = {"state": "accepted", "details": {"target": self.target.triple, "repetitions": 5}}
         self.release = self.enterContext(patch.object(benchmark.budgets, "release_evidence", return_value=self.evidence))
         self.result = {"rss_scope": benchmark.budgets.RSS_SCOPE, "records": [], "profiles": [], "cpus": [0, 2]}
         self.change_during_measurement: Path | None = None
@@ -275,10 +282,16 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         return SimpleNamespace(returncode=0, stdout="stdout", stderr="stderr")
 
     def test_publishes_report_and_same_archive_budget_evidence_after_success(self) -> None:
-        benchmark.run(self.root, self.target)
+        with patch.object(benchmark, "_write_atomic", wraps=benchmark._write_atomic) as write:
+            benchmark.run(self.root, self.target)
         self.assertEqual(self.report.read_text(), "measured report\n")
         path = self.root / ".work/benchmark-results" / f"{self.target.triple}.json"
-        self.assertEqual(json.loads(path.read_text()), self.evidence)
+        expected_evidence = '{\n  "details": {\n    "repetitions": 5,\n    "target": "aarch64-unknown-linux-musl"\n  },\n  "state": "accepted"\n}\n'
+        self.assertEqual(path.read_text(), expected_evidence)
+        self.assertEqual(write.call_args_list, [
+            call(self.report, "measured report\n", self.root / ".work/tmp"),
+            call(path, expected_evidence, self.root / ".work/tmp"),
+        ])
         self.assertEqual(self.budget_path.read_text(), "{}")
         self.local_process.assert_has_calls([
             call([str(self.tracer), "--version"], capture_output=True, text=True, check=True),
@@ -485,10 +498,16 @@ class BenchmarkExecutionTests(BenchmarkWorkspace):
         self.assertEqual(self.report.read_text(), "original performance.md\n")
 
     def test_initializing_budget_does_not_publish_release_evidence(self) -> None:
-        self.budgets.return_value = {"fixture": "first baseline"}
+        self.budgets.return_value = {"status": "first baseline", "archive": self.archive.name}
         self.apply.return_value = True
-        benchmark.run(self.root, self.target)
-        self.assertEqual(self.budget_path.read_text(), '{\n  "fixture": "first baseline"\n}\n')
+        with patch.object(benchmark, "_write_atomic", wraps=benchmark._write_atomic) as write:
+            benchmark.run(self.root, self.target)
+        expected_budget = '{\n  "archive": "artifact.tar.xz",\n  "status": "first baseline"\n}\n'
+        self.assertEqual(self.budget_path.read_text(), expected_budget)
+        self.assertEqual(write.call_args_list, [
+            call(self.report, "measured report\n", self.root / ".work/tmp"),
+            call(self.budget_path, expected_budget, self.root / ".work/tmp"),
+        ])
         self.assertFalse((self.root / ".work/benchmark-results").exists())
         self.assertEqual(self.stdout.getvalue(), f"memory baseline established for {self.target.triple}; review and commit the budget\n")
 

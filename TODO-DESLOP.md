@@ -1367,6 +1367,13 @@ The unchanged coordinator's 950 mutmut identities went from 798 to 883
 caught, with 67 survivors and no timeouts. The local focused suite passed
 31 cases with four Linux-only skips. Both linters passed.
 
+The benchmark publication fixtures require the minimum repetition
+count before admission. They verify sorted JSON bytes and use of the
+atomic output handoff for both budget initialization and release
+evidence. The identical 950 coordinator variants went from 883 to 900
+caught, with 50 survivors and no timeouts. Thirty-two focused cases and
+both linters passed, with four Linux-only cases skipped locally.
+
 The host-phase fixtures check native target matching, locked asset
 selection, loopback requirements, failure reporting, kache admission,
 isolation evidence and the exact sealed command. They simulate image
