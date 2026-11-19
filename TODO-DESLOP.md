@@ -1289,6 +1289,20 @@ variants that omit the machine argument delegate to the identical
 `platform.machine()` fallback in Buildlib. All four focused tests
 and both linters passed.
 
+The dependency fixture checks exact rendered versions, root
+reachability, archive evidence, missing reports, malformed UTF-8,
+and cycle completion independently of traversal order. The fresh
+macOS ARM64 comparison of 260 identities caught 249, up from 60 with
+190 previously untested. The same mutmut 3.8.1 and pytest 9.2.0
+versions ran on CPython 3.15.2. No outcomes timed out. The cycle
+witness interrupts a stalled traversal and reports failure.
+
+Four path capitalization variants need the case-sensitive native
+run. The seven other variants leave the first split field or default
+decoding unchanged, pass an unused version for a versioned source,
+or change an empty-output diagnostic after two rows have already
+been added. All seven focused cases, Ruff and ty passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
