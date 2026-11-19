@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +82,12 @@ class BenchmarkTests(unittest.TestCase):
             for workload, scenario in scenarios for variant in ('product', 'musl', 'kitware')
         ]
         self.assertEqual(len(benchmark.summarize(records, 1)), 54)
+        bounded: list[benchmark.Measurement] = [{**records[0], 'seconds': 0.0, 'cpu_seconds': sys.float_info.max}, *records[1:]]
+        self.assertEqual(
+            benchmark.summarize(bounded, 1)[('fmt', 'initial', 'product')],
+            {'median_seconds': 0.0, 'median_cpu_seconds': sys.float_info.max, 'min_seconds': 0.0,
+             'max_seconds': 0.0, 'max_rss_kib': 42},
+        )
         with self.assertRaisesRegex(benchmark.BenchmarkError, '^benchmark contains a failed or invalid measurement$'):
             benchmark.summarize([{**records[0], 'cpu_seconds': float('nan')}, *records[1:]], 1)
         measured: list[benchmark.Measurement] = [
