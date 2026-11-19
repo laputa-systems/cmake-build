@@ -683,6 +683,23 @@ or pass a falsey subprocess check value. Run the earlier controller
 archive recipe with the host and controller test files together.
 All six focused tests and both linters passed.
 
+
+**Archive write boundary**
+
+The archive tests check canonical manifest bytes, report a file in a
+required metadata directory, and simulate a writer failure after the
+manifest is staged. The prior archive stays intact and the temporary
+tree is removed. Relative links track parents below the archive root.
+The first-component test already rejects absolute member names.
+
+The new package selection catches 314 of 319 identities. The earlier
+source caught 303 of 325. The remaining outcomes are `_safe_link` 14,
+which changes the contents of a stack used only for depth,
+`_materialize` 16 and 18, which preserve sibling ordering, and
+`inspect` 51 and 75, which change failure text only. Run the package
+archive, generation and command tests with `buildsys.package.*`.
+All 28 package tests and both linters passed.
+
 ## Tickets
 
 
