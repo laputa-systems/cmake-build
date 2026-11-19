@@ -1164,6 +1164,21 @@ creation. Variants 157 and 158 change an internal scratch
 directory name consistently. All three focused tests and both
 linters passed.
 
+**Unmodified reference build**
+
+The fixture checks that the original source bytes and relative
+symlinks survive staging. It verifies the locked toolchain,
+removed host flags, configure and Ninja invocations, and exact
+reported version. Invalid source layouts fail before a command
+runs. The build subprocesses are substituted.
+
+At `31c8c894`, mutmut 3.8.1 reported no baseline test reaching
+`buildsys.reference.build`. The new suite caught 117 of all
+118 generated identities with CPython 3.15.2 and pytest 9.2.0
+on macOS ARM64. Variant 5 changes the case of the source
+directory and needs the native Linux run. All three focused
+tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
