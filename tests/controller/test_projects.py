@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import io
+import json
+import re
 import subprocess
 import unittest
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from helpers import workspace
+from helpers import archive, file_sha256, workspace, write_lock
 
-from buildsys import qualify, sandbox, targets
+from buildsys import inputs, qualify, sandbox, targets
 from buildsys.qualify import QualificationError, _check_baseline_failures, _junit
 
 
@@ -70,6 +72,98 @@ class BasicQualificationTests(unittest.TestCase):
                 self.assertEqual(list((root / '.work/tmp').iterdir()), [])
                 self.assertTrue((phase / 'phase.json').is_file())
                 self.assertTrue((phase / 'state.json').is_file())
+
+
+class ProjectQualificationTests(unittest.TestCase):
+    def test_checks_locked_sources_relocated_stage_and_every_project_result(self) -> None:
+        target = targets.target('x86_64-unknown-linux-musl')
+        projects = {
+            'fmt-source': ('fmt: built and passed ', '1 case'),
+            'zstd-source': ('zstd: built and passed ', '2 cases'),
+            'libjpeg-turbo-source': ('libjpeg-turbo: built and passed ', '3 cases'),
+            'llvm-project-source': ('LLVM with Clang: configured and generated', ''),
+        }
+        with workspace() as root:
+            lock = root / 'sources.lock.json'
+            entries: list[dict[str, object]] = []
+            packages = {}
+            for name in projects:
+                package = archive(root / f'{name}.tar.gz', [('source.txt', name.encode(), None)])
+                packages[name] = package
+                entries.append({'name': name, 'version': '1', 'role': 'test', 'target': 'all',
+                                'url': f'https://example.invalid/{name}.tar.gz', 'sha256': file_sha256(package),
+                                'size': package.stat().st_size})
+            write_lock(lock, entries)
+            cache = inputs.Cache(root / '.work/cache', offline=True)
+            locked_sources = inputs.load_sources(lock)
+            for item in locked_sources:
+                cache.store(packages[item.name], item)
+
+            phase = root / 'candidate'
+            (phase / 'bin').mkdir(parents=True)
+            (phase / 'bin/cmake').write_bytes(b'candidate')
+            (phase / 'bin/ctest').symlink_to('cmake')
+            for state in ('phase.json', 'state.json'):
+                (phase / state).write_text('controller state')
+            phases = root / '.work/build' / target.triple / 'phases'
+            prepare = f'/src/.work/build/{target.triple}/phases/prepare'
+
+            for code, omitted in [(0, ''), (7, ''), *((0, name) for name in projects)]:
+                log = ''.join(f'{marker}{detail}\n' for name, (marker, detail) in projects.items() if name != omitted)
+                reply = sandbox.SealedResult(code, log, 'build failed', 'none', {})
+                message = f'real project qualification failed ({code}):\nbuild failed' if code else ''
+                if omitted:
+                    message = f'real project qualification missing result: {projects[omitted][0]}'
+
+                def run(image, command, *, mounts, response=reply, **options):
+                    paths = {destination: source for source, destination in mounts}
+                    work = paths['/qualification']
+                    stage = work / 'relocated cmake'
+                    self.assertEqual(work.parent, root / '.work/tmp')
+                    self.assertEqual({entry.name for entry in work.iterdir()}, {'relocated cmake'})
+                    self.assertEqual((stage / 'bin/cmake').read_bytes(), b'candidate')
+                    self.assertEqual((stage / 'bin/ctest').readlink(), Path('cmake'))
+                    self.assertEqual({entry.name for entry in stage.iterdir()}, {'bin'})
+                    self.assertEqual(paths, {
+                        '/qualification': work, '/qualification/relocated cmake': stage,
+                        '/suite': root / 'tests/projects', prepare: phases / 'prepare',
+                        '/tools/toolchain.cmake': phases / 'bootstrap/toolchain.cmake',
+                        '/tools/ninja': phases / 'bootstrap/ninja-build/ninja',
+                        **{f'/inputs/{name}': phases / f'project-{name}/source' for name in projects},
+                    })
+                    for name in projects:
+                        self.assertEqual((paths[f'/inputs/{name}'] / 'source.txt').read_text(), name)
+                    self.assertEqual((image, command), ('fixture-image', ['python3', '/suite/run.py']))
+                    self.assertEqual(options, {
+                        'target': target, 'env': {'TMPDIR': '/qualification'}, 'workdir': '/qualification',
+                        'timeout': 7200, 'read_only': frozenset(paths) - {'/qualification'},
+                    })
+                    return response
+
+                expected = self.assertRaisesRegex(QualificationError, f'^{re.escape(message)}$') if message else nullcontext()
+                with (
+                    self.subTest(code=code, omitted=omitted),
+                    patch.object(sandbox, 'run_sealed', side_effect=run) as sealed,
+                    redirect_stdout(io.StringIO()) as stdout,
+                    expected,
+                ):
+                    qualify.projects(root=root, phase=phase, image='fixture-image', target=target)
+                sealed.assert_called_once()
+                self.assertEqual(stdout.getvalue(), log)
+                self.assertEqual(list((root / '.work/tmp').iterdir()), [])
+                for item in locked_sources:
+                    record = json.loads((phases / f'project-{item.name}/phase.json').read_text())
+                    self.assertEqual(record['inputs'], {
+                        'source': item.sha256, 'implementation': file_sha256(Path(qualify.__file__)),
+                    })
+
+    def test_rejects_a_missing_project_source_before_starting_a_child(self) -> None:
+        target = targets.target('x86_64-unknown-linux-musl')
+        with workspace() as root, patch.object(sandbox, 'run_sealed') as sealed:
+            write_lock(root / 'sources.lock.json', [])
+            with self.assertRaisesRegex(QualificationError, '^project source fmt-source is missing from the lock$'):
+                qualify.projects(root=root, phase=root / 'absent', image='fixture-image', target=target)
+            sealed.assert_not_called()
 
 
 class UpstreamReportTests(unittest.TestCase):
