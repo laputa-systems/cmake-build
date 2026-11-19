@@ -1303,6 +1303,15 @@ decoding unchanged, pass an unused version for a versioned source,
 or change an empty-output diagnostic after two rows have already
 been added. All seven focused cases, Ruff and ty passed.
 
+The patch inventory fixture verifies ordering, exact contents and
+digests, malformed rows and encoding, an empty or duplicate inventory,
+and the ordinary diagnostics for unreadable and nonregular entries.
+At the same source, the fresh macOS ARM64 mutmut 3.8.1 trial with
+CPython 3.15.2 and pytest 9.2.0 caught 127 of the same 139 identities,
+up from 98. The path-admission and descriptor flag variants need
+disposition before this scope can join the native gate. All five
+focused tests and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
