@@ -1266,6 +1266,26 @@ full match and the first parser rejects malformed members. The two
 `subprocess.run(check=None)` variants are equivalent to the explicit
 false flag. All seven focused tests and both linters passed.
 
+The process accounting fixture checks the positive RSS boundary,
+units, source field, default tracing data, exact errno, and simulated
+wait and exit evidence. The previous Linux-only tests skip on macOS.
+The new five portable cases passed on macOS ARM64, and a fresh
+mutmut 3.8.1 run caught all 44 identities in `_peak` and `_trace`
+using CPython 3.15.2 and pytest 9.2.0. Ruff and ty passed. The
+existing native process tests still own actual RSS and signal
+delivery and the rest of the mutation scope remains open.
+
+The lifecycle fixture simulates every process effect. It checks
+child setup and diagnostic encoding, the time of the image RSS
+measurement, error cleanup, and stopped-child reaping. The
+macOS ARM64 trial with mutmut 3.8.1, CPython 3.15.2 and pytest
+9.2.0 caught 192 of all 193 process-accounting identities.
+The one survivor replaces an initial false flag with `None`.
+The flag is otherwise assigned from wait status or set to true,
+and its sole read is the same truth test in either case.
+All nine portable cases and both linters passed. Ordinary native
+tests still exercise actual child processes, RSS and signal delivery.
+
 The 18-scope native head `c5c89e0ff` passed all 38 jobs,
 including both distribution scopes on both Linux architectures.
 [Native run](https://github.com/laputa-systems/cmake-build/actions/runs/44516789463)
@@ -1307,65 +1327,3 @@ The second runs mutmut under the shared 600-second deadline. Neither
 sample exceeds the campaign's ten-minute per-job median target.
 [Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44517720657) ·
 [Budgeted Make trial](https://github.com/laputa-systems/cmake-build/actions/runs/44518717818)
-
-### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
-
-- **Area:** deslop · tests
-- **Where:** test suites and CI
-- **Problem:** Native branch coverage and the current input scope are accounted for. The remaining critical controller functions and whole-change mutation lane need verification.
-- **Recommendation:** Run the deslop Tests step. Accept: no undispositioned survivor in critical code, the test cost budget holds, and the lane is green where the tools are mirrored.
-- **Fix with:** deslop
-- **Effort:** M
-
-The budget boundary follow-up exercises symlink and missing entrypoints,
-invalid numeric limits, exact report fields, partial memory records,
-and the acceptance boundary for the median and interquartile spread.
-The unchanged 420-identity budget scope now catches 406. The other 14
-include a case-sensitive path variant, the library's default quartile
-count, a second-read diagnostic and optional archive arguments to the
-already measured baseline branch. All 11 focused tests and both
-linters passed.
-
-The distribution fixture checks the staged layout, executable bytes
-and modes, resource and license symlinks, artifact metadata, and
-failure diagnostics for missing executables and incomplete license
-closures. The two production modules stayed byte-identical.
-On macOS ARM64, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
-caught 154 of the same 159 identities, up from 105. The remaining
-two path case variants concern source paths on this filesystem.
-The three directory symlink flag variants are equivalent on both
-supported hosts because POSIX symlinks carry no directory flag.
-All five focused tests and both linters passed.
-
-The target contract checks both Linux build triples and their
-CPU baselines, native aliases, exact unsupported-target diagnostics,
-and rejection of incomplete shared target records. With mutmut 3.8.1,
-Python 3.15.2 and pytest 9.2.0 on macOS ARM64, the prior CLI selection
-caught none of the 37 target identities. Adding
-`tests/controller/test_targets.py` caught 35 in a fresh trial. The two
-variants that omit the machine argument delegate to the identical
-`platform.machine()` fallback in Buildlib. All four focused tests
-and both linters passed.
-
-The dependency fixture checks exact rendered versions, root
-reachability, archive evidence, missing reports, malformed UTF-8,
-and cycle completion independently of traversal order. The fresh
-macOS ARM64 comparison of 260 identities caught 249, up from 60 with
-190 previously untested. The same mutmut 3.8.1 and pytest 9.2.0
-versions ran on CPython 3.15.2. No outcomes timed out. The cycle
-witness interrupts a stalled traversal and reports failure.
-
-Four path capitalization variants need the case-sensitive native
-run. The seven other variants leave the first split field or default
-decoding unchanged, pass an unused version for a versioned source,
-or change an empty-output diagnostic after two rows have already
-been added. All seven focused cases, Ruff and ty passed.
-
-### DSLP-5 · P2 · Dead code: tools and debloat
-
-- **Area:** deslop · dead code
-- **Where:** whole repository
-- **Problem:** The dead-code tools ran and the bootstrap record projection was reduced. The remaining structural review is open.
-- **Recommendation:** Run the deslop Dead code step. Accept: tools clean or allowlisted with reasons; walk-backs filed as Needs owner tickets.
-- **Fix with:** deslop
-- **Effort:** M
