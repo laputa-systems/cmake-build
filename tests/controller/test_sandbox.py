@@ -14,10 +14,10 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, call, patch
 
-from helpers import archive, workspace
+from helpers import archive, file_sha256, workspace
 
 import build
-from buildsys import sandbox
+from buildsys import sandbox, sysroot
 from buildsys import toolchain as compiler
 from buildsys.inputs import Cache, Input, InputError, load_bootstrap
 from buildsys.sysroot import SysrootError, check_link_trace, check_machine, elf_machine
@@ -494,7 +494,8 @@ def fake_toolchain(directory: Path, *, clang_version: str = CLANG_VERSION, lld: 
 
 
 def elf_header(machine: int, *, order: int = 1) -> bytes:
-    return b"\x7fELF" + bytes([2, order, 1]) + bytes(9) + bytes(2) + struct.pack("<H", machine)
+    machine_field = struct.pack("<H" if order == 1 else ">H", machine)
+    return b"\x7fELF" + bytes([2, order, 1]) + bytes(9) + bytes(2) + machine_field
 
 
 class ToolchainTests(unittest.TestCase):
@@ -681,7 +682,272 @@ class MachineTests(unittest.TestCase):
                 elf_machine(artifact)
 
 
+    def test_elf_byte_order_and_header_bounds(self) -> None:
+        with workspace() as directory:
+            artifact = directory / "loader"
+            for order in (1, 2):
+                artifact.write_bytes(elf_header(ARM.elf_machine, order=order) + b"\xa5")
+                self.assertEqual(elf_machine(artifact), ARM.elf_machine)
+                check_machine(artifact, ARM)
+            for malformed in (b"\x7fELF" + bytes(15), b"\x7fABC" + bytes(16)):
+                artifact.write_bytes(malformed)
+                with self.assertRaises(SysrootError) as error:
+                    elf_machine(artifact)
+                self.assertEqual(str(error.exception), f"{artifact}: not an ELF file")
+
+
+class SysrootVerificationTests(unittest.TestCase):
+    def test_reports_exact_loader_and_readelf_metadata(self) -> None:
+        for description in (X86, ARM):
+            with self.subTest(target=description.triple), workspace() as directory:
+                root = directory / "target sysroot"
+                toolchain = directory / "locked toolchain"
+                loader = root / description.musl_loader.removeprefix("/")
+                loader.parent.mkdir(parents=True)
+                loader.write_bytes(elf_header(description.elf_machine))
+                readelf = str(toolchain / "bin/llvm-readelf")
+                soname = "libc.musl.so.1"
+                dynamic = (
+                    "Dynamic section:\n"
+                    f" 0x000e (SONAME)   Library soname: [{soname}]\n"
+                    " 0x0001 (NEEDED)   Shared library: [libother.so]\n"
+                )
+                comment = (
+                    "String dump of section '.comment':\n"
+                    "  [     0]  Toolchain build\n"
+                    "  [     9]  Second compiler [build] metadata  \n"
+                )
+
+                with patch.object(subprocess, "run", side_effect=[
+                    subprocess.CompletedProcess([], 0, stdout=dynamic, stderr=""),
+                    subprocess.CompletedProcess([], 0, stdout=comment, stderr=""),
+                ]) as run:
+                    report = sysroot.verify(root, description, toolchain)
+                self.assertEqual(report, {
+                    "root": str(root),
+                    "loader": str(loader),
+                    "loader_sha256": file_sha256(loader),
+                    "soname": soname,
+                    "comment": ["Toolchain build", "Second compiler [build] metadata"],
+                })
+                self.assertEqual(run.call_args_list, [
+                    call([readelf, "-d", str(loader)], capture_output=True, text=True, check=False, timeout=60),
+                    call([readelf, "-p", ".comment", str(loader)], capture_output=True, text=True, check=False, timeout=60),
+                ])
+
+    def test_rejects_missing_loader_readelf_failure_and_missing_soname(self) -> None:
+        with workspace() as directory:
+            root = directory / "sysroot"
+            loader = root / X86.musl_loader.removeprefix("/")
+            with self.assertRaises(SysrootError) as missing:
+                sysroot.verify(root, X86, directory / "toolchain")
+            self.assertEqual(str(missing.exception), f"{loader}: missing loader")
+            loader.parent.mkdir(parents=True)
+            loader.write_bytes(elf_header(X86.elf_machine))
+            for returncode, stdout, stderr, diagnostic in [
+                (7, "", "  tool failed\n", f"llvm-readelf -d {loader}: tool failed"),
+                (0, "Dynamic section contains an unrelated entry\n", "", f"{loader}: no SONAME"),
+            ]:
+                with self.subTest(returncode=returncode), patch.object(
+                    subprocess, "run", return_value=subprocess.CompletedProcess([], returncode, stdout, stderr),
+                ) as run, self.assertRaises(SysrootError) as failure:
+                    sysroot.verify(root, X86, directory / "toolchain")
+                self.assertEqual(str(failure.exception), diagnostic)
+                run.assert_called_once()
+
+
+class SysrootBuildTests(unittest.TestCase):
+    def test_build_stages_headers_and_loader_from_locked_inputs(self) -> None:
+        list_entries = Path.iterdir
+        for description, prefix, cpu_count, jobs in (
+            (X86, "musl-release/", 24, 8),
+            (ARM, "", None, 1),
+        ):
+            with self.subTest(target=description.triple), workspace() as directory:
+                toolchain = directory / "locked toolchain"
+                runtime = toolchain / "lib/compiler-rt.a"
+                runtime.parent.mkdir(parents=True)
+                runtime.write_bytes(b"compiler runtime")
+                work = directory / "scratch root" / "scratch"
+                if prefix:
+                    work.mkdir(parents=True)
+                    (work / "stale").touch()
+                destination = directory / "prepared" / "sysroot"
+                source_root = work / "musl" / prefix
+                loader_data = elf_header(description.elf_machine) + b"loader data"
+                musl = archive(directory / "musl.tar.gz", [
+                    (f"{prefix}configure", b"fixture configure", None),
+                    (f"{prefix}lib/libc.so", loader_data, None),
+                ])
+                linux_headers = archive(directory / "headers.tar.gz", [
+                    ("usr/include/linux/fs.h", b"Linux filesystem header", None),
+                    ("usr/include/asm/unistd.h", b"Linux syscalls header", None),
+                ])
+                clang = str(toolchain / "bin/clang")
+                soname = f"libc.musl-{description.machine}.so.1"
+                loader = destination / description.musl_loader.removeprefix("/")
+                expected_environment = {
+                    "PATH": "/host/bin", "SYSROOT_FIXTURE": "retained",
+                    "CC": f"{clang} --target={description.triple}",
+                    "AR": str(toolchain / "bin/llvm-ar"),
+                    "RANLIB": str(toolchain / "bin/llvm-ranlib"),
+                    "NM": str(toolchain / "bin/llvm-nm"),
+                    "LIBCC": str(runtime),
+                }
+
+                def run(command, *, cwd, env, scratch=work, staged=destination, loader_dir=loader.parent):
+                    self.assertFalse((scratch / "stale").exists())
+                    if "install-headers" in command:
+                        include = staged / "usr/include"
+                        include.mkdir(parents=True)
+                        (include / "stdio.h").write_bytes(b"musl stdio header")
+                        loader_dir.mkdir()
+
+                def iterdir(path, source=work / "musl"):
+                    entries = list_entries(path)
+                    if path == source:
+                        return iter(sorted(entries, key=Path.is_file))
+                    return entries
+
+                with patch.dict(os.environ, {"PATH": "/host/bin", "SYSROOT_FIXTURE": "retained"}, clear=True), \
+                        patch.object(os, "cpu_count", return_value=cpu_count), \
+                        patch.object(Path, "iterdir", autospec=True, side_effect=iterdir), \
+                        patch.object(sysroot.shutil, "rmtree", wraps=sysroot.shutil.rmtree) as clean, \
+                        patch.object(subprocess, "run", return_value=subprocess.CompletedProcess(
+                            [], 0, stdout=f" {runtime}\n", stderr="",
+                        )) as probe, patch.object(sysroot, "_run", side_effect=run) as execute, \
+                        patch.object(sysroot, "_soname", return_value=soname) as read_soname, \
+                        patch.object(sysroot, "_comment", return_value=["clang fixture"]) as read_comment:
+                    result = sysroot.build(musl, linux_headers, toolchain, description, destination, work)
+                    self.assertEqual(result, destination)
+                    probe.assert_called_once_with(
+                        [clang, "-print-libgcc-file-name"],
+                        capture_output=True, text=True, check=True, timeout=60,
+                    )
+                    self.assertEqual(execute.call_args_list, [
+                        call([str(source_root / "configure"), f"--target={description.machine}", "--prefix=/usr"],
+                             cwd=source_root, env=expected_environment),
+                        call(["make", f"-j{jobs}", "install-headers", f"DESTDIR={destination}"],
+                             cwd=source_root, env=expected_environment),
+                        call(["make", f"-j{jobs}", "lib/libc.so", f"LDFLAGS=-Wl,-soname,{soname}"],
+                             cwd=source_root, env=expected_environment),
+                    ])
+                    read_soname.assert_called_once_with(toolchain, loader)
+                    read_comment.assert_called_once_with(toolchain, loader)
+                    self.assertEqual(
+                        [invocation for invocation in clean.call_args_list if invocation.args[0] == work],
+                        [call(work, ignore_errors=True), call(work, ignore_errors=True)],
+                    )
+
+                    execute.reset_mock()
+                    with self.assertRaises(SysrootError) as exists:
+                        sysroot.build(musl, linux_headers, toolchain, description, destination, work)
+                    self.assertEqual(str(exists.exception), f"{destination}: already exists")
+                    execute.assert_not_called()
+
+                self.assertEqual(loader.read_bytes(), loader_data)
+                self.assertEqual(loader.stat().st_mode & 0o777, 0o755)
+                include = destination / "usr/include"
+                self.assertEqual((include / "stdio.h").read_bytes(), b"musl stdio header")
+                self.assertEqual((include / "linux/fs.h").read_bytes(), b"Linux filesystem header")
+                self.assertEqual((include / "asm/unistd.h").read_bytes(), b"Linux syscalls header")
+                self.assertFalse(work.exists())
+
+    def test_build_rejects_incomplete_inputs_and_incorrect_loader_provenance(self) -> None:
+        with workspace() as directory:
+            work = directory / "scratch"
+            toolchain = directory / "toolchain"
+            runtime = directory / "compiler-rt.a"
+            runtime.write_bytes(b"runtime")
+            expected_soname = "libc.musl-x86_64.so.1"
+            musl = archive(directory / "musl.tar.gz", [
+                ("musl/lib/libc.so", elf_header(X86.elf_machine), None),
+            ])
+            header_members: list[tuple[str, bytes | None, str | None]] = [
+                ("usr/include/stdio.h", b"stdio", None),
+                ("usr/include/linux/fs.h", b"fs", None),
+                ("usr/include/asm/unistd.h", b"unistd", None),
+            ]
+            headers = archive(directory / "headers.tar.gz", header_members)
+            no_include = archive(directory / "no-include.tar.gz", [("share/data", b"unused", None)])
+            missing_header = archive(directory / "missing-header.tar.gz", header_members[:-1])
+            missing_runtime = directory / "missing-compiler-rt.a"
+            gcc_comment = ["clang fixture", "GCC: unexpected compiler"]
+            common_comment = ["clang fixture"]
+            for label, apk, libcc, soname, comments, diagnostic in [
+                ("runtime", headers, missing_runtime, expected_soname, common_comment,
+                 f"clang printed a missing compiler runtime: {missing_runtime}"),
+                ("include", no_include, runtime, expected_soname, common_comment,
+                 f"{no_include}: no usr/include tree"),
+                ("header", missing_header, runtime, expected_soname, common_comment,
+                 "{destination}: missing header asm/unistd.h"),
+                ("soname", headers, runtime, "libc-other.so", common_comment,
+                 "{loader}: SONAME 'libc-other.so' != 'libc.musl-x86_64.so.1'"),
+                ("compiler", headers, runtime, expected_soname, gcc_comment,
+                 "{loader}: GCC compiled into the loader: ['clang fixture', 'GCC: unexpected compiler']"),
+                ("comment", headers, runtime, expected_soname, [],
+                 "{loader}: missing .comment provenance"),
+            ]:
+                destination = directory / label
+                loader = destination / X86.musl_loader.removeprefix("/")
+                with self.subTest(case=label), patch.object(subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=str(libcc), stderr="",
+                )), patch.object(sysroot, "_run"), patch.object(sysroot, "_soname", return_value=soname), \
+                        patch.object(sysroot, "_comment", return_value=comments), self.assertRaises(SysrootError) as error:
+                    sysroot.build(musl, apk, toolchain, X86, destination, work)
+                self.assertEqual(str(error.exception), diagnostic.format(destination=destination, loader=loader))
+
+    def test_sysroot_command_preserves_recent_stdout_and_stderr_on_failure(self) -> None:
+        command = ["make", "install-headers"]
+        cwd = Path("/fixture/musl")
+        env = {"CC": "/locked/clang"}
+        stdout = "previous stdout\n" + "a" * 4000
+        stderr = "previous stderr\n" + "b" * 4000
+        with patch.object(subprocess, "run", side_effect=[
+            subprocess.CompletedProcess(command, 0, stdout="", stderr=""),
+            subprocess.CompletedProcess(command, 7, stdout=stdout, stderr=stderr),
+        ]) as execute:
+            sysroot._run(command, cwd=cwd, env=env)
+            with self.assertRaises(SysrootError) as failed:
+                sysroot._run(command, cwd=cwd, env=env)
+        expected = call(command, cwd=cwd, env=env, capture_output=True, text=True, check=False, timeout=1800)
+        self.assertEqual(execute.call_args_list, [expected, expected])
+        self.assertEqual(str(failed.exception), "make install-headers failed (7):\n" + "a" * 4000 + "\n" + "b" * 4000)
+
+
 class LinkTraceTests(unittest.TestCase):
+    def test_trace_parses_absolute_inputs_and_archive_members(self) -> None:
+        trace = "lld trace:\n\n  /locked/lib/crt1.o  \n /locked/lib/libc.a (entry(debug).o)\nrelative.o\n"
+        self.assertEqual(sysroot.trace_paths(trace), ["/locked/lib/crt1.o", "/locked/lib/libc.a"])
+
+    def test_each_admitted_input_keeps_validating_the_rest_of_the_trace(self) -> None:
+        with workspace() as directory:
+            toolchain = directory / "tc"
+            sysroot_path = directory / "sysroot"
+            work = directory / "work"
+            foreign = directory / "foreign.o"
+            loader = sysroot_path / X86.musl_loader.removeprefix("/")
+            for admitted in (loader, toolchain / "lib/crt1.o", work / "probe.o"):
+                with self.subTest(first=admitted), self.assertRaises(SysrootError) as error:
+                    check_link_trace(f"{admitted}\n{foreign}\n", toolchain, sysroot_path, work, X86)
+                self.assertEqual(str(error.exception), f"{foreign}: resolved outside the pinned toolchain")
+
+    def test_link_trace_names_an_input_that_cannot_be_resolved(self) -> None:
+        with workspace() as directory:
+            unreadable = directory / "unreadable.o"
+            resolve_path = Path.resolve
+            cause = OSError("fixture resolution error")
+
+            def resolve(path: Path) -> Path:
+                if path == unreadable:
+                    raise cause
+                return resolve_path(path)
+
+            with patch.object(Path, "resolve", autospec=True, side_effect=resolve), self.assertRaises(SysrootError) as error:
+                check_link_trace(str(unreadable), directory / "tc", directory / "sysroot", directory / "work", X86)
+            self.assertEqual(str(error.exception), f"cannot resolve link input {unreadable}: {cause}")
+            self.assertIs(error.exception.__cause__, cause)
+
     def test_sysroot_object_fails(self) -> None:
         with workspace() as directory:
             toolchain = directory / "tc"
