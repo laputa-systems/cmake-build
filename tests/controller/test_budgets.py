@@ -1,11 +1,26 @@
+import json
 import unittest
 
-from helpers import workspace
+from helpers import ROOT, workspace
 
 from buildsys import budgets
 
 
 class SizeBudgetTests(unittest.TestCase):
+    def test_reads_the_persisted_budget_document_and_reports_invalid_inputs(self) -> None:
+        original = (ROOT / 'release-budgets.json').read_text(encoding='utf-8')
+        valid = json.loads(original)
+        with workspace() as root:
+            budget_file = root / 'release-budgets.json'
+            with self.assertRaisesRegex(budgets.BudgetError, 'cannot read release budgets:'):
+                budgets.read(budget_file)
+            budget_file.write_text(original, encoding='utf-8')
+            self.assertEqual(budgets.read(budget_file), valid)
+            for malformed in ('{', '[]', json.dumps(valid | {'schema_version': 9})):
+                with self.subTest(document=malformed), self.assertRaisesRegex(budgets.BudgetError, 'cannot read release budgets:'):
+                    budget_file.write_text(malformed, encoding='utf-8')
+                    budgets.read(budget_file)
+
     def test_legacy_process_tree_rss_baseline_cannot_qualify_a_candidate(self) -> None:
         workloads = ('fmt', 'zstd', 'libjpeg-turbo', 'llvm-clang')
         document = {'schema_version': 1, 'targets': {'test': {'memory_status': 'measured', 'metrics': {
