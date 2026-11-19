@@ -578,23 +578,26 @@ class ToolchainTests(unittest.TestCase):
                 verify(toolchain, X86, environ=environ)
 
     def test_installs_flat_and_wrapped_archives_and_rejects_replacement(self) -> None:
-        for prefix in ("", "llvm-release/"):
-            with self.subTest(prefix=prefix), workspace() as directory:
+        for prefix, readme in (("", "README"), ("", "share/README"), ("llvm-release/", "README")):
+            with self.subTest(prefix=prefix, readme=readme), workspace() as directory:
                 source = archive(directory / "llvm.tar.gz", [
                     (f"{prefix}bin/clang", b"fixture compiler", None),
-                    (f"{prefix}README", b"fixture release", None),
+                    (f"{prefix}{readme}", b"fixture release", None),
                 ])
                 destination = directory / "installed"
                 staging = directory / ".installed.extract"
                 staging.mkdir()
                 (staging / "stale").touch()
                 self.assertEqual(compiler.install(source, destination), destination)
-                self.assertEqual(sorted(path.name for path in destination.iterdir()), ["README", "bin"])
+                self.assertEqual(
+                    sorted(path.name for path in destination.iterdir()),
+                    sorted(["bin", Path(readme).parts[0]]),
+                )
                 self.assertEqual((destination / "bin/clang").read_bytes(), b"fixture compiler")
                 self.assertFalse(staging.exists())
                 with self.assertRaisesRegex(ToolchainError, r"/installed: already exists$"):
                     compiler.install(source, destination)
-                self.assertEqual((destination / "README").read_bytes(), b"fixture release")
+                self.assertEqual((destination / readme).read_bytes(), b"fixture release")
 
     def test_install_removes_partially_extracted_staging_after_failure(self) -> None:
         with workspace() as directory:
