@@ -841,6 +841,21 @@ with the `upstream`, `_junit`, `_write_section` and
 `_check_baseline_failures` selectors. All seven focused tests and
 both linters passed.
 
+The upstream phase fixtures check the candidate executable bind,
+the different reference selection, sealed mount destinations and
+read-only inputs, the sysroot and toolchain environment, and the
+sandbox deadline. Both missing XML and missing runner summaries
+preserve the prior report. The reference selection escapes the
+dot in the failing case name before invoking the baseline.
+
+On macOS ARM64 at `a501fe36`, the isolated `upstream` scope caught
+217 of 270 matching identities, up from 171. The rendered
+mutation source matched byte for byte. The other report functions
+retain their separate evidence above. Run
+`tests/controller/test_projects.py` with mutmut 3.8.1 and pytest
+9.2.0 and select `buildsys.qualify.x_upstream__mutmut_*`. The
+seven focused tests and both linters passed.
+
 ## Tickets
 
 
