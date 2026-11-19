@@ -1,4 +1,6 @@
+import socket
 import unittest
+from contextlib import chdir
 
 from helpers import workspace
 
@@ -11,6 +13,11 @@ class ReproduceTreeTest(unittest.TestCase):
             first, second = root / 'first', root / 'second'
             first.mkdir()
             second.mkdir()
+            (first / 'a-without-second').touch()
+            (second / 'b-without-first').touch()
+            with chdir(root), socket.socket(socket.AF_UNIX) as left, socket.socket(socket.AF_UNIX) as right:
+                left.bind('first/channel')
+                right.bind('second/channel')
             (first / 'content').write_text('first')
             (second / 'content').write_text('second')
             (first / 'mode').write_text('same')
@@ -21,9 +28,16 @@ class ReproduceTreeTest(unittest.TestCase):
             (second / 'link').symlink_to('mode')
             (first / 'kind').mkdir()
             (second / 'kind').write_text('file')
-            self.assertEqual(set(reproduce.compare_trees(first, second)), {
-                'content: content differs', 'mode: mode differs', 'link: symlink target differs', 'kind: type differs',
-            })
+            self.assertEqual(reproduce.compare_trees(first, second), [
+                'a-without-second: missing from second build',
+                'b-without-first: missing from first build',
+                'channel: unsupported file type',
+                'content: content differs',
+                'kind: type differs',
+                'link: symlink target differs',
+                'mode: mode differs',
+            ])
+            (first / 'channel').unlink()
             self.assertEqual(reproduce.compare_trees(first, first), [])
 
 

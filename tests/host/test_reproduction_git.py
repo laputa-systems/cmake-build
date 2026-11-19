@@ -27,6 +27,17 @@ class ReproduceTest(unittest.TestCase):
     def test_failed_cleanup_attempt_still_retires_the_other_worktree(self) -> None:
         self.check_attempts('cleanup failed', [])
 
+    def test_unknown_revision_preserves_existing_worktree_registrations(self) -> None:
+        with TemporaryDirectory(prefix='reproduction-git-') as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            worktrees = root / '.work' / 'wt'
+            with self.assertRaisesRegex(reproduce.ReproduceError, r'^cannot create clean build worktree .*/build-1$'):
+                reproduce.run(root, 'aarch64-unknown-linux-musl', '4.4.5', 'f' * 40)
+            self.assertEqual(list(worktrees.iterdir()), [])
+            registrations = subprocess.check_output(['git', 'worktree', 'list', '--porcelain'], cwd=root, text=True)
+            self.assertEqual([line for line in registrations.splitlines() if line.startswith('worktree ')], [f'worktree {root.resolve()}'])
+
     def check_attempts(self, scenario: str, differences: list[str]) -> None:
         target = 'aarch64-unknown-linux-musl'
         version = '4.4.5'
@@ -40,6 +51,8 @@ class ReproduceTest(unittest.TestCase):
             ], cwd=root, check=True)
             commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
             work = root / '.work'
+            if scenario == 'identical':
+                (work / 'wt').mkdir(parents=True)
             cache = work / 'cache'
             cache.mkdir(parents=True)
             (cache / 'fixture').write_bytes(b'cached input')
@@ -48,6 +61,7 @@ class ReproduceTest(unittest.TestCase):
             for name in ('tools', 'vendor'):
                 (phases / name).mkdir(parents=True)
                 (phases / name / 'marker').write_text(name, encoding='utf-8')
+                (phases / name / 'alias').symlink_to('marker')
 
             git = subprocess.run
             builds: list[Path] = []
@@ -61,6 +75,8 @@ class ReproduceTest(unittest.TestCase):
                     return result
                 self.assertEqual(arguments, [sys.executable, 'build.py', 'package', '--target', target])
                 builds.append(cwd)
+                self.assertEqual(cwd.parent.parent.resolve(), (work / 'wt').resolve())
+                self.assertTrue(cwd.parent.name.startswith('reproduce-'))
                 local = cwd / '.work'
                 assert env is not None
                 self.assertEqual(env.get('TMPDIR'), str(local / 'tmp'))
@@ -70,6 +86,7 @@ class ReproduceTest(unittest.TestCase):
                 for name in ('tools', 'vendor'):
                     marker_file = local / 'rust' / target / 'phases' / name / 'marker'
                     self.assertEqual(marker_file.read_text(encoding='utf-8'), name)
+                    self.assertTrue(marker_file.with_name('alias').is_symlink())
                     self.assertEqual(marker_file.stat().st_ino, (phases / name / 'marker').stat().st_ino)
                 if scenario == 'failed build' and len(builds) == 2:
                     return subprocess.CompletedProcess(arguments, 7)
