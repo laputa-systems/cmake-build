@@ -314,39 +314,43 @@ def _probe(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedP
 def network_boundary_selftest(image: str, target: Target, workdir: Path) -> dict[str, object]:
     workdir.mkdir(parents=True, exist_ok=True)
     listener = socket.socket()
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(("0.0.0.0", 0))
-    listener.listen(4)
-    port = listener.getsockname()[1]
-    gateway = _host_gateway()
-    received: list[bytes] = []
-    errors: list[str] = []
-    stop = threading.Event()
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("0.0.0.0", 0))
+        listener.listen(4)
+        port = listener.getsockname()[1]
+        gateway = _host_gateway()
+        received: list[bytes] = []
+        errors: list[str] = []
+        stop = threading.Event()
 
-    def accept_loop() -> None:
-        listener.settimeout(0.2)
-        while not stop.is_set():
-            try:
-                connection, _ = listener.accept()
-            except TimeoutError:
-                continue
-            except OSError as error:
-                if not stop.is_set():
+        def accept_loop() -> None:
+            listener.settimeout(0.2)
+            while not stop.is_set():
+                try:
+                    connection, _ = listener.accept()
+                except TimeoutError:
+                    continue
+                except OSError as error:
+                    if not stop.is_set():
+                        errors.append(str(error))
+                    return
+                try:
+                    connection.settimeout(3)
+                    chunks = []
+                    while chunk := connection.recv(64):
+                        chunks.append(chunk)
+                    received.append(b"".join(chunks))
+                except OSError as error:
                     errors.append(str(error))
-                return
-            try:
-                connection.settimeout(3)
-                chunks = []
-                while chunk := connection.recv(64):
-                    chunks.append(chunk)
-                received.append(b"".join(chunks))
-            except OSError as error:
-                errors.append(str(error))
-            finally:
-                connection.close()
+                finally:
+                    connection.close()
 
-    thread = threading.Thread(target=accept_loop)
-    thread.start()
+        thread = threading.Thread(target=accept_loop)
+        thread.start()
+    except BaseException:
+        listener.close()
+        raise
     outside: subprocess.CompletedProcess[str] | None = None
     inside_gateway: subprocess.CompletedProcess[str] | None = None
     inside_loopback: subprocess.CompletedProcess[str] | None = None
