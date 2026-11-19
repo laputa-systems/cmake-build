@@ -1050,6 +1050,65 @@ selected 268 `buildsys.bootstrap` variants with
 22 and left 93 untested. All 268 were caught with the new fixture
 on macOS ARM64. The four focused tests and both linters passed.
 
+**Locked TLS dependency checks**
+
+The controller cases check the exact offline Cargo tree
+query, its launcher, the selected dependency closure, and
+delivery of a Rust process error to the caller. They run
+vendored-source admission against real directories and a
+temporary Cargo home. They verify Cargo source replacement,
+tool and environment selection, and cleanup with or without
+an inherited PATH. The Cargo subprocess is substituted.
+
+At `f594774b`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 140 identities on macOS ARM64. The baseline caught
+29, with one survivor and 110 untested. The new fixture
+caught all 140. Select `check_tree`, `check_dependencies` and
+`check_vendored` in `buildsys/tls.py`, with the cases in
+`tests/controller/test_tls.py` and pytest selection
+`-k 'not locked_graph and not locked_dependency_graph'`.
+All 12 selected tests and both linters passed. The full native
+controller suite keeps the two real vendored-graph cases.
+`check_host_vendored` and `build_client` are measured separately.
+
+**TLS client build handoff**
+
+The fixture verifies the locked source request, target-specific
+toolchain and image selection, and the complete bootstrap,
+cmcurl configure, make and static PIE link commands. It reads
+both written phase records. An image change rebuilds both
+phases, an unchanged image reuses them, and a flat source
+archive fails before a build command runs. The commands are
+recorded at the subprocess boundary.
+
+At `4e67c9bb`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected 304 `buildsys.tls.build_client` identities with
+`tests/controller/test_tls.py` on macOS ARM64. The baseline
+caught 134. The new fixture caught 302. Variants 223 and 224
+change only the path casing of the Rustls source manifest on
+the case-insensitive filesystem. They need a case-sensitive
+native run. All 12 focused tests and both linters passed.
+
+**Host vendored TLS handoff**
+
+The host fixture writes real phase records, supplies the six
+locked bootstrap components and verifies exact archive
+selection and tool paths. It checks the temporary Cargo
+environment and Rust compiler wrapper for both target queries.
+It rejects missing or duplicate lock inputs, a stale phase
+fingerprint, a missing loader, and a flat vendored source.
+Archive extraction and the Cargo process are substituted.
+
+At `8bfef85d`, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+selected all 224 `buildsys.tls.check_host_vendored` identities.
+The portable baseline left all 224 untested. The fixture
+caught 220 on macOS ARM64. Variant 83 reads an uppercase phase
+filename and needs a case-sensitive run. Variants 66 and 67
+change the root stored on the `PhaseCache` used only for
+fingerprinting. Variant 136 adds `X` to the stripped character
+set, equivalent for the two locked `/lib/` loader paths.
+All 13 focused tests and both linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
