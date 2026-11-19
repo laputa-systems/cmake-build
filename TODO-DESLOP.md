@@ -856,6 +856,20 @@ retain their separate evidence above. Run
 9.2.0 and select `buildsys.qualify.x_upstream__mutmut_*`. The
 seven focused tests and both linters passed.
 
+The basic qualification fixture relocates the candidate under a
+path with spaces, retains a tool symlink, and keeps controller
+state out of the immutable artifact mount. It checks the sealed
+mounts and deadline, child failure propagation, and removal of
+scratch after both outcomes.
+
+At `46c9cb7f`, the macOS ARM64 `basic` scope caught 110 of 114.
+The four survivors change or omit the disposable temporary
+directory's diagnostic prefix. The mount destination, copied
+artifact and cleanup stay the same. Use the sealed controller
+archive and select `buildsys.qualify.x_basic__mutmut_*` with
+`tests/controller/test_projects.py`, mutmut 3.8.1 and pytest 9.2.0.
+All eight focused tests and both linters passed.
+
 ## Tickets
 
 
