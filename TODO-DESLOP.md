@@ -1306,6 +1306,16 @@ count, a second-read diagnostic and optional archive arguments to the
 already measured baseline branch. All 11 focused tests and both
 linters passed.
 
+The host-phase fixtures check native target matching, locked asset
+selection, loopback requirements, failure reporting, kache admission,
+isolation evidence and the exact sealed command. They simulate image
+construction and subprocess execution. On macOS ARM64, mutmut
+3.8.1 and CPython 3.15.2 selected the same 371 identities for host
+prepare, configure, build and input selection. The prior selected
+case reached none of them. The seven new portable cases caught
+302 without timeouts and passed both linters. The 69 survivors and
+inner build-phase mutations remain open.
+
 The distribution fixture checks the staged layout, executable bytes
 and modes, resource and license symlinks, artifact metadata, and
 failure diagnostics for missing executables and incomplete license
