@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -52,6 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -74,6 +76,7 @@ jobs:
                  release-budgets.json pyproject.toml uv.lock docker patches scripts)
           git ls-tree -r --full-tree HEAD -- "${paths[@]}" |
             awk '$1 == "120000" || $1 == "160000" { print "unsupported archive entry: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }'
+          module_copy=
           case "$MODULE" in
             buildlib_wheel) tests='["tests/controller/test_buildlib_wheel.py::CacheAdmissionTests"]' ;;
             budgets) tests='["tests/controller/test_budgets.py", "tests/controller/test_package_reproduce.py",
@@ -85,6 +88,10 @@ jobs:
             package) tests='["tests/controller/test_package_archive.py", "tests/controller/test_package_generations.py",
                               "tests/controller/test_package_commands.py"]' ;;
             phases) tests='["tests/controller/test_phases.py"]' ;;
+            sandbox)
+              tests='["tests/controller/test_sandbox.py"]'
+              module_copy=', "docker", "patches", "scripts"'
+              ;;
             *) exit 2 ;;
           esac
           export PYTHONCOERCECLOCALE=0 PYTHONUTF8=0
@@ -108,7 +115,7 @@ jobs:
           [tool.mutmut]
           source_paths = ["buildsys"]
           only_mutate = ["$source"]
-          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"$cache_copy]
+          also_copy = ["build.py", "bootstrap.lock.json", "sources.lock.json", "release-budgets.json", "pyproject.toml", "uv.lock", ".github", ".work/tmp"$cache_copy$module_copy]
           pytest_add_cli_args_test_selection = $tests
           use_setproctitle = false
           TOML

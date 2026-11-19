@@ -17,6 +17,7 @@ CRITICAL = frozenset({
     "buildsys/package.py",
     "buildsys/phases.py",
     "buildsys/reproduce.py",
+    "buildsys/sandbox.py",
 })
 
 CONFIGURATION = frozenset({
