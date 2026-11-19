@@ -1297,6 +1297,14 @@ atomic writer identities. It had no timeouts. All 13 portable tests,
 Ruff and ty passed. The native benchmark remains the live workload
 proof, and the surviving coordinator identities need disposition.
 
+The simulated execution now checks every mount's source and
+destination, its read-only policy, the reference image, distinct
+official and product artifacts, and the budget report outcome.
+With the same mutation inputs and tool versions, a fresh run caught
+761 of 950 coordinator identities, up from 695. All 21 atomic
+writer identities also passed. The 14 portable cases and both
+linters passed. The coordinator still has 189 survivors.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.
