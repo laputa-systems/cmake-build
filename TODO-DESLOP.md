@@ -1127,6 +1127,27 @@ The two loader prefix variants strip the same locked paths.
 All 11 focused tests and both linters passed. Sysroot build
 and its subprocess runner remain separate scopes.
 
+**Sysroot build handoff**
+
+The fixture extracts actual scratch archives and supplies
+both locked target descriptions. It checks compiler-runtime
+selection, bounded build jobs, the configure and make
+commands, and installation of the expected loader and headers.
+It checks missing inputs, wrong loader provenance, output
+preservation, scratch cleanup, and the bounded child-process
+diagnostic. Build and inspection subprocesses are substituted.
+
+The matched macOS ARM64 trial used mutmut 3.8.1, CPython 3.15.2
+and pytest 9.2.0 for all 256 `buildsys.sysroot.build` and
+`_run` identities. The original suite left all 256 untested.
+The new fixture caught 240. Ten remaining variants change
+the case of recorded files or directories and need the native
+Linux run. Variant 136 strips the same locked loader paths.
+Variants 137, 139 and 141 keep the single-level loader parent
+creation. Variants 157 and 158 change an internal scratch
+directory name consistently. All three focused tests and both
+linters passed.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
