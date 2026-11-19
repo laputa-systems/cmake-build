@@ -1279,6 +1279,16 @@ The three directory symlink flag variants are equivalent on both
 supported hosts because POSIX symlinks carry no directory flag.
 All five focused tests and both linters passed.
 
+The target contract checks both Linux build triples and their
+CPU baselines, native aliases, exact unsupported-target diagnostics,
+and rejection of incomplete shared target records. With mutmut 3.8.1,
+Python 3.15.2 and pytest 9.2.0 on macOS ARM64, the prior CLI selection
+caught none of the 37 target identities. Adding
+`tests/controller/test_targets.py` caught 35 in a fresh trial. The two
+variants that omit the machine argument delegate to the identical
+`platform.machine()` fallback in Buildlib. All four focused tests
+and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
