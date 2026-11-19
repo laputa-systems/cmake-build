@@ -73,6 +73,22 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
         self.assertEqual(list(self.store.glob('.candidate-*')), [])
 
+    def test_reused_generation_requires_both_the_original_archive_and_tree(self):
+        digest = file_sha256(self.archive)
+        generation = generations.qualify(self.store, self.archive, digest, lambda tree: {'basic': 'passed'})
+        result = generation / 'results.json'
+        previous_result = result.read_bytes()
+        for retained in (generation / 'artifact.tar.xz', generation / 'tree/usr/bin/cmake'):
+            with self.subTest(retained=retained):
+                original = retained.read_bytes()
+                retained.write_bytes(b'changed after activation')
+                with self.assertRaisesRegex(generations.GenerationError, 'existing generation is inconsistent'):
+                    generations.qualify(self.store, self.archive, digest, lambda tree: {'projects': 'passed'})
+                self.assertEqual(result.read_bytes(), previous_result)
+                self.assertEqual((self.store / 'active').resolve(), generation / 'tree')
+                self.assertEqual(list(self.store.glob('.candidate-*')), [])
+                retained.write_bytes(original)
+
     def test_failed_activation_preserves_previous_pointer_and_can_retry(self):
         previous_digest = file_sha256(self.archive)
         previous = generations.qualify(self.store, self.archive, previous_digest, lambda tree: {'basic': 'passed'})

@@ -588,6 +588,29 @@ now catches 107 of 141. Reuse the controller archive recipe with
 All 21 package tests and both linters passed. The remaining generation
 and package variants stay in DSLP-4.
 
+The reuse case now checks corruption of the retained archive and of
+the extracted tree independently. Each rejection keeps the prior
+result and active pointer and clears the staged candidate. It caught
+three more variants with the same 141 identities and spans. All 22
+package tests and both linters passed.
+
+**Hosted whole-change control**
+
+The native Linux x86-64 and ARM64 trial passed the planner and all
+four input and phase jobs. Each caught 535 of 565 input identities
+and 169 of 178 phase identities. The verifier matches the checked
+source and mutation bodies. The isolated test archives contain the
+files needed by these scopes. The tracked Rust license links are
+outside those trial inputs.
+
+The mixed control annotates the existing input target constant and
+removes the UTF-8 phase fixture. Both input jobs and the ordinary
+controller and lint checks passed. Both phase jobs rejected the one
+reopened variant, `_read` 4. The draft remains open for the broader
+critical scope.
+[Positive trial](https://github.com/laputa-systems/cmake-build/actions/runs/44446845009) ·
+[Mixed deletion trial](https://github.com/laputa-systems/cmake-build/actions/runs/44447078808)
+
 ## Tickets
 
 
