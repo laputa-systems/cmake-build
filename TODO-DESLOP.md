@@ -1268,6 +1268,17 @@ count, a second-read diagnostic and optional archive arguments to the
 already measured baseline branch. All 11 focused tests and both
 linters passed.
 
+The distribution fixture checks the staged layout, executable bytes
+and modes, resource and license symlinks, artifact metadata, and
+failure diagnostics for missing executables and incomplete license
+closures. The two production modules stayed byte-identical.
+On macOS ARM64, mutmut 3.8.1 with CPython 3.15.2 and pytest 9.2.0
+caught 154 of the same 159 identities, up from 105. The remaining
+two path case variants concern source paths on this filesystem.
+The three directory symlink flag variants are equivalent on both
+supported hosts because POSIX symlinks carry no directory flag.
+All five focused tests and both linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
