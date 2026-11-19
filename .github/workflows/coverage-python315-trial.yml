@@ -24,56 +24,8 @@ jobs:
           kache: kache-x86_64-unknown-linux-musl
       - name: Prepare audited native build
         run: TMPDIR="$PWD/.work/tmp" python3 build.py build --target x86_64-unknown-linux-musl --qualification-build
-      - name: Verify controller coverage tools
+      - name: Run the retained coverage entry point
         run: |
-          tools="$PWD/.work/tmp/coverage-tools"
-          mkdir -p "$tools/python" "$tools/site"
-          python_url='https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2%2B20261026-x86_64-unknown-linux-musl-install_only_stripped.tar.gz'
-          wheel_url='https://pypi.17166969.xyz/current/wheels/coverage-7.17.3-cp315-cp315-musllinux_1_2_x86_64.whl'
-          curl --fail --silent --show-error --location --max-time 120 --output "$tools/python.tar.gz" "$python_url"
-          curl --fail --silent --show-error --location --max-time 120 --output "$tools/coverage.whl" "$wheel_url"
-          (
-            cd "$tools"
-            sha256sum --check <<'HASHES'
-          9723f525ec21a52e5e3b18165ad3d553f1af38aba76125ddae25b156ed9c9202  python.tar.gz
-          24389d7d50f1fe98ac8d8ec1c946656a75b97d953b51a714484e174ed9f48eb1  coverage.whl
-          HASHES
-          )
-          tar -xzf "$tools/python.tar.gz" -C "$tools/python" --strip-components 1
-          python3 -m zipfile -e "$tools/coverage.whl" "$tools/site"
-          cat > "$tools/coverage.ini" <<'INI'
-          [run]
-          branch = true
-          parallel = true
-          patch = subprocess
-          relative_files = true
-          source =
-              build
-              buildsys
-          INI
-      - name: Measure the native controller with networking disabled
-        run: |
-          export TMPDIR="$PWD/.work/tmp"
-          tools="$TMPDIR/coverage-tools"
-          image=$(python3 - <<'PY'
-          import build
-
-          target = build.describe_target("x86_64-unknown-linux-musl")
-          print(build.sandbox.image_tag(build.load_bootstrap(build.BOOTSTRAP_LOCK), target, build.DOCKERFILE))
-          PY
-          )
-          docker run --rm --pull never --network none --cpus 2 \
-            --volume "$PWD:/src" --volume "$tools/python:/coverage-python:ro" \
-            --volume "$tools/site:/coverage-site:ro" --volume "$tools/coverage.ini:/coverage.ini:ro" \
-            --env 'PATH=/coverage-python/bin:/src/.work/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
-            --env 'PYTHONPATH=/coverage-site:/src' --env 'TMPDIR=/src/.work/tmp' \
-            --env 'COVERAGE_RCFILE=/coverage.ini' --env 'COVERAGE_FILE=/src/.work/tmp/.coverage-python315' \
-            --workdir /src "$image" sh -euc '
-              cat /etc/alpine-release
-              python3 --version
-              python3 -m coverage --version
-              python3 -m coverage run build.py controller-test
-              python3 -m coverage combine
-              python3 -m coverage json -o /src/.work/tmp/coverage-python315.json
-            '
-          jaq '.totals | {covered_lines, num_statements, covered_branches, num_branches}' "$TMPDIR/coverage-python315.json"
+          make coverage TARGET=x86_64-unknown-linux-musl
+          jaq '.totals | {covered_lines, num_statements, covered_branches, num_branches}' \
+            .work/coverage/controller-x86_64-unknown-linux-musl.json
