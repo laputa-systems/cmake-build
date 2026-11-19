@@ -88,6 +88,20 @@ class BenchmarkTests(unittest.TestCase):
             {'median_seconds': 0.0, 'median_cpu_seconds': sys.float_info.max, 'min_seconds': 0.0,
              'max_seconds': 0.0, 'max_rss_kib': 42},
         )
+        even: list[benchmark.Measurement] = [
+            {**record, 'iteration': iteration, 'seconds': sys.float_info.max, 'cpu_seconds': sys.float_info.max}
+            for record in records for iteration in range(6)
+        ]
+        report = benchmark.summarize(even, 6)[('fmt', 'initial', 'product')]
+        self.assertEqual(report['median_seconds'], sys.float_info.max)
+        self.assertEqual(report['median_cpu_seconds'], sys.float_info.max)
+        ordinary: list[benchmark.Measurement] = [
+            {**record, 'seconds': float(record['iteration']), 'cpu_seconds': record['iteration'] / 2}
+            for record in even
+        ]
+        report = benchmark.summarize(ordinary, 6)[('fmt', 'initial', 'product')]
+        self.assertEqual(report['median_seconds'], 2.5)
+        self.assertEqual(report['median_cpu_seconds'], 1.25)
         with self.assertRaisesRegex(benchmark.BenchmarkError, '^benchmark contains a failed or invalid measurement$'):
             benchmark.summarize([{**records[0], 'cpu_seconds': float('nan')}, *records[1:]], 1)
         measured: list[benchmark.Measurement] = [

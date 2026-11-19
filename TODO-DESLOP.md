@@ -1323,6 +1323,11 @@ including both numeric-bound variants. There were 247 survivors and no
 timeouts. The local benchmark inventory passed 30 tests with four
 Linux-only skips. The coordinator remains open.
 
+Six valid maximum finite measurements in one group used to produce an
+infinite median. The report now computes even medians with the mean of
+the two central samples. The fixture checks finite wall and CPU medians
+at the upper bound and exact midpoints for ordinary even groups.
+
 The budget boundary follow-up exercises symlink and missing entrypoints,
 invalid numeric limits, exact report fields, partial memory records,
 and the acceptance boundary for the median and interquartile spread.
