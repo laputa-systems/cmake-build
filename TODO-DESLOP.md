@@ -1106,6 +1106,27 @@ macOS ARM64 toolchain scope caught 223 of 225, including
 variant 17. Both remaining `_run` defaults are equivalent.
 [Native observation](https://github.com/laputa-systems/cmake-build/actions/runs/44505269102/job/135495202553)
 
+**Sysroot verification and link inputs**
+
+The fixtures exercise both loader architectures and ELF
+byte orders, exact SONAME and comment metadata, and the
+locked readelf commands. They verify that an admitted input
+keeps the rest of the linker trace subject to validation.
+They also check the missing-loader, failed-readelf and
+unresolvable-path diagnostics. The readelf subprocess is
+substituted.
+
+At `cfcf5229`, the matched macOS ARM64 run used mutmut 3.8.1,
+CPython 3.15.2 and pytest 9.2.0 with
+`tests/controller/test_sandbox.py`. The eight verification
+and trace functions selected 180 identities. The baseline
+caught 54 and left 110 untested. The new cases caught 174.
+The two ELF slice variants leave the machine bytes unchanged.
+The two trace-split variants still take the first segment.
+The two loader prefix variants strip the same locked paths.
+All 11 focused tests and both linters passed. Sysroot build
+and its subprocess runner remain separate scopes.
+
 ### DSLP-4 · P2 · Tests: coverage, boundary gaps, mutation
 
 - **Area:** deslop · tests
