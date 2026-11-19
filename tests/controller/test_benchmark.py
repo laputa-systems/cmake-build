@@ -17,6 +17,8 @@ class BenchmarkTests(unittest.TestCase):
             benchmark.run(Path('/not-a-workspace'), native_target(), 4)
 
     def test_interleaving_rotates_each_baseline_through_each_position(self) -> None:
+        single_order = list(benchmark.interleaved_orders(('product', 'musl', 'kitware'), 1))
+        self.assertEqual(single_order, [('product', 'musl', 'kitware')])
         orders = list(benchmark.interleaved_orders(('product', 'musl', 'kitware'), 12))
         self.assertEqual(len(orders), 12)
         self.assertEqual(
@@ -68,7 +70,7 @@ class BenchmarkTests(unittest.TestCase):
                                   'iteration': 0, 'seconds': 1.0, 'cpu_seconds': 0.5,
                                   'max_rss_kib': 1, 'exit_code': 1,
                                   'load_before': 0.0, 'load_after': 0.0}], 1)
-        with self.assertRaises(benchmark.BenchmarkError):
+        with self.assertRaisesRegex(benchmark.BenchmarkError, '^benchmark produced no measurements$'):
             benchmark.summarize([], 10)
 
     def test_report_requires_every_variant_and_scenario(self) -> None:
@@ -82,11 +84,13 @@ class BenchmarkTests(unittest.TestCase):
             for workload, scenario in scenarios for variant in ('product', 'musl', 'kitware')
         ]
         self.assertEqual(len(benchmark.summarize(records, 1)), 54)
-        bounded: list[benchmark.Measurement] = [{**records[0], 'seconds': 0.0, 'cpu_seconds': sys.float_info.max}, *records[1:]]
+        bounded: list[benchmark.Measurement] = [
+            {**records[0], 'seconds': 0.0, 'cpu_seconds': sys.float_info.max, 'max_rss_kib': 0}, *records[1:],
+        ]
         self.assertEqual(
             benchmark.summarize(bounded, 1)[('fmt', 'initial', 'product')],
             {'median_seconds': 0.0, 'median_cpu_seconds': sys.float_info.max, 'min_seconds': 0.0,
-             'max_seconds': 0.0, 'max_rss_kib': 42},
+             'max_seconds': 0.0, 'max_rss_kib': 0},
         )
         with self.assertRaisesRegex(benchmark.BenchmarkError, '^benchmark contains a failed or invalid measurement$'):
             benchmark.summarize([{**records[0], 'cpu_seconds': float('nan')}, *records[1:]], 1)
@@ -103,8 +107,9 @@ class BenchmarkTests(unittest.TestCase):
             with self.subTest(length=len(samples), repetitions=repetitions), self.assertRaises(benchmark.BenchmarkError) as caught:
                 benchmark.summarize(samples, repetitions)
             self.assertRegex(str(caught.exception), '^benchmark produced no measurements$|^incomplete benchmark samples: ')
-        with self.assertRaises(benchmark.BenchmarkError):
+        with self.assertRaises(benchmark.BenchmarkError) as missing:
             benchmark.summarize(records[:-1], 1)
+        self.assertEqual(str(missing.exception), "benchmark scenario coverage differs: missing [('process', 'script', 'kitware')]")
 
         profiles: list[benchmark.Profile] = [
             {'workload': workload, 'variant': variant, 'summary': f'trace for {workload}/{variant}\n\n'}
