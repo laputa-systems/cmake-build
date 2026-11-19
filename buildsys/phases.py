@@ -122,7 +122,6 @@ class PhaseCache:
 
 
 def _write_json(path: Path, document: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
     os.replace(temporary, path)
