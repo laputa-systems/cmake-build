@@ -660,6 +660,15 @@ remain in DSLP-4. All eight budget tests and both linters passed.
 - **Fix with:** deslop
 - **Effort:** M
 
+The budget boundary follow-up exercises symlink and missing entrypoints,
+invalid numeric limits, exact report fields, partial memory records,
+and the acceptance boundary for the median and interquartile spread.
+The unchanged 420-identity budget scope now catches 406. The other 14
+include a case-sensitive path variant, the library's default quartile
+count, a second-read diagnostic and optional archive arguments to the
+already measured baseline branch. All 11 focused tests and both
+linters passed.
+
 ### DSLP-5 · P2 · Dead code: tools and debloat
 
 - **Area:** deslop · dead code
