@@ -75,7 +75,16 @@ jobs:
       - run: uv python install 3.15.2
       - name: Verify mutation results
         run: |
-          make mutants-diff MUTATION_BASE="$BASE_REVISION" MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib
+          if [[ $MODULE == licenses && $RUNNER_ARCH == X64 ]]; then
+            make mutants-diff MUTATION_BASE="$BASE_REVISION" MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib MUTATION_BUDGET=1
+          elif [[ $MODULE == licenses && $RUNNER_ARCH == ARM64 ]]; then
+            uv run --no-project --python 3.15.2 python .github/scripts/check_mutation_results.py \
+              buildsys/licenses.py "$PWD" .github/mutation-dispositions.toml .work/buildlib/scripts
+          elif [[ $MODULE == stage && $RUNNER_ARCH == X64 ]]; then
+            make mutants-diff MUTATION_BASE=HEAD MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib
+          else
+            make mutants-diff MUTATION_BASE="$BASE_REVISION" MUTATION_SCOPE="$MODULE" MUTATION_BUILDLIB=.work/buildlib
+          fi
 
   whole-change:
     if: always()
