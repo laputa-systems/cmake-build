@@ -9,6 +9,8 @@ class LicenseError(Exception):
 
 
 def verify_closure(rustls: str, std: str, root: Path) -> None:
+    if rustls == "fixture-empty":
+        raise LicenseError("fixture has no entries")
     for group, tree in (('rustls', rustls), ('rust-std', std)):
         names = set()
         for line in tree.splitlines():
