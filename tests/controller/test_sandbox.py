@@ -482,6 +482,33 @@ class NetworkBoundaryTests(unittest.TestCase):
             "error": None,
         })
 
+    def test_gateway_lookup_failure_closes_the_listener(self) -> None:
+        failure = subprocess.TimeoutExpired(['docker', 'network', 'inspect'], 5)
+        with sandbox.socket.socket() as listener, workspace() as directory:
+            with (
+                patch.object(sandbox.socket, 'socket', return_value=listener),
+                patch.object(sandbox, '_host_gateway', side_effect=failure),
+                patch.object(sandbox, '_probe') as probe,
+                self.assertRaises(subprocess.TimeoutExpired) as captured,
+            ):
+                sandbox.network_boundary_selftest('image', X86, directory)
+            self.assertIs(captured.exception, failure)
+            self.assertEqual(listener.fileno(), -1)
+            probe.assert_not_called()
+
+    def test_worker_start_failure_closes_the_listener(self) -> None:
+        with sandbox.socket.socket() as listener, workspace() as directory:
+            with (
+                patch.object(sandbox.socket, 'socket', return_value=listener),
+                patch.object(sandbox, '_host_gateway', return_value='172.17.0.1'),
+                patch.object(sandbox.threading.Thread, 'start', side_effect=RuntimeError('worker start failed')),
+                patch.object(sandbox, '_probe') as probe,
+                self.assertRaisesRegex(RuntimeError, '^worker start failed$'),
+            ):
+                sandbox.network_boundary_selftest('image', X86, directory)
+            self.assertEqual(listener.fileno(), -1)
+            probe.assert_not_called()
+
     def test_failed_host_probe_closes_listener_and_records_failure(self) -> None:
         with (
             workspace() as directory,
