@@ -14,6 +14,7 @@ from buildsys.targets import target
 
 PT_LOAD, PT_DYNAMIC, PT_GNU_STACK, PT_GNU_RELRO = 1, 2, 0x6474E551, 0x6474E552
 DT_NULL, DT_FLAGS_1 = 0, 0x6FFFFFFB
+DF_1_NOW, DF_1_PIE = 0x1, 0x08000000
 
 
 def image(*, machine: int = 62, stack_flags: int = 6, relro: bool = True, bind_now: bool = True) -> bytes:
@@ -21,7 +22,7 @@ def image(*, machine: int = 62, stack_flags: int = 6, relro: bool = True, bind_n
     if relro:
         kinds.append((PT_GNU_RELRO, 4))
     table = 64 + 56 * len(kinds)
-    dynamic = struct.pack("<qQqQ", DT_FLAGS_1 if bind_now else DT_NULL, 1, DT_NULL, 0)
+    dynamic = struct.pack("<qQqQ", DT_FLAGS_1, DF_1_PIE | (DF_1_NOW if bind_now else 0), DT_NULL, 0)
     total = table + len(dynamic)
     header = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9) + struct.pack("<HHIQQQIHHHHHH", 3, machine, 1, 0, 64, 0, 0, 64, 56, len(kinds), 0, 0, 0)
     headers = b"".join(
