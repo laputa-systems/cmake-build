@@ -116,7 +116,36 @@ changed; the controller's observable output and error contracts are unchanged.
 
 ## 5. Prove the environment
 
-See the final proof record below for the macOS and cold-capsule results.
+macOS arm64 (native): `make lint` and `make test` pass except `tests/controller/test_audit.py`
+(`setUpClass`, the native toolchain is not prepared) and two `tests/controller/test_tls.py` cases
+that need a prepared toolchain cache. Both fail identically on the base commit
+`a1b92cd7ee` in the same capsule and on this host: the lane runs 346 tests in 38 modules with the
+same three errors, the base runs 340 tests in 37 modules with the same three errors.
+
+Cold capsules from a clone of the lane commit inside the container, from a read-only mount of the
+worktree, native arm64, run as root:
+
+| Capsule | interpreter branch | repository clone | setup | interpreter | lint | test | `git status --porcelain` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ubuntu:24.04` (`ubuntu@sha256:9c7f200c…`) | uv fallback (musl 1.2.4) | 0 | 0 | 0 | 0 | 2 | empty |
+| `ubuntu:26.04` + `musl` 1.2.5 (`ubuntu@sha256:d66b366d…`) | python-build (musl 1.2.5) | 0 | 0 | 0 | 0 | 2 | empty |
+
+Both capsules ran the documented `sh scripts/setup-dev` (no preinstalled Python, uv, pip, or
+jaq), then `make lint` and `make test`. The `make test` exit 2 is `test_audit` and `test_tls`,
+which fail on a missing `prepare` toolchain (`.../phases/prepare/toolchain/bin/clang`) and a
+missing `rustls-ffi-source` cache object; the controller suite never runs `build.py prepare`, so
+they need it first. Every other module passes. `test` is recorded as a known environment failure,
+not a pass.
+
+The base commit in the same `ubuntu:24.04` capsule (system Python 3.12) failed six modules:
+`test_audit` and `test_tls` (same missing toolchain), `test_bootstrap`, `test_cmake`, and
+`test_reference` (`unittest.mock` cannot patch `os.process_cpu_count`, which 3.12 lacks), and
+`test_projects` (no `jaq`). The lane removes the four failures caused by an unsupported
+interpreter and a missing `jaq`.
+
+The default Linux gate the capsules can complete is `make lint` plus `make test`; the full
+`make build` needs the pinned native toolchain, `kache`, Docker, and `jaq` on the host and is
+recorded as not run in the capsules. Capsule logs stay in scratch.
 
 ## 6. Benefit and cost
 
