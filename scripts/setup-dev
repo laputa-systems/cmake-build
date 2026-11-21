@@ -79,6 +79,14 @@ done < "$lock"
 [ -n "$uv_version" ] || fail 'lock has no uv_version'
 [ -n "$uv_url" ] || fail "lock has no uv archive for $target"
 
+jaq_name=''
+if [ "$system" = Linux ]; then
+    case "$machine" in
+        x86_64|AMD64) jaq_name=jaq-x86_64 ;;
+        aarch64|arm64) jaq_name=jaq-aarch64 ;;
+    esac
+fi
+
 if command -v sha256sum >/dev/null 2>&1; then
     hash() { sha256sum "$1" | cut -d ' ' -f 1; }
 elif command -v shasum >/dev/null 2>&1; then
@@ -129,6 +137,34 @@ if [ -f "$exclude" ] && ! grep -qxF '.work/' "$exclude"; then
 fi
 note 'installing locked development dependencies (ruff, ty) from uv.lock'
 uv sync --frozen --no-install-project
+
+if [ -n "$jaq_name" ]; then
+    jaq_pin=$(sh bootstrap/buildlib-run -- -c '
+import json, pathlib, sys
+name = sys.argv[1]
+entry = next(item for item in json.loads(pathlib.Path("sources.lock.json").read_text())["inputs"] if item["name"] == name)
+print(entry["url"], entry["size"], entry["sha256"])
+' "$jaq_name") || fail "source lock has no $jaq_name pin"
+    scratch=$(mktemp -d "${TMPDIR:-/tmp}/setup-dev-jaq.XXXXXXXX")
+    trap 'rm -rf "$scratch"' 0
+    trap 'exit 1' HUP INT TERM
+    jaq_url=$(printf '%s\n' "$jaq_pin" | cut -d ' ' -f 1)
+    jaq_size=$(printf '%s\n' "$jaq_pin" | cut -d ' ' -f 2)
+    jaq_sha=$(printf '%s\n' "$jaq_pin" | awk '{print $NF}')
+    note "downloading $jaq_name"
+    curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' -o "$scratch/jaq" "$jaq_url"
+    actual_size=$(wc -c < "$scratch/jaq" | tr -d ' ')
+    [ "$actual_size" = "$jaq_size" ] || fail "jaq size mismatch: $actual_size != $jaq_size"
+    [ "$(hash "$scratch/jaq")" = "$jaq_sha" ] || fail 'jaq sha256 mismatch'
+    install -m 755 "$scratch/jaq" "$install_dir/jaq"
+    rm -rf "$scratch"
+    trap - 0 HUP INT TERM
+    note "installed $jaq_name to $install_dir/jaq"
+    case ":$PATH:" in
+        *":$install_dir:"*) ;;
+        *) fail "jaq installed to $install_dir; add it to PATH and rerun" ;;
+    esac
+fi
 
 note 'verifying the vendored buildlib bootstrap'
 sh bootstrap/buildlib-run -- -c 'import sys, buildlib; print(sys.version.split()[0], buildlib.__file__)'

@@ -41,8 +41,13 @@ clearly on an unverified distribution.
 | `make` | the documented `make` gates |
 | `musl` (Ubuntu 26.04, Debian 13) | the python-build interpreter branch of `buildlib-run` |
 
+`make setup` also installs the pinned `uv` and, on Linux, the locked `jaq` from
+`sources.lock.json`, verified by size and SHA-256. `make test` runs the project suites that read
+upstream JUnit reports with `jaq`; CI injects the same locked binary.
+
 On macOS, install the Xcode command line tools (`xcode-select --install`) for the native
-toolchain; everything else comes from the bootstrap.
+toolchain and provide `jaq` on `PATH` (for example `brew install jaq`); everything else comes
+from the bootstrap and `make setup`.
 
 ## Development tools
 
@@ -54,8 +59,9 @@ assume the same development environment.
 
 - `perf-gate-ready` gates benchmark timings; without it the benchmark harness reports the timing
   as deferred and non-gating.
-- A native toolchain matching `bootstrap.lock.json`, Docker, `kache`, and `jaq` are required for
-  `make build|verify|repro`; none are needed for `make lint test`.
+- A native toolchain matching `bootstrap.lock.json`, Docker, and `kache` are required for
+  `make build|verify|repro`; none are needed for `make lint test` once `make setup` has installed
+  `jaq`.
 
 See [buildlib-adoption.md](buildlib-adoption.md) for how the bootstrap and shared helpers were
 adopted, and [building.md](building.md) for the locked build chain.
