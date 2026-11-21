@@ -39,11 +39,11 @@ def copied_tree(directory: Path) -> Path:
     return root
 
 
-def run_admission(root: Path) -> subprocess.CompletedProcess[str]:
+def run_admission(root: Path, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
         cwd=root, capture_output=True, text=True, check=False,
-        env={**os.environ, "BUILDLIB_CACHE": str(root / ".work/buildlib-cache")},
+        env={**os.environ, "BUILDLIB_CACHE": str(root / ".work/buildlib-cache"), **env},
     )
 
 
@@ -73,22 +73,18 @@ class ProvenanceTests(unittest.TestCase):
         self.assertTrue(Path(buildlib.__file__).is_relative_to(expected), buildlib.__file__)
         self.assertEqual(hashlib.sha256(expected.read_bytes()).hexdigest(), pin()["sha256"])
 
+
+@unittest.skipIf(shutil.which("curl") is None, "provisioning runs bootstrap/buildlib-run, which downloads with curl")
+class AdmissionTests(unittest.TestCase):
     def test_admission_refuses_a_local_source_tree_pretending_to_be_the_wheel(self) -> None:
         with workspace() as directory:
             root = copied_tree(directory)
             impostor = root / "buildlib"
             impostor.mkdir()
             (impostor / "__init__.py").write_text("raise SystemExit('impostor imported')\n")
-            result = subprocess.run(
-                [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
-                cwd=root, capture_output=True, text=True, check=False,
-                env={**os.environ, "PYTHONPATH": str(root)},
-            )
+            result = run_admission(root, PYTHONPATH=str(root))
             self.assertIn("impostor imported", result.stderr)
 
-
-@unittest.skipIf(shutil.which("curl") is None, "provisioning runs bootstrap/buildlib-run, which downloads with curl")
-class AdmissionTests(unittest.TestCase):
     def test_copies_the_shim_verified_wheel_into_the_cache_once(self) -> None:
         with workspace() as directory:
             root = copied_tree(directory)
