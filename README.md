@@ -15,16 +15,18 @@ make repro TARGET=x86_64-unknown-linux-musl
 The targets call the `build.py` phases directly:
 
 ```sh
-python3 build.py fetch --target x86_64-unknown-linux-musl
-python3 build.py qualify --target x86_64-unknown-linux-musl
-python3 build.py reproduce --target x86_64-unknown-linux-musl
+sh bootstrap/buildlib-run -- build.py fetch --target x86_64-unknown-linux-musl
+sh bootstrap/buildlib-run -- build.py qualify --target x86_64-unknown-linux-musl
+sh bootstrap/buildlib-run -- build.py reproduce --target x86_64-unknown-linux-musl
 ```
 
-Build each target on a machine of the same architecture. Downloads are pinned
+`make setup` provisions the pinned interpreter and development tools; see
+[the development environment](docs/DEVELOPMENT.md). Build each target on a machine of the same
+architecture. Downloads are pinned
 and verified; builds run in a network-isolated container. Developer builds
 reuse a persistent compiler cache. Qualification includes explicit network
 checks, tests the exact archive, and records results separately from its
 embedded metadata.
 
-See [building](docs/building.md), [build measurements](docs/build-system.md), [executable performance](docs/performance.md), [dependencies](docs/dependencies.md),
+See [building](docs/building.md), [development environment](docs/DEVELOPMENT.md), [build measurements](docs/build-system.md), [executable performance](docs/performance.md), [dependencies](docs/dependencies.md),
 [qualification](docs/qualification.md), [CI and prereleases](docs/ci-and-releases.md), and [Laputa integration](docs/laputa-integration.md).
