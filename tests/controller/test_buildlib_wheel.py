@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -13,12 +13,12 @@ from unittest.mock import patch
 
 from helpers import ROOT, workspace
 
-from buildsys import WHEEL, buildlib_wheel
+from buildsys import buildlib_wheel
 from buildsys.inputs import load_sources
 
-LOADER = (
+PROBE = (
     "import importlib.util, sys\n"
-    "spec = importlib.util.spec_from_file_location('wheel_under_test', sys.argv[1])\n"
+    "spec = importlib.util.spec_from_file_location('admission_under_test', sys.argv[1])\n"
     "module = importlib.util.module_from_spec(spec)\n"
     "spec.loader.exec_module(module)\n"
     "import buildlib.locks\n"
@@ -30,171 +30,144 @@ def pin() -> dict[str, object]:
     return next(item for item in json.loads((ROOT / "sources.lock.json").read_text())["inputs"] if item["name"] == "buildlib-wheel")
 
 
+def copied_tree(directory: Path) -> Path:
+    root = directory / "project"
+    (root / "buildsys").mkdir(parents=True)
+    shutil.copyfile(ROOT / "buildsys/buildlib_wheel.py", root / "buildsys/buildlib_wheel.py")
+    shutil.copytree(ROOT / "bootstrap", root / "bootstrap")
+    (root / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "inputs": [pin()]}))
+    return root
+
+
+def run_admission(root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+
+
 class PinTests(unittest.TestCase):
-    def test_lock_pin_matches_pyproject_and_uv_lock(self) -> None:
+    def test_lock_pin_matches_pyproject_uv_lock_and_vendored_bootstrap(self) -> None:
         item = pin()
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
         self.assertIn(f"laputa-buildlib=={item['version']}", project["dependencies"])
         package = next(entry for entry in tomllib.loads((ROOT / "uv.lock").read_text())["package"] if entry["name"] == "laputa-buildlib")
         self.assertEqual(package["version"], item["version"])
         self.assertEqual([(wheel["url"], wheel["hash"]) for wheel in package["wheels"]], [(item["url"], f"sha256:{item['sha256']}")])
+        shim_wheel = next(line.split() for line in (ROOT / "bootstrap/python.lock").read_text().splitlines() if line.startswith("wheel "))
+        self.assertEqual((shim_wheel[1], shim_wheel[2]), (item["url"], item["sha256"]))
 
-    def test_lock_pin_is_a_valid_input_and_the_cached_wheel_verifies(self) -> None:
+    def test_lock_pin_is_a_valid_input_and_the_cache_object_verifies(self) -> None:
         self.assertIn("buildlib-wheel", {item.name for item in load_sources(ROOT / "sources.lock.json")})
-        self.assertEqual(WHEEL.stat().st_size, pin()["size"])
-        self.assertEqual(WHEEL.name, f"{pin()['sha256']}.blob")
+        admitted = buildlib_wheel.wheel_path()
+        self.assertEqual(admitted.name, f"{pin()['sha256']}.blob")
+        self.assertEqual(admitted.stat().st_size, pin()["size"])
 
 
-class ShimTests(unittest.TestCase):
-    def run_shim(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run([sys.executable, "-I", "-c", LOADER, str(root / "buildsys/buildlib_wheel.py")],
-                              cwd=root, capture_output=True, text=True, check=False)
+class ProvenanceTests(unittest.TestCase):
+    def test_controller_imports_buildlib_from_the_verified_cache_object(self) -> None:
+        import buildlib
 
-    def project(self, directory: Path, served: Path) -> Path:
-        root = directory / "project"
-        (root / "buildsys").mkdir(parents=True)
-        shutil.copyfile(ROOT / "buildsys/buildlib_wheel.py", root / "buildsys/buildlib_wheel.py")
-        item = pin()
-        (root / "sources.lock.json").write_text(json.dumps({"schema_version": 1, "inputs": [{**item, "url": served.as_uri()}]}))
-        return root
+        expected = buildlib_wheel.wheel_path()
+        self.assertTrue(Path(buildlib.__file__).is_relative_to(expected), buildlib.__file__)
+        self.assertEqual(hashlib.sha256(expected.read_bytes()).hexdigest(), pin()["sha256"])
 
-    def test_rejects_invalid_pin_fields_before_cache_access(self) -> None:
-        for field, value in (("url", 123), ("sha256", "../outside"), ("size", True)):
-            with self.subTest(field=field), workspace() as directory:
-                root = self.project(directory, WHEEL)
-                lock = root / "sources.lock.json"
-                document = json.loads(lock.read_text())
-                document["inputs"][0][field] = value
-                lock.write_text(json.dumps(document))
-                result = self.run_shim(root)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{field} must be", result.stderr)
-                self.assertFalse((root / ".work/cache").exists())
-
-    def test_imports_buildlib_from_the_verified_cache_object(self) -> None:
+    def test_admission_refuses_a_local_source_tree_pretending_to_be_the_wheel(self) -> None:
         with workspace() as directory:
-            root = self.project(directory, WHEEL)
-            cached = root / ".work/cache/objects" / WHEEL.name
-            cached.parent.mkdir(parents=True)
-            shutil.copyfile(WHEEL, cached)
-            result = self.run_shim(root)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertTrue(result.stdout.startswith(str(cached)), result.stdout)
-
-    def test_downloads_a_missing_wheel_into_the_cache(self) -> None:
-        with workspace() as directory:
-            root = self.project(directory, WHEEL)
-            result = self.run_shim(root)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual((root / ".work/cache/objects" / WHEEL.name).read_bytes(), WHEEL.read_bytes())
-
-    def test_rejects_unpinned_bytes_from_cache_and_network(self) -> None:
-        with workspace() as directory:
-            forged = directory / "forged.whl"
-            forged.write_bytes(b"x" + WHEEL.read_bytes()[1:])
-            root = self.project(directory, forged)
-            cached = root / ".work/cache/objects" / WHEEL.name
-            cached.parent.mkdir(parents=True)
-            cached.write_bytes(forged.read_bytes())
-            result = self.run_shim(root)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("did not serve the pinned bytes", result.stderr)
-            self.assertEqual(cached.read_bytes(), forged.read_bytes())
-
-
-class CacheAdmissionTests(unittest.TestCase):
-    def test_replaces_cache_symlink_then_reuses_verified_regular_file(self) -> None:
-        with workspace() as root:
-            source = root / "wheel.whl"
-            body = b"wheel fixture bytes"
-            source.write_bytes(body)
-            digest = hashlib.sha256(body).hexdigest()
-            lock = root / "sources.lock.json"
-            lock.write_text(json.dumps({"inputs": [
-                {"name": "other"},
-                {"name": "buildlib-wheel", "url": source.as_uri(), "sha256": digest, "size": len(body)},
-            ]}))
-            cached = root / ".work" / "cache" / "objects" / f"{digest}.blob"
-            cached.parent.mkdir(parents=True)
-            cached.symlink_to(source)
-            with patch.object(buildlib_wheel, "ROOT", root), patch.object(buildlib_wheel, "SOURCES_LOCK", lock):
-                self.assertEqual(buildlib_wheel.locate(), cached)
-                self.assertFalse(cached.is_symlink())
-                self.assertEqual(cached.read_bytes(), body)
-                self.assertEqual(source.read_bytes(), body)
-                cached.write_bytes(b"!" * len(body))
-                self.assertEqual(buildlib_wheel.locate(), cached)
-                self.assertEqual(cached.read_bytes(), body)
-                source.unlink()
-                self.assertEqual(buildlib_wheel.locate(), cached)
-                self.assertEqual(list(cached.parent.iterdir()), [cached])
-
-    def test_wheel_download_bounds_reads_and_preserves_destination_after_failed_replace(self) -> None:
-        body = b"known wheel bytes"
-        pin: buildlib_wheel.WheelPin = {
-            "url": "https://example.invalid/wheel",
-            "sha256": hashlib.sha256(body).hexdigest(),
-            "size": len(body),
-        }
-        with workspace() as root:
-            cache = root / "objects"
-            cache.mkdir()
-            cached = cache / "wheel.blob"
-            cached.write_bytes(b"prior object")
-            with (
-                patch.object(buildlib_wheel.urllib.request, "urlopen", return_value=io.BytesIO(body + b"overflow")) as fetch,
-                self.assertRaisesRegex(ImportError, "^buildlib-wheel: .* did not serve the pinned bytes$"),
-            ):
-                buildlib_wheel._download(pin, cached)
-            self.assertEqual(cached.read_bytes(), b"prior object")
-            self.assertEqual(list(cache.iterdir()), [cached])
-            request = fetch.call_args.args[0]
-            self.assertEqual(request.full_url, pin["url"])
-            self.assertEqual(request.get_header("User-agent"), "cmake-build/1")
-            self.assertEqual(fetch.call_args.kwargs["timeout"], 120)
-
-            with (
-                patch.object(buildlib_wheel.urllib.request, "urlopen", side_effect=OSError("fixture offline")),
-                self.assertRaises(ImportError) as offline,
-            ):
-                buildlib_wheel._download(pin, cached)
-            self.assertEqual(
-                str(offline.exception),
-                f"buildlib-wheel is absent from {root} and cannot be downloaded "
-                f"from {pin['url']}: fixture offline; run `python3 build.py fetch` with network access first",
+            root = copied_tree(directory)
+            impostor = root / "buildlib"
+            impostor.mkdir()
+            (impostor / "__init__.py").write_text("raise SystemExit('impostor imported')\n")
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
+                cwd=root, capture_output=True, text=True, check=False,
+                env={**os.environ, "PYTHONPATH": str(root)},
             )
+            self.assertIn("impostor imported", result.stderr)
 
-            def refuse_replace(staged: str, destination: Path) -> None:
-                temporary = Path(staged)
-                self.assertEqual(destination, cached)
-                self.assertEqual(temporary.parent, cache)
-                self.assertTrue(temporary.name.startswith(".buildlib-wheel."))
-                self.assertEqual(temporary.suffix, ".part")
-                self.assertEqual(temporary.read_bytes(), body)
-                raise OSError("unavailable")
 
-            response = io.BytesIO(body)
-            with (
-                patch.object(response, "read", wraps=response.read) as read,
-                patch.object(buildlib_wheel.urllib.request, "urlopen", return_value=response),
-                patch.object(buildlib_wheel.os, "replace", side_effect=refuse_replace),
-                self.assertRaisesRegex(OSError, "^unavailable$"),
-            ):
-                buildlib_wheel._download(pin, cached)
-            read.assert_called_once_with(len(body) + 1)
-            self.assertEqual(cached.read_bytes(), b"prior object")
-            self.assertEqual(list(cache.iterdir()), [cached])
+class AdmissionTests(unittest.TestCase):
+    def test_copies_the_shim_verified_wheel_into_the_cache_once(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            first = run_admission(root)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            cache = root / ".work/cache/objects" / f"{pin()['sha256']}.blob"
+            self.assertTrue(first.stdout.startswith(str(cache)), first.stdout)
+            self.assertEqual(hashlib.sha256(cache.read_bytes()).hexdigest(), pin()["sha256"])
+            second = run_admission(root)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(second.stdout, first.stdout)
+            self.assertEqual(list(cache.parent.iterdir()), [cache])
 
-            nested = root / "new-cache" / "objects" / "wheel.blob"
-            with patch.object(buildlib_wheel.urllib.request, "urlopen", return_value=io.BytesIO(body)):
-                buildlib_wheel._download(pin, nested)
-            self.assertEqual(nested.read_bytes(), body)
-            self.assertEqual(list(nested.parent.iterdir()), [nested])
+    def test_replaces_corrupt_and_symlinked_cache_objects_before_using_them(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            cache = root / ".work/cache/objects" / f"{pin()['sha256']}.blob"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"corrupt")
+            result = run_admission(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(hashlib.sha256(cache.read_bytes()).hexdigest(), pin()["sha256"])
 
-    def test_reports_unavailable_and_malformed_wheel_pins(self) -> None:
-        with workspace() as root:
+            source = directory / "host.whl"
+            source.write_bytes(b"not the wheel")
+            cache.unlink()
+            cache.symlink_to(source)
+            result = run_admission(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("refusing cache symlink", result.stderr)
+            self.assertEqual(source.read_bytes(), b"not the wheel")
+
+    def test_injected_wrong_wheel_digest_fails_before_importing(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            lock = json.loads((root / "sources.lock.json").read_text())
+            lock["inputs"][0]["sha256"] = "0" * 64
+            (root / "sources.lock.json").write_text(json.dumps(lock))
+            result = run_admission(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("copied bytes that do not match the pin", result.stderr)
+            self.assertNotIn("commands from the wheel", result.stdout)
+            self.assertFalse((root / ".work/cache/objects" / f"{'0' * 64}.blob").exists())
+
+    def test_injected_wrong_wheel_size_fails_before_importing(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            lock = json.loads((root / "sources.lock.json").read_text())
+            lock["inputs"][0]["size"] = int(lock["inputs"][0]["size"]) + 1
+            (root / "sources.lock.json").write_text(json.dumps(lock))
+            result = run_admission(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("do not match the pin", result.stderr)
+            self.assertNotIn("imported from", result.stdout)
+
+    def test_truncated_cached_wheel_is_replaced_rather_than_imported(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            cache = root / ".work/cache/objects" / f"{pin()['sha256']}.blob"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(Path(buildlib_wheel.wheel_path()).read_bytes()[:512])
+            result = run_admission(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(result.stdout.startswith(str(cache)), result.stdout)
+            self.assertEqual(cache.stat().st_size, pin()["size"])
+
+    def test_reports_absent_shim_and_malformed_pins(self) -> None:
+        with (
+            workspace() as root,
+            patch.object(buildlib_wheel, "ROOT", root),
+            patch.object(buildlib_wheel, "SHIM", root / "bootstrap/buildlib-run"),
+        ):
+            (root / "bootstrap").mkdir()
             lock = root / "sources.lock.json"
-            item = {"name": "buildlib-wheel", "url": "file:///fixture", "sha256": "a" * 64, "size": 0}
+            item = {"name": "buildlib-wheel", "url": "https://fixture/wheel.whl", "sha256": "a" * 64, "size": 0}
+            lock.write_text(json.dumps({"schema_version": 1, "inputs": [item]}))
+            with (
+                patch.object(buildlib_wheel, "SOURCES_LOCK", lock),
+                self.assertRaisesRegex(ImportError, "could not provision it"),
+            ):
+                buildlib_wheel.locate()
             with patch.object(buildlib_wheel, "SOURCES_LOCK", lock):
                 for data in (None, "{", "[]", "{}", '{"inputs":[]}'):
                     with self.subTest(data=data):
@@ -218,6 +191,17 @@ class CacheAdmissionTests(unittest.TestCase):
                         self.assertEqual(str(invalid.exception.__cause__), reason)
                 lock.write_text(json.dumps({"inputs": [item]}))
                 self.assertEqual(buildlib_wheel._pin(), {key: item[key] for key in ("url", "sha256", "size")})
+
+    def test_admission_verifies_the_cache_even_when_buildlib_is_importable(self) -> None:
+        wheel = buildlib_wheel.wheel_path()
+        before = list(buildlib_wheel.sys.path)
+        with (
+            patch.object(buildlib_wheel.importlib.util, "find_spec", return_value=object()),
+            patch.object(buildlib_wheel, "locate", return_value=wheel) as locate,
+        ):
+            self.assertEqual(buildlib_wheel.admit(), wheel)
+        locate.assert_called_once_with()
+        self.assertEqual(buildlib_wheel.sys.path, before)
 
 
 if __name__ == "__main__":
