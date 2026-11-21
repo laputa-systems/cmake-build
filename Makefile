@@ -2,7 +2,7 @@ PYTHON ?= sh bootstrap/buildlib-run --
 TARGET ?=
 TARGET_ARG = $(if $(TARGET),--target $(TARGET))
 
-.PHONY: test test-ci coverage build verify lint clean fetch package repro controller-test reproduction-git-test setup
+.PHONY: test test-native test-ci coverage build verify lint clean fetch package repro controller-test reproduction-git-test setup
 
 setup:
 	sh scripts/setup-dev
@@ -24,7 +24,10 @@ repro:
 	$(PYTHON) build.py reproduce $(TARGET_ARG)
 
 controller-test:
-	$(PYTHON) build.py controller-test
+	$(PYTHON) build.py controller-test --scope portable
+
+test-native:
+	$(PYTHON) build.py controller-test --scope native
 
 lint:
 	uv run --frozen ruff check .

@@ -42,8 +42,28 @@ clearly on an unverified distribution.
 | `musl` (Ubuntu 26.04, Debian 13) | the python-build interpreter branch of `buildlib-run` |
 
 `make setup` also installs the pinned `uv` and, on Linux, the locked `jaq` from
-`sources.lock.json`, verified by size and SHA-256. `make test` runs the project suites that read
-upstream JUnit reports with `jaq`; CI injects the same locked binary.
+`sources.lock.json`, verified by size and SHA-256. `make test` runs the portable controller
+checks, including the project suites that read upstream JUnit reports with `jaq`; CI injects the
+same locked binary.
+
+## Portable and prepared native checks
+
+`make test` is the portable scope: every `tests/controller/test_*.py` module except
+`test_native_*`, plus the host Git reproduction test. It needs only `make setup` (and `jaq` on
+macOS).
+
+`make test-native` is the prepared native integration scope: the ELF hardening audit against
+the pinned toolchain (`test_native_audit.py`) and the Rustls dependency gate over the vendored
+Cargo graph (`test_native_tls.py`). It needs Docker and the native target prepared first:
+
+```sh
+make fetch                                   # vendors the native Rustls graph
+sh bootstrap/buildlib-run -- build.py prepare   # builds the pinned toolchain and sysroot
+make test-native
+```
+
+Without that preparation it fails on the missing toolchain or cache object; it never skips. CI's
+`make test-ci` runs both scopes in the sealed builder after the native build.
 
 On macOS, install the Xcode command line tools (`xcode-select --install`) for the native
 toolchain and provide `jaq` on `PATH` (for example `brew install jaq`); everything else comes
@@ -60,8 +80,8 @@ assume the same development environment.
 - `perf-gate-ready` gates benchmark timings; without it the benchmark harness reports the timing
   as deferred and non-gating.
 - A native toolchain matching `bootstrap.lock.json`, Docker, and `kache` are required for
-  `make build|verify|repro`; none are needed for `make lint test` once `make setup` has installed
-  `jaq`.
+  `make build|verify|repro|test-native`; none are needed for `make lint test` once `make setup` has
+  installed `jaq`.
 
 See [buildlib-adoption.md](buildlib-adoption.md) for how the bootstrap and shared helpers were
 adopted, and [building.md](building.md) for the locked build chain.
