@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,13 +18,41 @@ from buildsys import buildlib_wheel
 from buildsys.inputs import load_sources
 
 PROBE = (
-    "import importlib.util, sys\n"
+    "import importlib.util, os, sys\n"
+    "if os.environ.get('COMPETING_PATH'):\n"
+    "    sys.path.insert(0, os.environ['COMPETING_PATH'])\n"
+    "if os.environ.get('PREIMPORT'):\n"
+    "    import buildlib\n"
     "spec = importlib.util.spec_from_file_location('admission_under_test', sys.argv[1])\n"
     "module = importlib.util.module_from_spec(spec)\n"
     "spec.loader.exec_module(module)\n"
     "import buildlib.locks\n"
     "print(buildlib.locks.__file__)\n"
 )
+
+IMPOSTOR = "import pathlib\npathlib.Path(__file__).parent.parent.joinpath('impostor-ran').write_text('{module}')\n"
+
+# Both shims finish copying before either exits; the second exits only after the first caller published.
+RENDEZVOUS_SHIM = """#!/bin/sh
+set -eu
+here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+wait_for() {{
+    tries=0
+    until eval "$1"; do
+        tries=$((tries + 1))
+        [ "$tries" -lt 300 ] || exit 3
+        sleep 0.1
+    done
+}}
+: > "$here/ready.$$"
+wait_for '[ "$(ls "$here" | grep -c "^ready\\.")" -ge 2 ]'
+sh "$here/real-buildlib-run" "$@"
+: > "$here/copied.$$"
+wait_for '[ "$(ls "$here" | grep -c "^copied\\.")" -ge 2 ]'
+if (set -C; : > "$here/first") 2>/dev/null; then exit 0; fi
+wait_for '[ -f {blob} ]'
+sleep 0.5
+"""
 
 
 def pin() -> dict[str, object]:
@@ -39,12 +68,26 @@ def copied_tree(directory: Path) -> Path:
     return root
 
 
+def admission_command(root: Path) -> list[str]:
+    return [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")]
+
+
+def admission_env(root: Path, **env: str) -> dict[str, str]:
+    return {**os.environ, "BUILDLIB_CACHE": str(root / ".work/buildlib-cache"), **env}
+
+
 def run_admission(root: Path, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
-        cwd=root, capture_output=True, text=True, check=False,
-        env={**os.environ, "BUILDLIB_CACHE": str(root / ".work/buildlib-cache"), **env},
+        admission_command(root), cwd=root, capture_output=True, text=True, check=False, env=admission_env(root, **env),
     )
+
+
+def plant_impostor(root: Path) -> Path:
+    package = root / "buildlib"
+    package.mkdir()
+    (package / "__init__.py").write_text(IMPOSTOR.format(module="buildlib"))
+    (package / "locks.py").write_text(IMPOSTOR.format(module="buildlib.locks"))
+    return root / "impostor-ran"
 
 
 class PinTests(unittest.TestCase):
@@ -76,14 +119,48 @@ class ProvenanceTests(unittest.TestCase):
 
 @unittest.skipIf(shutil.which("curl") is None, "provisioning runs bootstrap/buildlib-run, which downloads with curl")
 class AdmissionTests(unittest.TestCase):
-    def test_admission_refuses_a_local_source_tree_pretending_to_be_the_wheel(self) -> None:
+    def test_competing_local_package_never_executes_with_an_empty_or_populated_cache(self) -> None:
         with workspace() as directory:
             root = copied_tree(directory)
-            impostor = root / "buildlib"
-            impostor.mkdir()
-            (impostor / "__init__.py").write_text("raise SystemExit('impostor imported')\n")
-            result = run_admission(root, PYTHONPATH=str(root))
-            self.assertIn("impostor imported", result.stderr)
+            marker = plant_impostor(root)
+            cache = root / ".work/cache/objects" / f"{pin()['sha256']}.blob"
+            for state in ("empty", "populated"):
+                with self.subTest(cache=state):
+                    self.assertEqual(cache.is_file(), state == "populated")
+                    result = run_admission(root, COMPETING_PATH=str(root), PYTHONPATH=str(root))
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(result.stdout.startswith(str(cache)), result.stdout)
+                    self.assertFalse(marker.exists(), marker.read_text() if marker.exists() else "")
+                    self.assertEqual(hashlib.sha256(cache.read_bytes()).hexdigest(), pin()["sha256"])
+
+    def test_refuses_a_buildlib_imported_before_admission(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            plant_impostor(root)
+            result = run_admission(root, COMPETING_PATH=str(root), PREIMPORT="1")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not the pinned wheel", result.stderr)
+            self.assertEqual(result.stdout, "")
+
+    def test_simultaneous_provisioning_callers_both_admit_intact_bytes(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            shim = root / "bootstrap/buildlib-run"
+            shim.rename(root / "bootstrap/real-buildlib-run")
+            cache = root / ".work/cache/objects" / f"{pin()['sha256']}.blob"
+            shim.write_text(RENDEZVOUS_SHIM.format(blob=shlex.quote(str(cache))))
+            callers = [
+                subprocess.Popen(admission_command(root), cwd=root, env=admission_env(root),
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                for _ in range(2)
+            ]
+            results = [(caller.wait(timeout=120), *caller.communicate()) for caller in callers]
+            self.assertEqual(len(list((root / "bootstrap").glob("ready.*"))), 2)
+            for returncode, stdout, stderr in results:
+                self.assertEqual(returncode, 0, stderr)
+                self.assertTrue(stdout.startswith(str(cache)), stdout)
+            self.assertEqual(hashlib.sha256(cache.read_bytes()).hexdigest(), pin()["sha256"])
+            self.assertEqual(list(cache.parent.iterdir()), [cache])
 
     def test_copies_the_shim_verified_wheel_into_the_cache_once(self) -> None:
         with workspace() as directory:
@@ -157,8 +234,8 @@ class AdmissionTests(unittest.TestCase):
             (root / "bootstrap/buildlib-run").write_text("#!/bin/sh\nexit 0\n")
             result = run_admission(root)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("No such file or directory", result.stderr)
-            self.assertFalse((root / ".work/cache/objects" / f"{pin()['sha256']}.blob").exists())
+            self.assertIn("the bootstrap shim copied bytes that do not match the pin", result.stderr)
+            self.assertEqual(list((root / ".work/cache/objects").iterdir()), [])
 
     def test_reports_absent_shim_and_malformed_pins(self) -> None:
         with (
@@ -199,16 +276,13 @@ class AdmissionTests(unittest.TestCase):
                 lock.write_text(json.dumps({"inputs": [item]}))
                 self.assertEqual(buildlib_wheel._pin(), {key: item[key] for key in ("url", "sha256", "size")})
 
-    def test_admission_verifies_the_cache_even_when_buildlib_is_importable(self) -> None:
-        wheel = buildlib_wheel.wheel_path()
+    def test_admission_accepts_buildlib_already_imported_from_the_cache_object(self) -> None:
+        import buildlib
+
         before = list(buildlib_wheel.sys.path)
-        with (
-            patch.object(buildlib_wheel.importlib.util, "find_spec", return_value=object()),
-            patch.object(buildlib_wheel, "locate", return_value=wheel) as locate,
-        ):
-            self.assertEqual(buildlib_wheel.admit(), wheel)
-        locate.assert_called_once_with()
+        self.assertEqual(buildlib_wheel.admit(), buildlib_wheel.wheel_path())
         self.assertEqual(buildlib_wheel.sys.path, before)
+        self.assertTrue(Path(buildlib.__file__).is_relative_to(buildlib_wheel.wheel_path()))
 
 
 if __name__ == "__main__":
