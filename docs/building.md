@@ -1,26 +1,28 @@
 # Building and qualification
 
-The host needs Python 3.11 or later, Docker, `kache`, and `jaq`. Build a target
-on the matching native architecture; cross-architecture emulation is not used.
-All local work, including downloaded inputs and build outputs, lives under
-`.work/`. Set `TMPDIR` to `.work/tmp` before running builds.
+The host needs Docker, `kache`, and `jaq`; Python comes from the vendored buildlib bootstrap.
+Build a target on the matching native architecture; cross-architecture emulation is not used.
+All local work, including downloaded inputs and build outputs, lives under `.work/`. Set
+`TMPDIR` to `.work/tmp` before running builds.
 
 ```sh
 mkdir -p .work/tmp
 export TMPDIR="$PWD/.work/tmp"
-python3 build.py fetch --target x86_64-unknown-linux-musl
-python3 build.py test --target x86_64-unknown-linux-musl --suite basic
-python3 build.py test --target x86_64-unknown-linux-musl --suite parity
-python3 build.py test --target x86_64-unknown-linux-musl --suite network
-python3 build.py test --target x86_64-unknown-linux-musl --suite projects,upstream
-python3 build.py package --target x86_64-unknown-linux-musl
-python3 build.py qualify --target x86_64-unknown-linux-musl
-python3 build.py reproduce --target x86_64-unknown-linux-musl
+make fetch TARGET=x86_64-unknown-linux-musl
+make test TARGET=x86_64-unknown-linux-musl   # or the build.py suites below
+sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite basic
+sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite parity
+sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite network
+sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite projects,upstream
+sh bootstrap/buildlib-run -- build.py package --target x86_64-unknown-linux-musl
+sh bootstrap/buildlib-run -- build.py qualify --target x86_64-unknown-linux-musl
+sh bootstrap/buildlib-run -- build.py reproduce --target x86_64-unknown-linux-musl
 ```
 
 Replace the target with `aarch64-unknown-linux-musl` on an aarch64 host. The
 fetch step downloads pinned sources, toolchains, and test inputs and verifies
-their size and SHA-256 on both download and reuse. The build runs in the pinned
+their size and SHA-256 on both download and reuse. See [DEVELOPMENT.md](DEVELOPMENT.md) for the
+one-command setup and the interpreter the bootstrap selects. The build runs in the pinned
 Alpine container with networking disabled. The network suite uses an isolated
 local server and a separate explicit internet check.
 
@@ -30,16 +32,20 @@ Lock loading, input fetching, target descriptions, archive writing, and the ELF
 hardening check come from `laputa-buildlib`, which is standard-library-only. It
 is pinned twice, to the same wheel: `pyproject.toml` and `uv.lock` for `make
 lint`, and the `buildlib-wheel` input in `sources.lock.json` for everything that
-runs `build.py`. Plain `python3`, the offline Alpine builder containers (Python
-3.14), the CI jobs, and the benchmark runtime have no uv environment, so
-importing `buildsys` verifies the cached wheel by size and SHA-256, downloads
-it into `.work/cache` when absent, and puts the file on `sys.path`
-(`buildsys/buildlib_wheel.py`). `fetch` on the host therefore populates the
-cache before any sealed container starts. The benchmark container sees only
-`buildsys/`, so `benchmark` also mounts `sources.lock.json` and a copy of the
-wheel at the paths the module expects. A controller test keeps the two pins
-equal. Change the version in `pyproject.toml`, run `uv lock`, and update the
-`buildlib-wheel` entry from the new `uv.lock` hash and the wheel size.
+runs `build.py`. A controller test keeps the two pins equal.
+
+`make` runs the controller through the vendored `bootstrap/buildlib-run`, which
+provisions the pinned CPython and the wheel. The offline Alpine builder
+containers (Python 3.14) and the benchmark runtime cannot run that shim; they
+run `python3 build.py` with `PYTHONPATH=/src`, so `buildsys` admits the wheel
+from `.work/cache`. It verifies the cache object by size and SHA-256 and, when it
+is missing, asks the shim for its already-verified copy rather than downloading
+a second one (`buildsys/buildlib_wheel.py`). `fetch` and the shim both populate
+that cache. The benchmark container sees only `buildsys/`, so `benchmark` also
+mounts `sources.lock.json` and a copy of the wheel at the paths the module
+expects. Change the version in `pyproject.toml`, run `uv lock`, update the
+`buildlib-wheel` entry from the new `uv.lock` hash and the wheel size, and
+re-vendor `bootstrap/` from the new buildlib tag.
 
 Archives are written by `buildlib.release.create_archive`, which sorts entries
 by relative path. For the same stage tree and source date the archive bytes
@@ -70,7 +76,7 @@ target's committed budget before activation. It runs the project suite against
 the extracted archive, including its packaged `ctest`. The upstream subset uses the extracted executable in an isolated
 copy of the build tree, with the upstream test resources.
 
-`python3 build.py benchmark --target x86_64-unknown-linux-musl` runs five
+`sh bootstrap/buildlib-run -- build.py benchmark --target x86_64-unknown-linux-musl` runs five
 interleaved repetitions on a native Linux host with `strace` installed. It
 requires an active qualified generation and the unmodified musl baseline from
 the upstream suite. The command writes [performance results](performance.md)
