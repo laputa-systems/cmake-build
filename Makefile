@@ -1,8 +1,11 @@
-PYTHON ?= python3
+PYTHON ?= sh bootstrap/buildlib-run --
 TARGET ?=
 TARGET_ARG = $(if $(TARGET),--target $(TARGET))
 
-.PHONY: test test-ci coverage build verify lint clean fetch package repro controller-test reproduction-git-test
+.PHONY: test test-ci coverage build verify lint clean fetch package repro controller-test reproduction-git-test setup
+
+setup:
+	sh scripts/setup-dev
 
 fetch:
 	$(PYTHON) build.py fetch $(TARGET_ARG)
