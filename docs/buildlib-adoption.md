@@ -122,7 +122,7 @@ that need a prepared toolchain cache. Both fail identically on the base commit
 `a1b92cd7ee` in the same capsule and on this host: the lane runs 347 tests in 38 modules with the
 same three errors, the base runs 340 tests in 37 modules with the same three errors.
 
-Cold capsules cloned from a read-only mount of the worktree at lane tip `b2f463b2`, native
+Cold capsules cloned from a read-only mount of the worktree at lane tip `ffe6ecc7`, native
 arm64, run as root:
 
 | Capsule | interpreter branch | repository clone | setup | interpreter | lint | test | `git status --porcelain` |
