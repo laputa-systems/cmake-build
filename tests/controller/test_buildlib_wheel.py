@@ -43,6 +43,7 @@ def run_admission(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-I", "-c", PROBE, str(root / "buildsys/buildlib_wheel.py")],
         cwd=root, capture_output=True, text=True, check=False,
+        env={**os.environ, "BUILDLIB_CACHE": str(root / ".work/buildlib-cache")},
     )
 
 
@@ -86,6 +87,7 @@ class ProvenanceTests(unittest.TestCase):
             self.assertIn("impostor imported", result.stderr)
 
 
+@unittest.skipIf(shutil.which("curl") is None, "provisioning runs bootstrap/buildlib-run, which downloads with curl")
 class AdmissionTests(unittest.TestCase):
     def test_copies_the_shim_verified_wheel_into_the_cache_once(self) -> None:
         with workspace() as directory:
