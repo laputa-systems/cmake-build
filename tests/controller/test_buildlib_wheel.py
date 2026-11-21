@@ -153,6 +153,15 @@ class AdmissionTests(unittest.TestCase):
             self.assertTrue(result.stdout.startswith(str(cache)), result.stdout)
             self.assertEqual(cache.stat().st_size, pin()["size"])
 
+    def test_reports_a_shim_that_writes_no_wheel(self) -> None:
+        with workspace() as directory:
+            root = copied_tree(directory)
+            (root / "bootstrap/buildlib-run").write_text("#!/bin/sh\nexit 0\n")
+            result = run_admission(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("No such file or directory", result.stderr)
+            self.assertFalse((root / ".work/cache/objects" / f"{pin()['sha256']}.blob").exists())
+
     def test_reports_absent_shim_and_malformed_pins(self) -> None:
         with (
             workspace() as root,

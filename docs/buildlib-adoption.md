@@ -119,7 +119,7 @@ changed; the controller's observable output and error contracts are unchanged.
 macOS arm64 (native): `make lint` and `make test` pass except `tests/controller/test_audit.py`
 (`setUpClass`, the native toolchain is not prepared) and two `tests/controller/test_tls.py` cases
 that need a prepared toolchain cache. Both fail identically on the base commit
-`a1b92cd7ee` in the same capsule and on this host: the lane runs 346 tests in 38 modules with the
+`a1b92cd7ee` in the same capsule and on this host: the lane runs 347 tests in 38 modules with the
 same three errors, the base runs 340 tests in 37 modules with the same three errors.
 
 Cold capsules from a clone of the lane commit inside the container, from a read-only mount of the
