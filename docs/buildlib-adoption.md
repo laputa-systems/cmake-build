@@ -122,8 +122,8 @@ that need a prepared toolchain cache. Both fail identically on the base commit
 `a1b92cd7ee` in the same capsule and on this host: the lane runs 347 tests in 38 modules with the
 same three errors, the base runs 340 tests in 37 modules with the same three errors.
 
-Cold capsules from a clone of the lane commit inside the container, from a read-only mount of the
-worktree, native arm64, run as root:
+Cold capsules cloned from a read-only mount of the worktree at lane tip `b2f463b2`, native
+arm64, run as root:
 
 | Capsule | interpreter branch | repository clone | setup | interpreter | lint | test | `git status --porcelain` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -131,11 +131,11 @@ worktree, native arm64, run as root:
 | `ubuntu:26.04` + `musl` 1.2.5 (`ubuntu@sha256:d66b366d…`) | python-build (musl 1.2.5) | 0 | 0 | 0 | 0 | 2 | empty |
 
 Both capsules ran the documented `sh scripts/setup-dev` (no preinstalled Python, uv, pip, or
-jaq), then `make lint` and `make test`. The `make test` exit 2 is `test_audit` and `test_tls`,
-which fail on a missing `prepare` toolchain (`.../phases/prepare/toolchain/bin/clang`) and a
-missing `rustls-ffi-source` cache object; the controller suite never runs `build.py prepare`, so
-they need it first. Every other module passes. `test` is recorded as a known environment failure,
-not a pass.
+jaq), then `make lint` and `make test`, and ran 347 tests in 38 modules. The `make test` exit 2 is
+`test_audit` and `test_tls`, which fail on a missing `prepare` toolchain
+(`.../phases/prepare/toolchain/bin/clang`) and a missing `rustls-ffi-source` cache object; the
+controller suite never runs `build.py prepare`, so they need it first. Every other module passes.
+`test` is recorded as a known environment failure, not a pass.
 
 The base commit in the same `ubuntu:24.04` capsule (system Python 3.12) failed six modules:
 `test_audit` and `test_tls` (same missing toolchain), `test_bootstrap`, `test_cmake`, and
@@ -149,9 +149,10 @@ recorded as not run in the capsules. Capsule logs stay in scratch.
 
 ## 6. Benefit and cost
 
-- Duplicate code removed: the local wheel downloader (`_download`, its URLError mapping, and the
-  atomic `.part` publish, about 25 lines) is deleted. A missing wheel is now provisioned by the
-  shared shim, which verifies the interpreter and wheel by size and SHA-256.
+- Duplicate code removed: the local wheel downloader (`_download`, its `urllib` request, its
+  size-bounded read, and its `mkstemp`/`os.replace` publish) is deleted. A missing wheel is now
+  provisioned by the shared shim, which verifies the interpreter and wheel by size and SHA-256;
+  `buildsys` re-checks the copied bytes against the pin before admitting them.
 - Shared operations actually used after the slice: the interpreter and wheel bootstrap
   (`bootstrap/buildlib-run`), plus the pre-existing lock/hashing/archive/target/ELF calls.
 - Correctness gain: the documented `make` gates no longer need a distribution Python new enough
