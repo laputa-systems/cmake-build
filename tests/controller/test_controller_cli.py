@@ -94,8 +94,8 @@ class ControllerCliTests(unittest.TestCase):
                 patch.object(build, "ThreadPoolExecutor", wraps=build.ThreadPoolExecutor) as executor,
                 contextlib.redirect_stdout(io.StringIO()) as output,
             ):
-                self.assertEqual(build._controller_test(argparse.Namespace(filter="fixture")), 1)
-                self.assertEqual(build._controller_test(argparse.Namespace(filter="other")), 0)
+                self.assertEqual(build._controller_test(argparse.Namespace(scope="all", filter="fixture")), 1)
+                self.assertEqual(build._controller_test(argparse.Namespace(scope="all", filter="other")), 0)
             self.assertEqual(run.call_count, 4)
             self.assertEqual([item.kwargs for item in executor.call_args_list], [{"max_workers": 2}, {"max_workers": 1}])
             self.assertEqual(
@@ -118,9 +118,37 @@ class ControllerCliTests(unittest.TestCase):
             tests = root / "tests/controller"
             tests.mkdir(parents=True)
             (tests / "test_other.py").write_text("")
-            self.assertEqual(build._controller_test(argparse.Namespace(filter="missing")), 1)
+            self.assertEqual(build._controller_test(argparse.Namespace(scope="all", filter="missing")), 1)
         run.assert_not_called()
         self.assertEqual(error.getvalue(), "error: no controller test modules match 'missing'\n")
+
+    def test_controller_scope_separates_portable_from_prepared_native_modules(self) -> None:
+        launched: list[str] = []
+
+        def execute(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            launched.append(command[-1])
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="Ran 1 test in 0.0s")
+
+        with (
+            workspace() as root,
+            patch.object(build, "ROOT", root),
+            patch.object(build.subprocess, "run", side_effect=execute),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            tests = root / "tests/controller"
+            tests.mkdir(parents=True)
+            for name in ("test_native_audit.py", "test_native_tls.py", "test_tls.py", "test_cli.py"):
+                (tests / name).write_text("")
+            for scope, expected in (
+                ("portable", ["test_cli.py", "test_tls.py"]),
+                ("native", ["test_native_audit.py", "test_native_tls.py"]),
+                ("all", ["test_cli.py", "test_native_audit.py", "test_native_tls.py", "test_tls.py"]),
+            ):
+                with self.subTest(scope=scope):
+                    launched.clear()
+                    self.assertEqual(build._controller_test(argparse.Namespace(scope=scope, filter=None)), 0)
+                    self.assertEqual(sorted(launched), expected)
+        self.assertEqual(build._parser().parse_args(["controller-test"]).scope, "all")
 
     def test_controller_bounds_worker_count_without_a_cpu_count(self) -> None:
         with (
@@ -135,7 +163,7 @@ class ControllerCliTests(unittest.TestCase):
             tests.mkdir(parents=True)
             for index in range(6):
                 (tests / f"test_{index}.py").write_text("")
-            self.assertEqual(build._controller_test(argparse.Namespace(filter=None)), 0)
+            self.assertEqual(build._controller_test(argparse.Namespace(scope="all", filter=None)), 0)
         executor.assert_called_once_with(max_workers=4)
 
     def test_dispatch_reports_controller_errors_and_invalid_status(self) -> None:

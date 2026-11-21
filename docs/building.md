@@ -9,7 +9,8 @@ All local work, including downloaded inputs and build outputs, lives under `.wor
 mkdir -p .work/tmp
 export TMPDIR="$PWD/.work/tmp"
 make fetch TARGET=x86_64-unknown-linux-musl
-make test TARGET=x86_64-unknown-linux-musl   # or the build.py suites below
+sh bootstrap/buildlib-run -- build.py prepare --target x86_64-unknown-linux-musl
+make test-native                             # prepared native audit and TLS checks
 sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite basic
 sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite parity
 sh bootstrap/buildlib-run -- build.py test --target x86_64-unknown-linux-musl --suite network

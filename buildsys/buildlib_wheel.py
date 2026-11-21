@@ -7,18 +7,23 @@ the wheel on hosts that run the controller through it, but the sealed containers
 `buildsys/`. This module is that bootstrap boundary: it admits the wheel from the
 content-addressed input cache after checking its size and SHA-256 against the pin, and it
 provisions a missing wheel by asking the shared shim for the copy it already verified rather
-than downloading a second one.
+than downloading a second one. The admitted wheel is placed first on `sys.path`, and admission
+fails unless `buildlib` resolves to it, so a repository-local or installed package cannot run in
+its place.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
+import zipimport
 from pathlib import Path
 from typing import TypedDict
 
@@ -27,13 +32,9 @@ SOURCES_LOCK = ROOT / "sources.lock.json"
 SHIM = ROOT / "bootstrap" / "buildlib-run"
 INPUT_NAME = "buildlib-wheel"
 
-_COPY_WHEEL = (
-    "import pathlib, shutil, sys, buildlib\n"
-    "wheel = pathlib.Path(buildlib.__file__).parent.parent\n"
-    "if not wheel.is_file():\n"
-    "    raise SystemExit(f'buildlib was imported from {wheel}, which is not a verified wheel')\n"
-    "shutil.copyfile(wheel, sys.argv[1])\n"
-)
+# The shim exports its verified wheel as the whole of PYTHONPATH when the caller's is removed.
+# The copy runs isolated and never imports buildlib, so no package near the caller executes.
+_COPY_WHEEL = "import os, shutil, sys; shutil.copyfile(os.environ['PYTHONPATH'], sys.argv[1])"
 
 
 class WheelPin(TypedDict):
@@ -72,19 +73,23 @@ def _matches(data: bytes, pin: WheelPin) -> bool:
 
 def _provision(destination: Path) -> None:
     pin = _pin()
-    staging = destination.with_name(destination.name + ".part")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    staging.unlink(missing_ok=True)
+    descriptor, name = tempfile.mkstemp(dir=destination.parent, prefix=f".{destination.name}.", suffix=".part")
+    os.close(descriptor)
+    staging = Path(name)
+    environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
     try:
-        result = subprocess.run(
-            ["sh", str(SHIM), "--", "-c", _COPY_WHEEL, str(staging)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as error:
-        raise ImportError(f"{INPUT_NAME}: cannot run {SHIM}: {error}") from error
-    try:
+        try:
+            result = subprocess.run(
+                ["sh", str(SHIM), "--", "-I", "-c", _COPY_WHEEL, str(staging)],
+                cwd=destination.parent,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as error:
+            raise ImportError(f"{INPUT_NAME}: cannot run {SHIM}: {error}") from error
         if result.returncode:
             detail = (result.stderr or result.stdout).strip()
             raise ImportError(
@@ -93,6 +98,7 @@ def _provision(destination: Path) -> None:
             )
         if not _matches(staging.read_bytes(), pin):
             raise ImportError(f"{INPUT_NAME}: the bootstrap shim copied bytes that do not match the pin")
+        staging.chmod(0o644)
         os.replace(staging, destination)
     finally:
         staging.unlink(missing_ok=True)
@@ -114,15 +120,37 @@ def wheel_path() -> Path:
     return object_path(cache_root(ROOT), _pin()["sha256"])
 
 
-def admit() -> Path:
-    """Verify the cache object and put it on `sys.path` when `buildlib` is not importable.
+def _archive(spec: importlib.machinery.ModuleSpec | None) -> Path | None:
+    loader = spec.loader if spec is not None else None
+    return Path(loader.archive) if isinstance(loader, zipimport.zipimporter) else None
 
-    The cache object is admitted even when `buildlib` is already importable, because the sealed
+
+def _require_admitted(name: str, spec: importlib.machinery.ModuleSpec | None, wheel: Path) -> None:
+    archive = _archive(spec)
+    if archive is None or archive.is_symlink() or not archive.is_file():
+        origin = spec.origin if spec is not None else None
+        raise ImportError(f"{INPUT_NAME}: {name} resolves to {origin}, not the pinned wheel {wheel}")
+    if archive != wheel and not _matches(archive.read_bytes(), _pin()):
+        raise ImportError(f"{INPUT_NAME}: {name} was imported from {archive}, which does not match the pin")
+
+
+def admit() -> Path:
+    """Put the verified cache object first on `sys.path` and require `buildlib` to resolve to it.
+
+    The cache object is admitted even when another `buildlib` is importable, because the sealed
     builder containers and the benchmark runtime mount this cache and cannot fetch their own copy.
+    A `buildlib` that is already imported must come from a wheel whose bytes match the pin.
     """
     wheel = locate()
-    if importlib.util.find_spec("buildlib") is None:
-        sys.path.insert(0, str(wheel))
+    loaded = {name: module for name, module in sys.modules.items() if name == "buildlib" or name.startswith("buildlib.")}
+    if loaded:
+        for name, module in loaded.items():
+            _require_admitted(name, getattr(module, "__spec__", None), wheel)
+        return wheel
+    entry = str(wheel)
+    sys.path[:] = [entry, *(item for item in sys.path if item != entry)]
+    importlib.invalidate_caches()
+    _require_admitted("buildlib", importlib.util.find_spec("buildlib"), wheel)
     return wheel
 
 

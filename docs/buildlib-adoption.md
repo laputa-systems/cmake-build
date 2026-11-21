@@ -74,8 +74,8 @@ cleanup check.
 
 `tests/controller/test_buildlib_wheel.py` keeps the three identities equal and proves import
 provenance: the ordinary controller imports `buildlib` from the
-`…/.work/cache/objects/<wheel-sha>.blob` cache object, not from a source tree, and refuses a
-source tree that shadows the wheel.
+`…/.work/cache/objects/<wheel-sha>.blob` cache object, not from a source tree. As merged in
+`3df8c4c`, admission did not refuse a shadowing source tree; see [Corrections](#corrections-2026-11-21).
 
 ### Vendored bootstrap provenance
 
@@ -84,7 +84,7 @@ source tree that shadows the wheel.
 | `bootstrap/buildlib-run` | buildlib `30ad4a0a8b697031a008b1de3b5359fc5cf6f2fe` (`bootstrap/buildlib-run`) | `e7f957ca6af0b151d25a9ff5bedb5deca0bfc86ba05ff3225a5405d56fa95957` | none |
 | `bootstrap/python.lock` | buildlib `30ad4a0…` (`bootstrap/python.lock`) | `cab50541ce8b2c2a6a41829f26aac19344532d239535f4d6795d80d5af933832` | none |
 
-Both files are byte-identical to buildlib 0.2.0 (`git rev-parse HEAD` = `30ad4a0`, tag `0.2.0`).
+Both files are byte-identical to buildlib 0.2.0 (`git rev-parse v0.2.0^{commit}` = `30ad4a0`; the tag is `v0.2.0`).
 Repin them together: the wheel line must stay equal to the `sources.lock.json` entry. The shim's
 trust paths are unchanged from buildlib: python-build archives verify by size and SHA-256 before
 extraction; the uv fallback's managed Python is verified by uv's upstream metadata (a distinct
@@ -92,20 +92,22 @@ trust path, recorded here rather than claimed equivalent).
 
 ## 3. Boundary tests
 
-- `tests/controller/test_bootstrap_shim.py` (new): runs the vendored shim against a local fixture
-  server. It proves a verified archive and wheel execute the cached Python, and that an injected
+- `tests/controller/test_bootstrap_shim.py` (new): runs the vendored shim with `uname` and `curl`
+  replaced by stubs that copy local fixture files (a local HTTP server until `2713c46e`). It proves a verified archive and wheel execute the cached Python, and that an injected
   wrong wheel digest, wrong archive size, and truncated download each fail clearly with the
   pinned interpreter never running. This covers the shim's own trust paths.
 - `tests/controller/test_buildlib_wheel.py` (rewritten): proves cache admission and provenance.
   Injected wrong wheel digest and wrong size fail before `buildlib` imports; a corrupt or
-  truncated cache object is replaced from the shim, not imported; a cache symlink is refused; a
-  local source tree that shadows the wheel is refused.
+  truncated cache object is replaced from the shim, not imported; a cache symlink is refused. The
+  shadowing-tree test as merged asserted that the impostor ran; see [Corrections](#corrections-2026-11-21).
 
 Preserved stronger checks (unchanged): archive admission (refuses overwrite), safe extraction
 (escape and symlink), patch inventory (`O_NOFOLLOW`), cache integrity (source marker binds the
 extracted tree to the pinned archive), release-layout membership/modes/symlinks, complete
 `SHA256SUMS`, assembly concurrency, and the product hardening gate. No test was weakened or
-skipped.
+skipped. Qualification: `test_buildlib_wheel.AdmissionTests` skips when `curl` is absent and
+otherwise downloads the real pinned wheel from `pypi.17166969.xyz` through the shim, so it is not
+hermetic; `test_bootstrap_shim` skips on Windows.
 
 ## 4. Compare outcomes
 
@@ -123,8 +125,9 @@ that need a prepared toolchain cache. Both fail identically on the base commit
 same three errors, the base runs 340 tests in 37 modules with the same three errors.
 
 Cold capsules cloned from a read-only mount of the worktree at lane tip `ffe6ecc7`, native
-arm64, run as root. Commits after it change only this record, so they cannot change the
-controller result below.
+arm64, run as root. The pull request head `2713c46e` (squash-merged as `3df8c4c`) also changed
+`test_bootstrap_shim.py` and `test_buildlib_wheel.py` after that tip, so the capsule results below
+describe `ffe6ecc7`, not the merged revision.
 
 | Capsule | interpreter branch | repository clone | setup | interpreter | lint | test | `git status --porcelain` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -167,3 +170,34 @@ recorded as not run in the capsules. Capsule logs stay in scratch.
 3. Re-vendor `bootstrap/buildlib-run` and `bootstrap/python.lock` from the new buildlib tag and
    update the digests above. The wheel line must match step 2.
 4. `make setup && make lint test`, then the cold capsules.
+
+## Corrections (2026-11-21)
+
+Review of `3df8c4c` found three defects in the merged slice and its record.
+
+- **Admission preserved an importable local package.** `admit()` added the cache object to
+  `sys.path` only when `importlib.util.find_spec("buildlib")` found nothing, so a repository-local
+  or installed `buildlib` ran instead of the approved wheel. Provisioning also executed one: it ran
+  the shim's Python in the caller's directory with `import buildlib`, so a `buildlib/` package
+  there ran first. The merged impostor test asserted `"impostor imported"` in stderr, which proves
+  the impostor executed. Now provisioning runs the shim's Python with `-I`, removes the
+  caller's `PYTHONPATH`, and copies the wheel from the shim's `PYTHONPATH` without importing it.
+  `admit()` puts the cache object first on `sys.path` and fails unless `buildlib` resolves to it.
+  An already imported `buildlib` must come from a wheel whose bytes match the pin.
+  `test_buildlib_wheel.py` checks that a competing package never executes, with both an empty and
+  a populated cache, and that a pre-imported impostor is refused. Both tests fail on `3df8c4c`.
+- **Concurrent provisioning shared one staging path.** Callers staged at `<blob>.part` and each
+  unlinked it, so a second caller could lose its copy (`FileNotFoundError`). Each caller now stages
+  in its own `mkstemp` file and publishes it with `os.replace`. A deterministic two-caller test
+  forces both shims to finish copying before either publishes; it fails on `3df8c4c` and passes
+  now. A cache that already holds the verified wheel is only read, so read-only sealed mounts are
+  unaffected.
+- **`make test` did not match its prerequisites.** The documented fresh-clone command
+  `make setup && make lint test` exited 2 because `test_audit` and two `test_tls` cases need the
+  prepared native toolchain and vendored Rustls graph. Those checks now live in
+  `tests/controller/test_native_*.py`. `make test` runs the portable scope, and `make test-native`
+  runs the prepared native integration scope. `make test-ci` still runs both after the native build.
+
+Verification on macOS arm64 (2026-11-21): `make lint` passed. `make controller-test` (portable)
+ran 348 tests in 37 modules with 0 failed. `make test-native` without preparation fails on the
+missing `prepare/toolchain/bin/clang` and the `rustls-ffi-source` cache object, as intended.

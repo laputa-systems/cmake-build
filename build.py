@@ -770,9 +770,16 @@ def benchmark_command(args: argparse.Namespace) -> int:
     return 0
 
 
+NATIVE_TEST_PREFIX = "test_native_"
+
+
 def _controller_test(args: argparse.Namespace) -> int:
     directory = ROOT / "tests" / "controller"
     modules = sorted(path.name for path in directory.glob("test_*.py"))
+    if args.scope == "portable":
+        modules = [module for module in modules if not module.startswith(NATIVE_TEST_PREFIX)]
+    elif args.scope == "native":
+        modules = [module for module in modules if module.startswith(NATIVE_TEST_PREFIX)]
     if args.filter:
         modules = [module for module in modules if args.filter in module]
     if not modules:
@@ -870,6 +877,12 @@ def _parser() -> argparse.ArgumentParser:
             child.set_defaults(handler=benchmark_command)
     controller = subparsers.add_parser("controller-test")
     controller.add_argument("-k", dest="filter", default=None)
+    controller.add_argument(
+        "--scope",
+        choices=("all", "portable", "native"),
+        default="all",
+        help=f"portable: no prepared native phases; native: the {NATIVE_TEST_PREFIX}* modules, which need them",
+    )
     controller.set_defaults(handler=_controller_test)
     return parser
 

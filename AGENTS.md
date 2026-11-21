@@ -7,7 +7,8 @@ Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl` and
 
 ```sh
 make lint                                   # ruff and ty
-make test                                   # controller suite
+make test                                   # portable controller checks
+make test-native                            # prepared native audit and TLS checks (after fetch and prepare)
 make coverage                               # branch coverage in the prepared native builder
 make fetch TARGET=x86_64-unknown-linux-musl   # also: build, package, verify (qualify), repro (reproduce), clean
 python3 build.py controller-test            # controller suite, exit 0 or 1
@@ -24,8 +25,9 @@ python3 build.py reproduce --target x86_64-unknown-linux-musl
 python3 build.py benchmark --target x86_64-unknown-linux-musl
 ```
 
-Run `fetch` for the native target before `controller-test`; the TLS dependency
-gate checks the locked, vendored Cargo graph offline without Docker.
+`make test` needs only `make setup`. `make test-native` runs the `test_native_*` modules and needs
+`fetch` and `prepare` for the native target first; the TLS dependency gate checks the locked,
+vendored Cargo graph offline without Docker. `controller-test` without `--scope` runs both.
 Run `make coverage` after preparing the native compiler and the pinned
 `jaq` under `.work/tools`, as in the hosted controller job. It measures the
 same suite in the sealed Alpine builder and writes
@@ -42,7 +44,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 - On macOS ARM64, `make lint` passed in 1.22 s on the first run and 1.18 s warm. The controller suite needs the prepared Linux builder for the full check.
 - CI reuses the native build phases across edits confined to `tests/controller/`. The full controller suite runs after native phase preparation. Changes to the build sources and native fixtures change the phase cache key.
 - `tests/controller/test_cli.py` exercises CLI arguments and exit codes. `test_inputs.py`, `test_bootstrap.py`, and `test_buildlib_wheel.py` check locks, acquisition, byte identity, and the pinned wheel.
-- `test_sandbox.py` and `test_tls.py` check network, toolchain, and dependency boundaries. `test_phases.py` checks build phase records and invalidation.
+- `test_sandbox.py`, `test_tls.py`, and the prepared-native `test_native_tls.py` check network, toolchain, and dependency boundaries; `test_native_audit.py` checks ELF hardening with the prepared toolchain. `test_phases.py` checks build phase records and invalidation.
 - `test_package_archive.py`, `test_package_generations.py`, and `test_package_reproduce.py` check archive and generation contracts. `make verify` separately qualifies real archives and project consumers.
 - The shipped CMake, CTest, and CPack CLI contracts are exercised by the basic, project, and upstream qualification suites. Certificate trust and network behavior have their own suite.
 - `build.py benchmark` measures declared command workloads and size and memory limits on qualified candidate and reference archives. Its prerequisites and baselines are in [Building and qualification](docs/building.md).
