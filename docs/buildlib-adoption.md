@@ -123,7 +123,8 @@ that need a prepared toolchain cache. Both fail identically on the base commit
 same three errors, the base runs 340 tests in 37 modules with the same three errors.
 
 Cold capsules cloned from a read-only mount of the worktree at lane tip `ffe6ecc7`, native
-arm64, run as root:
+arm64, run as root. Commits after it change only this record, so they cannot change the
+controller result below.
 
 | Capsule | interpreter branch | repository clone | setup | interpreter | lint | test | `git status --porcelain` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
