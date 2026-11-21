@@ -4,10 +4,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-import threading
 import unittest
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,21 +38,16 @@ class ShimFixture:
             tar.add(uv_dir, arcname="uv-test")
         self.wheel = self.data / "wheel.whl"
         self.wheel.write_bytes(b"wheel fixture")
-        handler = partial(SimpleHTTPRequestHandler, directory=str(self.data))
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
         self.bin = root / "bin"
         self.bin.mkdir()
         (self.bin / "uname").write_text('#!/bin/sh\ncase "$1" in -s) echo Darwin;; -m) echo arm64;; esac\n')
         (self.bin / "uname").chmod(0o755)
-        self.real_curl = shutil.which("curl")
         wrapper = self.bin / "curl"
         wrapper.write_text(
             '#!/bin/sh\nout=\nwhile [ "$#" -gt 0 ]; do\n'
             'case "$1" in -o) out=$2; shift 2;; https://fixture/*) name=${1#https://fixture/}; shift;; '
             '--proto|--proto-redir|--retry) shift 2;; *) shift;; esac\ndone\n'
-            f'exec "{self.real_curl}" -fsS -o "$out" "http://127.0.0.1:{self.server.server_port}/$name"\n'
+            f'exec cp "{self.data}/$name" "$out"\n'
         )
         wrapper.chmod(0o755)
         self.lock = self.scripts / "python.lock"
@@ -87,11 +79,6 @@ class ShimFixture:
             env=env, capture_output=True, text=True, check=False,
         )
 
-    def close(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join()
-
 
 class VendoredShimTest(unittest.TestCase):
     def setUp(self):
@@ -102,7 +89,6 @@ class VendoredShimTest(unittest.TestCase):
         self.scratch = tempfile.TemporaryDirectory(dir=root)
         self.addCleanup(self.scratch.cleanup)
         self.fixture = ShimFixture(Path(self.scratch.name))
-        self.addCleanup(self.fixture.close)
 
     def test_verified_archives_and_wheel_run_the_python_from_the_cache(self):
         result = self.fixture.run()
