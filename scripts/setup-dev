@@ -123,6 +123,10 @@ else
 fi
 
 cd "$repo_root"
+exclude=$repo_root/.git/info/exclude
+if [ -f "$exclude" ] && ! grep -qxF '.work/' "$exclude"; then
+    printf '%s\n' '.work/' >> "$exclude"
+fi
 note 'installing locked development dependencies (ruff, ty) from uv.lock'
 uv sync --frozen --no-install-project
 
