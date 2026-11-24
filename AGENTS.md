@@ -67,6 +67,7 @@ An unmeasured memory baseline can be established only with its recorded archive.
 
 ## Documentation
 
+- [Roadmap and current status](docs/roadmap.md)
 - [Building and qualification](docs/building.md)
 - [Build measurements](docs/build-system.md)
 - [CMake executable performance](docs/performance.md)
