@@ -45,6 +45,20 @@ jobs:
           target: ${{ matrix.target }}
           jaq: ${{ matrix.jaq }}
           kache: ${{ matrix.kache }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.target == 'aarch64-apple-darwin'
+        with:
+          path: .work/cache
+          key: inputs-v3-${{ runner.os }}-${{ runner.arch }}-${{ matrix.target }}-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json') }}
+      - name: Fetch locked inputs (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          mkdir -p .work/tmp
+          python3 build.py fetch --target "$TARGET"
       - name: Qualify the exact packaged archive
         env:
           TARGET: ${{ matrix.target }}
