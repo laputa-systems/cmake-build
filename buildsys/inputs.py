@@ -132,7 +132,9 @@ def load_bootstrap(path: Path) -> BootstrapLock:
     repositories = alpine.get("repositories")
     if not isinstance(repositories, dict):
         raise InputError(f"{path}: alpine.repositories must be an object")
-    for triple in TARGETS:
+    for triple, description in TARGETS.items():
+        if not description.alpine_arch:
+            continue
         if repositories.get(triple) != [stable_repository]:
             raise InputError(f"{path}: alpine.repositories.{triple} must use {stable_repository}")
     targets = document.get("targets")
@@ -153,9 +155,10 @@ def load_bootstrap(path: Path) -> BootstrapLock:
             item = _bootstrap_input(entry, f"{path}:{triple}.packages", index)
             if item.target not in (triple, ALL_TARGETS):
                 raise InputError(f"{path}: {item.name} target {item.target} is not {triple}")
-            filename = f"{item.name}-{item.version}.apk"
-            if item.url != f"{stable_repository}/{TARGETS[triple].alpine_arch}/{filename}":
-                raise InputError(f"{path}: {item.name} must use the stable APK URL for {triple}")
+            if TARGETS[triple].alpine_arch:
+                filename = f"{item.name}-{item.version}.apk"
+                if item.url != f"{stable_repository}/{TARGETS[triple].alpine_arch}/{filename}":
+                    raise InputError(f"{path}: {item.name} must use the stable APK URL for {triple}")
             inputs.append(item)
         rust = section.get("rust")
         if rust is not None:

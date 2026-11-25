@@ -21,6 +21,10 @@ sh bootstrap/buildlib-run -- build.py reproduce --target x86_64-unknown-linux-mu
 ```
 
 Replace the target with `aarch64-unknown-linux-musl` on an aarch64 host. The
+`aarch64-apple-darwin` target builds natively on Apple Silicon macOS with the
+Xcode SDK toolchain and the pinned LLVM 23.1.4 macOS ARM64 distribution; it
+uses the Apple IDN resolver through ICU and runs the `basic` qualification
+suite plus the Mach-O audit instead of the container suites. The
 fetch step downloads pinned sources, toolchains, and test inputs and verifies
 their size and SHA-256 on both download and reuse. See [DEVELOPMENT.md](DEVELOPMENT.md) for the
 one-command setup and the interpreter the bootstrap selects. The build runs in the pinned

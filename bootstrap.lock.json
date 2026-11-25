@@ -820,7 +820,62 @@
           }
         ]
       }
+    },
+    "aarch64-apple-darwin": {
+      "packages": [],
+      "rust": {
+        "channel": "nightly-2026-09-15",
+        "version": "1.100.0-nightly",
+        "host": "aarch64-apple-darwin",
+        "license": "Apache-2.0 OR MIT",
+        "name_prefix": "rust",
+        "components": [
+          {
+            "name": "cargo",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-aarch64-apple-darwin.tar.xz",
+            "sha256": "e3eec6793e18cbf48369008aa87778799af14ac7afa43f30e2f07ecd8f41f9b6",
+            "size": 8943220,
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rustc",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-aarch64-apple-darwin.tar.xz",
+            "sha256": "795dd452cfd5fba1760ed6a6bee764ac8858230dd003146c6fe9febeab099e0a",
+            "size": 50927828,
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-std",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-aarch64-apple-darwin.tar.xz",
+            "sha256": "6fefa0169e2964dd5ffdcab08b83a63ec94138467c516d303a9be4df210a2a0d",
+            "size": 30869456,
+            "role": "build-source",
+            "target": "all"
+          },
+          {
+            "name": "rust-src",
+            "version": "1.100.0-nightly",
+            "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
+            "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+            "size": 5927464,
+            "role": "build-source",
+            "target": "all"
+          }
+        ]
+      }
     }
   },
-  "reference_image": "debian@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
+  "reference_image": "debian@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2",
+  "macos_toolchain": {
+    "xcode_major": 27,
+    "sdk_minimum_version": "27.0",
+    "deployment_target": "27.0",
+    "cpu_baseline": "-mcpu=apple-m1",
+    "arch": "arm64"
+  }
 }

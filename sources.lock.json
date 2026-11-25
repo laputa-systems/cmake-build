@@ -221,6 +221,28 @@
       "purpose": "Parse qualification reports on the native runner"
     },
     {
+      "name": "llvm-toolchain-arm64",
+      "version": "23.1.4",
+      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.4/LLVM-23.1.4-macOS-ARM64.tar.xz",
+      "sha256": "5d3179db39adeca5b17a34d82708fe976bc60e055b05fe557878fb3fb64d39ef",
+      "size": 1570051292,
+      "role": "build-source",
+      "target": "aarch64-apple-darwin",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "purpose": "Pinned official LLVM macOS toolchain (clang, archiver, strip, compiler-rt resources)"
+    },
+    {
+      "name": "cmake-bootstrap-darwin",
+      "version": "4.4.5",
+      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-macos-universal.tar.gz",
+      "sha256": "679e77a96b9ef9484cc6c1445255fc4f84206b48a65420efbedf16bdab55fbff",
+      "size": 89451542,
+      "role": "build-source",
+      "target": "aarch64-apple-darwin",
+      "license": "BSD-3-Clause",
+      "purpose": "Kitware CMake binary that drives the macOS configure; never shipped"
+    },
+    {
       "name": "buildlib-wheel",
       "version": "0.3.1",
       "url": "https://pypi.17166969.xyz/current/wheels/laputa_buildlib-0.3.1-py3-none-any.whl",

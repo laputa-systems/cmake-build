@@ -3,8 +3,10 @@
 `make clean` removes the root Ruff cache and transient build, Rust, and phase outputs.
 It preserves installed dependencies and unrelated scratch files.
 
-Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl` and
-`aarch64-unknown-linux-musl`, built with the pinned LLVM/musl toolchain.
+Relocatable CMake 4.4.5 distribution for `x86_64-unknown-linux-musl`,
+`aarch64-unknown-linux-musl`, and `aarch64-apple-darwin` (native Apple Silicon
+macOS build with the Xcode SDK toolchain and Mach-O audit), built with the
+pinned LLVM toolchain.
 
 ## Commands
 

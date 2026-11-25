@@ -1,30 +1,41 @@
-"""Target descriptions: the Linux musl targets this repository builds, taken from buildlib."""
+"""Target descriptions: the targets this repository builds, taken from buildlib."""
 
 from __future__ import annotations
 
-import platform
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
 from buildlib import targets as shared
-from buildlib.targets import UnsupportedTargetError
+from buildlib.targets import MACOS, UnsupportedTargetError
 
 CPU_BASELINES: Mapping[str, str] = MappingProxyType({
     "x86_64-unknown-linux-musl": "x86-64",
     "aarch64-unknown-linux-musl": "armv8-a",
+    "aarch64-apple-darwin": "apple-m1",
 })
+
+LINUX_TRIPLES = ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl")
+DARWIN_TRIPLE = "aarch64-apple-darwin"
 
 
 @dataclass(frozen=True)
 class Target:
     triple: str
     machine: str
+    family: str
+    executable_format: str
+    cpu_baseline: str
     alpine_arch: str
     docker_platform: str
     musl_loader: str
     elf_machine: int
-    cpu_baseline: str
+    deployment_target: str = ""
+    cpu_baseline_cflag: str = ""
+
+    @property
+    def is_macos(self) -> bool:
+        return self.family == MACOS
 
 
 def _adopt(item: shared.Target) -> Target:
@@ -35,16 +46,35 @@ def _adopt(item: shared.Target) -> Target:
     return Target(
         triple=item.triple,
         machine=item.machine,
+        family=item.family,
+        executable_format=item.executable_format,
+        cpu_baseline=baseline,
         alpine_arch=item.alpine_arch,
         docker_platform=item.docker_platform,
         musl_loader=item.musl_loader,
         elf_machine=item.elf_machine,
-        cpu_baseline=baseline,
+    )
+
+
+def _darwin() -> Target:
+    return Target(
+        triple=DARWIN_TRIPLE,
+        machine="arm64",
+        family=MACOS,
+        executable_format="mach-o",
+        cpu_baseline=CPU_BASELINES[DARWIN_TRIPLE],
+        alpine_arch="",
+        docker_platform="",
+        musl_loader="",
+        elf_machine=0,
+        deployment_target="27.0",
+        cpu_baseline_cflag="-mcpu=apple-m1",
     )
 
 
 TARGETS: Mapping[str, Target] = MappingProxyType(
-    {triple: _adopt(shared.target_for_triple(triple)) for triple in CPU_BASELINES}
+    {triple: _adopt(shared.target_for_triple(triple)) for triple in LINUX_TRIPLES}
+    | {DARWIN_TRIPLE: _darwin()}
 )
 
 
@@ -58,4 +88,4 @@ def target(triple: str) -> Target:
 
 
 def native_target() -> Target:
-    return target(shared.native_target("Linux", platform.machine()).triple)
+    return target(shared.native_target().triple)

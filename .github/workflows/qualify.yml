@@ -28,11 +28,18 @@ jobs:
             runner: ubuntu-26.04-arm
             jaq: jaq-aarch64
             kache: kache-aarch64-unknown-linux-musl
+          - target: aarch64-apple-darwin
+            runner: xcode-27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: runner.os == 'macOS'
+        with:
+          python-version: "3.15.1"
       - uses: ./.github/actions/native-setup
+        if: matrix.target != 'aarch64-apple-darwin'
         with:
           target: ${{ matrix.target }}
           jaq: ${{ matrix.jaq }}
@@ -45,6 +52,7 @@ jobs:
           export TMPDIR="$PWD/.work/tmp"
           python3 build.py qualify --target "$TARGET"
       - name: Check native memory against the committed baseline
+        if: matrix.target != 'aarch64-apple-darwin'
         env:
           TARGET: ${{ matrix.target }}
         run: |
@@ -52,7 +60,17 @@ jobs:
           export TMPDIR="$PWD/.work/tmp"
           jaq -e --arg target "$TARGET" '.targets[$target].memory_status == "measured"' release-budgets.json > /dev/null
           python3 build.py benchmark --target "$TARGET"
+      - name: Check native memory against the committed baseline (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export TMPDIR="$PWD/.work/tmp"
+          python3 -c 'import json,sys; d=json.load(open("release-budgets.json")); assert d["targets"][sys.argv[1]]["memory_status"] == "measured", sys.argv[1]' "$TARGET"
+          python3 build.py benchmark --target "$TARGET"
       - name: Verify and stage qualification evidence
+        if: matrix.target != 'aarch64-apple-darwin'
         env:
           TARGET: ${{ matrix.target }}
           SOURCE_SHA: ${{ github.sha }}
@@ -83,6 +101,64 @@ jobs:
           cp docs/performance.md "$destination/performance-$TARGET.md"
           cp docs/qualification.md "$destination/qualification-$TARGET.md"
           (cd "$destination" && LC_ALL=C sha256sum -- * > "SHA256SUMS-$TARGET.txt")
+      - name: Verify and stage qualification evidence (macOS)
+        if: matrix.target == 'aarch64-apple-darwin'
+        env:
+          TARGET: ${{ matrix.target }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          candidate=".work/artifacts/$TARGET/candidate.json"
+          archive_name=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["archive"])' "$candidate")
+          test "$archive_name" = "cmake-4.4.5-$TARGET.tar.xz"
+          archive=".work/artifacts/$TARGET/$archive_name"
+          sha=$(shasum -a 256 "$archive" | cut -d' ' -f1)
+          size=$(stat -f '%z' "$archive")
+          python3 - "$candidate" "$archive_name" "$sha" "$size" "$SOURCE_SHA" <<'PY'
+          import json, sys
+          record = json.load(open(sys.argv[1]))
+          name, sha, size, commit = sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
+          assert record["archive"] == name and record["sha256"] == sha and record["size"] == size and record["commit"] == commit, record
+          PY
+          generation=".work/generations/$TARGET/$sha"
+          test "$(shasum -a 256 "$generation/artifact.tar.xz" | cut -d' ' -f1)" = "$sha"
+          python3 - "$generation/results.json" "$sha" "$size" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          sha, size = sys.argv[2], int(sys.argv[3])
+          q = data["qualification"]
+          assert data["archive_sha256"] == sha and data["archive_size"] == size
+          assert q["basic"] == "passed" and q["macho_audit"] == "passed" and q["hello"] == "hello"
+          assert set(q["sizes"]) == {"executable_bytes", "unpacked_bytes", "archive_bytes"}
+          PY
+          budget_sha=$(shasum -a 256 release-budgets.json | cut -d' ' -f1)
+          rss_scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
+          memory=".work/benchmark-results/$TARGET.json"
+          python3 - "$memory" "$sha" "$size" "$TARGET" "$budget_sha" "$rss_scope" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          sha, size, target, budget, scope = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6]
+          assert data["target"] == target and data["archive_sha256"] == sha and data["archive_size"] == size
+          assert data["budget_sha256"] == budget and data["rss_scope"] == scope
+          assert data["repetitions"] >= 5 and data["result"] == "passed"
+          assert set(data["measurements"]) == {"fmt_initial_rss_kib", "libjpeg-turbo_initial_rss_kib", "llvm-clang_initial_rss_kib", "zstd_initial_rss_kib"}
+          assert all(type(v) is float and v > 0 for v in data["measurements"].values())
+          PY
+          python3 -c 'from pathlib import Path; from buildsys.package import inspect; import sys; inspect(Path(sys.argv[1]))' "$archive"
+          destination=".work/release/$TARGET"
+          mkdir -p "$destination"
+          tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > "$destination/artifact-$TARGET.json"
+          python3 - "$destination/artifact-$TARGET.json" "$SOURCE_SHA" "$TARGET" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          sha, target = sys.argv[2], sys.argv[3]
+          assert data["source"]["commit"] == sha and data["target"]["triple"] == target
+          assert data["build"]["mode"] == "qualification" and data.get("macho_audit") == "passed"
+          PY
+          cp "$archive" "$destination/"
+          cp "$generation/results.json" "$destination/results-$TARGET.json"
+          cp "$memory" "$destination/memory-$TARGET.json"
+          (cd "$destination" && shasum -a 256 -- * > "SHA256SUMS-$TARGET.txt")
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cmake-prerelease-${{ matrix.target }}

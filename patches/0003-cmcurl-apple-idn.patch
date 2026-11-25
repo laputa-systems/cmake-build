@@ -1,0 +1,16 @@
+--- a/Utilities/cmcurl/CMakeLists.txt
++++ b/Utilities/cmcurl/CMakeLists.txt
+@@ -97,11 +97,11 @@
+ set(HTTP_ONLY OFF CACHE INTERNAL "Curl is not http-only")
+ set(PICKY_COMPILER OFF)
+ set(SHARE_LIB_OBJECT OFF)
+-set(USE_APPLE_IDN OFF)
++set(USE_APPLE_IDN ON)
+ set(USE_APPLE_SECTRUST OFF)
+ set(USE_ECH OFF)
+ set(USE_HTTPSRR OFF)
+-set(USE_LIBIDN2 ON)
++set(USE_LIBIDN2 OFF)
+ set(USE_LIBRTMP OFF)
+ set(USE_NGHTTP2 ON)
+ set(USE_NGTCP2 OFF)
