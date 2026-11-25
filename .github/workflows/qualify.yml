@@ -28,11 +28,19 @@ jobs:
             runner: ubuntu-26.04-arm
             jaq: jaq-aarch64
             kache: kache-aarch64-unknown-linux-musl
+          - target: aarch64-apple-darwin
+            runner: xcode-27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: laputa-systems/buildlib/setup@1cd9d482a684e72c68ac6fea7f4ee3a3e9c4a161 # v0.3.1
+        if: runner.os == 'macOS'
+        with:
+          tools: cpython jaq
+          lock: .github/tools.lock.json
       - uses: ./.github/actions/native-setup
+        if: matrix.target != 'aarch64-apple-darwin'
         with:
           target: ${{ matrix.target }}
           jaq: ${{ matrix.jaq }}
@@ -63,11 +71,19 @@ jobs:
           test "$archive_name" = "cmake-4.4.5-$TARGET.tar.xz"
           archive=".work/artifacts/$TARGET/$archive_name"
           sha=$(sha256sum "$archive" | cut -d' ' -f1)
-          size=$(stat -c '%s' "$archive")
+          size=$(wc -c < "$archive" | tr -d ' ')
+          case "$TARGET" in
+            *-apple-darwin)
+              qualified='.qualification.basic == "passed" and .qualification.macho_audit == "passed" and .qualification.hello == "hello" and (.qualification.sizes | keys == ["archive_bytes", "executable_bytes", "unpacked_bytes"])'
+              built='.build.mode == "qualification" and .macho_audit == "passed"' ;;
+            *)
+              qualified='.qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)'
+              built='.build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' ;;
+          esac
           jaq -e --arg name "$archive_name" --arg sha "$sha" --arg commit "$SOURCE_SHA" --argjson size "$size" '.archive == $name and .sha256 == $sha and .size == $size and .commit == $commit' "$candidate" >/dev/null
           generation=".work/generations/$TARGET/$sha"
           test "$(sha256sum "$generation/artifact.tar.xz" | cut -d' ' -f1)" = "$sha"
-          jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$generation/results.json" >/dev/null
+          jaq -e --arg sha "$sha" --argjson size "$size" ".archive_sha256 == \$sha and .archive_size == \$size and $qualified" "$generation/results.json" >/dev/null
           budget_sha=$(sha256sum release-budgets.json | cut -d' ' -f1)
           rss_scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
           memory=".work/benchmark-results/$TARGET.json"
@@ -76,7 +92,7 @@ jobs:
           destination=".work/release/$TARGET"
           mkdir -p "$destination"
           tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > "$destination/artifact-$TARGET.json"
-          jaq -e --arg sha "$SOURCE_SHA" --arg target "$TARGET" '.source.commit == $sha and .target.triple == $target and .build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' "$destination/artifact-$TARGET.json" >/dev/null
+          jaq -e --arg sha "$SOURCE_SHA" --arg target "$TARGET" ".source.commit == \$sha and .target.triple == \$target and $built" "$destination/artifact-$TARGET.json" >/dev/null
           cp "$archive" "$destination/"
           cp "$generation/results.json" "$destination/results-$TARGET.json"
           cp "$memory" "$destination/memory-$TARGET.json"

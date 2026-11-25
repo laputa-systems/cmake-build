@@ -11,6 +11,8 @@ from buildsys import elf, toolchain
 from buildsys.targets import native_target
 
 
+@unittest.skipUnless(native_target().executable_format == "elf",
+                     "ELF audit fixtures require an ELF native target")
 class ElfAuditTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

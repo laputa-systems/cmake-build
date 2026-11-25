@@ -23,10 +23,12 @@ from buildsys import (
     bootstrap,
     budgets,
     cmake,
+    darwin,
     dependencies,
     elf,
     generations,
     licenses,
+    macho,
     package,
     patches,
     qualify,
@@ -100,7 +102,7 @@ def doctor(args: argparse.Namespace) -> int:
         "python": sys.version.split()[0],
         "native_target": _NATIVE.triple if _NATIVE else None,
         "target": description.triple,
-        "docker": shutil.which("docker"),
+        "docker": None if description.is_macos else shutil.which("docker"),
         "cache": str(CACHE),
         "phases": str(PHASES),
     }
@@ -129,6 +131,19 @@ def doctor(args: argparse.Namespace) -> int:
             missing.append(item.name)
     report["cache_missing"] = missing
     toolchain_dir = _toolchain_directory(description)
+    if description.is_macos:
+        if toolchain_dir.is_dir():
+            try:
+                report["toolchain"] = darwin.verify_toolchain(
+                    toolchain_dir, description, WORK / "tmp")
+            except darwin.DarwinError as error:
+                report["toolchain_error"] = str(error)
+                print(json.dumps(report, indent=2))
+                return 1
+        else:
+            report["toolchain"] = None
+        print(json.dumps(report, indent=2))
+        return 0
     if toolchain_dir.is_dir():
         try:
             report["toolchain"] = toolchain.verify(toolchain_dir, description)
@@ -165,6 +180,23 @@ def fetch(args: argparse.Namespace) -> int:
         bootstrap = load_bootstrap(BOOTSTRAP_LOCK)
     except InputError as error:
         _fail(str(error))
+    if description.is_macos:
+        selected = [item for item in sources if item.target in ("all", description.triple)]
+        selected.extend(bootstrap_inputs(bootstrap, description.triple))
+        cache = Cache(CACHE)
+        total = 0
+        for item in selected:
+            try:
+                cache.require(item)
+                outcome = "cached"
+            except InputError:
+                cache.fetch(item)
+                outcome = "downloaded"
+            size = item.size if item.size is not None else digest_file(cache.require(item))[1]
+            total += size
+            print(f"{item.name} {item.version} {outcome} {size} B")
+        print(f"{len(selected)} inputs, {total} B, cache {CACHE}")
+        return 0
     selected = [item for item in sources if item.target in ("all", description.triple)]
     selected.extend(bootstrap_inputs(bootstrap, description.triple))
     cache = Cache(CACHE)
@@ -242,6 +274,19 @@ def _controller_digest() -> str:
 def prepare(args: argparse.Namespace) -> int:
     description = _target(args.target)
     patches.verify_inventory(ROOT / "patches")
+    if description.is_macos:
+        if args.in_container:
+            _fail("macOS targets build natively; --in-container does not apply")
+        try:
+            sources = load_sources(SOURCES_LOCK)
+        except InputError as error:
+            _fail(str(error))
+        try:
+            darwin.prepare(target=description, cache=Cache(CACHE), sources=sources,
+                           root=ROOT, work=WORK / "tmp")
+        except (darwin.DarwinError, InputError, PhaseError) as error:
+            _fail(str(error))
+        return 0
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
             _fail("prepare requires a sealed container with only loopback networking")
@@ -443,8 +488,58 @@ def _configure_inside(description) -> int:
     return 0
 
 
+def _darwin_prepare_build(description: Target) -> tuple[Path, Path, Path, Path]:
+    try:
+        sources = load_sources(SOURCES_LOCK)
+        lock = load_bootstrap(BOOTSTRAP_LOCK)
+    except InputError as error:
+        _fail(str(error))
+    cache = Cache(CACHE, offline=True)
+    selected = {item.name: item for item in sources if item.target in ("all", description.triple)}
+    rustls_item = selected.get("rustls-ffi-source")
+    if rustls_item is None:
+        _fail("source lock lacks rustls-ffi-source")
+    prepared = darwin.prepare(target=description, cache=cache, sources=sources,
+                              root=ROOT, work=WORK / "tmp")
+    rustls_archive = darwin.build_rustls(
+        target=description, cache=cache, lock=lock, root=ROOT, work=WORK / "tmp",
+        prepared=prepared, source=rustls_item)
+    bootstrap_dir = darwin.bootstrap(target=description, cache=cache, sources=sources,
+                                     prepared=prepared, root=ROOT)
+    cmake_phase = darwin.build_cmake(
+        target=description, cache=cache, sources=sources, root=ROOT,
+        prepared=prepared, rustls_archive=rustls_archive, bootstrap_dir=bootstrap_dir)
+    return prepared, rustls_archive, bootstrap_dir, cmake_phase
+
+
+def _darwin_stage(description: Target, cmake_phase: Path) -> Path:
+    source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+    phases = PhaseCache(darwin.phases_root(ROOT, description))
+    cmake_record = json.loads((cmake_phase / "phase.json").read_text())
+    prepared = phases.directory("prepare")
+    license_inputs = {"cmake": cmake_record["output_digest"], "controller": _controller_digest(),
+                      "licenses": tree_digest(ROOT / "licenses"), "notice": digest_file(ROOT / "NOTICE")[0]}
+
+    def stage_distribution(directory: Path) -> None:
+        darwin.stage_distribution(
+            cmake_phase, directory, description, source.version,
+            ROOT / "licenses", ROOT / "NOTICE", prepared / "toolchain")
+
+    result = phases.run("stage", license_inputs, stage_distribution)
+    print(f"stage {'reused' if result.reused else 'built'} at {result.directory}")
+    return result.directory
+
+
 def build_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        if args.in_container or args.qualification_build:
+            _fail("macOS targets build natively without container or cache options")
+        try:
+            _darwin_prepare_build(description)
+        except (darwin.DarwinError, InputError, PhaseError, rust.RustError) as error:
+            _fail(str(error))
+        return 0
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
             _fail("build requires a sealed container with only loopback networking")
@@ -515,6 +610,22 @@ def _build_inside(description, mode: cmake.BuildMode) -> int:
 
 def test_command(args: argparse.Namespace, *, prepare_only: bool = False) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        if args.suite != "basic":
+            _fail(f"suite {args.suite!r} is not implemented for {description.triple}; available: basic")
+        if args.in_container:
+            _fail("macOS targets test natively; --in-container does not apply")
+        try:
+            _, _, _, cmake_phase = _darwin_prepare_build(description)
+            stage_dir = _darwin_stage(description, cmake_phase)
+            source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
+            report = macho.verify_prefix(stage_dir, description, version=source.version,
+                                         scratch=WORK / "tmp" / "verify-basic")
+            print(f"basic suite passed: {report['version']}, hello={report['hello']}")
+        except (darwin.DarwinError, macho.MachoError, InputError, PhaseError,
+                rust.RustError) as error:
+            _fail(str(error))
+        return 0
     suites = {"basic": qualify.basic, "parity": qualify.parity, "network": qualify.network,
               "projects": qualify.projects, "upstream": qualify.upstream}
     selected = args.suite.split(",")
@@ -679,6 +790,21 @@ def _package_inside(description: Target, commit: str) -> Path:
 
 def package_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        if args.in_container:
+            _fail("macOS targets package natively; --in-container does not apply")
+        commit = _source_commit()
+        try:
+            _, _, _, cmake_phase = _darwin_prepare_build(description)
+            stage_dir = _darwin_stage(description, cmake_phase)
+            phases = PhaseCache(darwin.phases_root(ROOT, description))
+            prepared = phases.directory("prepare")
+            darwin.package_archive(
+                target=description, root=ROOT, stage_phase=stage_dir,
+                cmake_phase=cmake_phase, prepared=prepared, commit=commit)
+        except (darwin.DarwinError, InputError, PhaseError, rust.RustError) as error:
+            _fail(str(error))
+        return 0
     if args.in_container:
         if not sandbox.in_container() or {name for _, name in sandbox.socket.if_nameindex()} != {"lo"}:
             _fail("packaging requires a sealed container with only loopback networking")
@@ -706,6 +832,22 @@ def package_command(args: argparse.Namespace) -> int:
 
 def qualify_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        archive = darwin.archive_path(ROOT, description)
+        record_path = archive.with_name("candidate.json")
+        if not archive.exists() and not record_path.exists():
+            package_command(argparse.Namespace(target=description.triple, in_container=False))
+        try:
+            _, record = darwin.candidate(ROOT, description)
+        except darwin.DarwinError as error:
+            _fail(str(error))
+        if record.get("commit") != _source_commit():
+            _fail("candidate record does not match the repository commit")
+        try:
+            darwin.qualify(ROOT, description)
+        except (darwin.DarwinError, macho.MachoError, InputError, budgets.BudgetError) as error:
+            _fail(str(error))
+        return 0
     source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
     directory = WORK / "artifacts" / description.triple
     archive = directory / f"cmake-{source.version}-{description.triple}.tar.xz"
@@ -749,6 +891,8 @@ def qualify_command(args: argparse.Namespace) -> int:
 
 def reproduce_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        _fail(f"reproduce is not implemented for {description.triple}")
     if description != _NATIVE:
         _fail(f"{description.triple} does not match the running machine; no emulation is used")
     source = next(item for item in load_sources(SOURCES_LOCK) if item.name == "cmake-source")
@@ -763,6 +907,12 @@ def reproduce_command(args: argparse.Namespace) -> int:
 
 def benchmark_command(args: argparse.Namespace) -> int:
     description = _target(args.target)
+    if description.is_macos:
+        try:
+            darwin.benchmark(ROOT, description)
+        except (darwin.DarwinError, budgets.BudgetError, InputError) as error:
+            _fail(str(error))
+        return 0
     if description != _NATIVE:
         _fail(f"{description.triple} does not match the running machine; no emulation is used")
     benchmark.run(ROOT, description)
@@ -895,8 +1045,8 @@ def main(argv: list[str] | None = None) -> int:
         if type(status) is not int:
             _fail("command did not return an integer exit status")
         return status
-    except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, budgets.BudgetError, cmake.CMakeBuildError, dependencies.DependencyError,
-            elf.AuditError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
+    except (InputError, PhaseError, benchmark.BenchmarkError, bootstrap.BootstrapError, budgets.BudgetError, cmake.CMakeBuildError, darwin.DarwinError, dependencies.DependencyError,
+            elf.AuditError, macho.MachoError, patches.PatchError, qualify.QualificationError, reference.ReferenceError, rust.RustError,
             sandbox.SandboxError, stage.StageError, tls.TlsError) as error:
         _fail(str(error))
 

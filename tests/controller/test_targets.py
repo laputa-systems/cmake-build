@@ -8,7 +8,8 @@ from buildsys import targets
 
 X86 = "x86_64-unknown-linux-musl"
 ARM = "aarch64-unknown-linux-musl"
-SUPPORTED = f"(supported: {[ARM, X86]})"
+DARWIN = "aarch64-apple-darwin"
+SUPPORTED = f"(supported: {[DARWIN, ARM, X86]})"
 
 
 class TargetContractTests(unittest.TestCase):
@@ -17,12 +18,13 @@ class TargetContractTests(unittest.TestCase):
             (X86, ("x86_64", "x86_64", "linux/amd64", "/lib/ld-musl-x86_64.so.1", 62, "x86-64")),
             (ARM, ("aarch64", "aarch64", "linux/arm64", "/lib/ld-musl-aarch64.so.1", 183, "armv8-a")),
         )
-        self.assertEqual(set(targets.TARGETS), {X86, ARM})
         for triple, fields in cases:
             with self.subTest(triple=triple):
                 description = targets.target(triple)
                 self.assertEqual(description.triple, triple)
                 self.assertEqual(targets._adopt(targets.shared.target_for_triple(triple)), description)
+                self.assertEqual(description.family, "linux-musl")
+                self.assertEqual(description.executable_format, "elf")
                 self.assertEqual(
                     (
                         description.machine,
@@ -35,8 +37,23 @@ class TargetContractTests(unittest.TestCase):
                     fields,
                 )
 
+    def test_darwin_target_describes_apple_silicon_macho(self) -> None:
+        description = targets.target(DARWIN)
+        self.assertEqual(description.triple, DARWIN)
+        self.assertEqual(description.machine, "arm64")
+        self.assertEqual(description.family, "macos")
+        self.assertEqual(description.executable_format, "mach-o")
+        self.assertEqual(description.cpu_baseline, "apple-m1")
+        self.assertEqual(description.cpu_baseline_cflag, "-mcpu=apple-m1")
+        self.assertEqual(description.deployment_target, "27.0")
+        self.assertTrue(description.is_macos)
+        for field, empty in (("alpine_arch", ""), ("docker_platform", ""),
+                              ("musl_loader", ""), ("elf_machine", 0)):
+            self.assertEqual(getattr(description, field), empty)
+        self.assertFalse(targets.target(X86).is_macos)
+
     def test_target_rejects_unsupported_triples_with_the_supported_list(self) -> None:
-        for triple in ("aarch64-apple-darwin", "riscv64-unknown-linux-musl"):
+        for triple in ("riscv64-unknown-linux-musl", "x86_64-apple-darwin"):
             with self.subTest(triple=triple), self.assertRaises(targets.UnsupportedTargetError) as caught:
                 targets.target(triple)
             self.assertEqual(str(caught.exception), f"target not implemented: {triple} {SUPPORTED}")
@@ -55,18 +72,38 @@ class TargetContractTests(unittest.TestCase):
                 targets._adopt(item)
             self.assertEqual(str(caught.exception), f"target not implemented: {item.triple} {SUPPORTED}")
 
-    def test_native_build_uses_linux_target_for_each_supported_machine(self) -> None:
-        for machine, triple in (("x86_64", X86), ("amd64", X86), ("aarch64", ARM), ("arm64", ARM)):
+    def test_native_target_matches_the_running_host(self) -> None:
+        cases = (
+            ("Darwin", "arm64", DARWIN),
+            ("Darwin", "aarch64", DARWIN),
+            ("Linux", "x86_64", X86),
+            ("Linux", "amd64", X86),
+            ("Linux", "aarch64", ARM),
+            ("Linux", "arm64", ARM),
+        )
+        for system, machine, triple in cases:
             with (
-                self.subTest(machine=machine),
-                patch.object(targets.platform, "system", return_value="Darwin"),
-                patch.object(targets.platform, "machine", return_value=machine),
+                self.subTest(system=system, machine=machine),
+                patch.object(targets.shared.platform, "system", return_value=system),
+                patch.object(targets.shared.platform, "machine", return_value=machine),
             ):
                 self.assertEqual(targets.native_target(), targets.target(triple))
 
         with (
-            patch.object(targets.platform, "machine", return_value="riscv64"),
+            patch.object(targets.shared.platform, "system", return_value="Linux"),
+            patch.object(targets.shared.platform, "machine", return_value="riscv64"),
             self.assertRaises(targets.UnsupportedTargetError) as caught,
         ):
             targets.native_target()
         self.assertIn("no target for host Linux riscv64", str(caught.exception))
+
+        with (
+            patch.object(targets.shared.platform, "system", return_value="Darwin"),
+            patch.object(targets.shared.platform, "machine", return_value="x86_64"),
+            self.assertRaises(targets.UnsupportedTargetError),
+        ):
+            targets.native_target()
+
+
+if __name__ == "__main__":
+    unittest.main()
