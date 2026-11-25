@@ -153,7 +153,8 @@ def verify_prefix(prefix: Path, target: Target, *, version: str,
         "cmake_minimum_required(VERSION 3.20)\nproject(hello C)\nadd_executable(hello src/main.c)\n"
     )
     build = project / "build"
-    _run([str(cmake), "-S", str(project), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release"])
+    _run([str(cmake), "-S", str(project), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release",
+          f"-DCMAKE_OSX_DEPLOYMENT_TARGET={target.deployment_target}"])
     _run([str(cmake), "--build", str(build), "--parallel", str(os.cpu_count() or 1)])
     hello = build / "hello"
     if not hello.is_file():
