@@ -16,6 +16,11 @@ from buildsys.tls import TlsError, check_host_vendored
 
 
 class PreparedDependencyGraphTests(unittest.TestCase):
+    def setUp(self) -> None:
+        native = native_target()
+        if native.executable_format != "elf":
+            self.skipTest(f"host-vendored musl runtime checks do not apply to {native.triple}")
+
     def test_locked_graph_rejects_changed_provider_patch(self) -> None:
         native = native_target()
         lock = load_bootstrap(ROOT / "bootstrap.lock.json")
