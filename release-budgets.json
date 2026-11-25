@@ -1,6 +1,55 @@
 {
   "schema_version": 1,
   "targets": {
+    "aarch64-apple-darwin": {
+      "archive_sha256": "9b326ad67a35cd4e58e81db8eac1aad9a2bb684e371d21f410fe6684da030ff3",
+      "memory_archive_bytes": 18839984,
+      "repetitions": 5,
+      "memory_status": "measured",
+      "metrics": {
+        "executable_bytes": {
+          "value": 25668432,
+          "spread": 0,
+          "allowed_regression": 770052.96
+        },
+        "unpacked_bytes": {
+          "value": 91806842,
+          "spread": 0,
+          "allowed_regression": 2754205.26
+        },
+        "archive_bytes": {
+          "value": 18839984,
+          "spread": 0,
+          "allowed_regression": 565199.52
+        },
+        "fmt_initial_rss_kib": {
+          "value": 40288,
+          "spread": 96,
+          "central_spread": 80.0,
+          "allowed_regression": 1208.6399999999999
+        },
+        "zstd_initial_rss_kib": {
+          "value": 40368,
+          "spread": 624,
+          "central_spread": 32.0,
+          "allowed_regression": 1248
+        },
+        "libjpeg-turbo_initial_rss_kib": {
+          "value": 38288,
+          "spread": 384,
+          "central_spread": 80.0,
+          "allowed_regression": 1148.6399999999999
+        },
+        "llvm-clang_initial_rss_kib": {
+          "value": 575792,
+          "spread": 19920,
+          "central_spread": 16304.0,
+          "allowed_regression": 39840
+        }
+      },
+      "rss_scope": "cmake-image-v1",
+      "memory_repetitions": 5
+    },
     "x86_64-unknown-linux-musl": {
       "archive_sha256": "b53ca751fd8c1f0c3b3918c7c9aed7f5a30a79b2bbf4f9289ec567ede5a0cc3e",
       "memory_archive_bytes": 10171144,

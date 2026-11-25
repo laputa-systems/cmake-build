@@ -759,6 +759,7 @@ def benchmark(root: Path, target: Target, repetitions: int = 5) -> None:
             if len(entries) != 1 or not entries[0].is_dir():
                 raise DarwinError(f"{input_name}: invalid source layout")
             source = entries[0] / subdirectory
+            (scratch / workload).mkdir(parents=True, exist_ok=True)
             build = scratch / workload / "build"
             command = [str(cmake), "-S", str(source), "-B", str(build), "-G", "Ninja",
                        f"-DCMAKE_MAKE_PROGRAM={ninja}", "-DCMAKE_BUILD_TYPE=Release",
