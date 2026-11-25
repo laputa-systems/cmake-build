@@ -98,11 +98,11 @@
         },
         {
           "name": "libffi",
-          "version": "3.5.2-r1",
+          "version": "3.8.1-r0",
           "license": "MIT",
-          "sha256": "6da1a19313a40c56cac756fb11e2c4d5267831e1c22fc8323f24c943c94da6e0",
-          "size": 18348,
-          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libffi-3.5.2-r1.apk",
+          "sha256": "b26d26991fb66b7b3ba0e9f38b46f7f0bc0a84dfe4c274e4ab713aed51ddaa79",
+          "size": 20893,
+          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libffi-3.8.1-r0.apk",
           "role": "build-source",
           "target": "x86_64-unknown-linux-musl",
           "purpose": "builder image"
@@ -501,11 +501,11 @@
         },
         {
           "name": "libffi",
-          "version": "3.5.2-r1",
+          "version": "3.8.1-r0",
           "license": "MIT",
-          "sha256": "9a67280b0c7c62db658c2d4d32ed1199903bef859c32dd4245e1a7e35c89ab4b",
-          "size": 17799,
-          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libffi-3.5.2-r1.apk",
+          "sha256": "f6f6de8c25f181e3c96ee9d1120880565d970a8bf5dd06acbcfb9f2df8159963",
+          "size": 18807,
+          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libffi-3.8.1-r0.apk",
           "role": "build-source",
           "target": "aarch64-unknown-linux-musl",
           "purpose": "builder image"
