@@ -23,6 +23,29 @@
       "repository": "laputa-systems/python-build",
       "tag": "release-6f7c0d46e2eda7f66c705022f1950034045f74d0",
       "version": "3.15.1"
+    },
+    "jaq": {
+      "assets": {
+        "aarch64-apple-darwin": {
+          "name": "jaq-aarch64-apple-darwin.tar.xz",
+          "sha256": "1c669f5e9b8ed2468c3a07456c9c56fbf5a5fc5ebf0d4ec04ecafe83f71f44ed",
+          "size": 999360
+        },
+        "aarch64-unknown-linux-musl": {
+          "name": "jaq-aarch64-unknown-linux-musl.tar.xz",
+          "sha256": "27e723b7c95775511070d9e9c88206ed1b3fbec8ef1bc35d7b083d357b1a28ed",
+          "size": 820844
+        },
+        "x86_64-unknown-linux-musl": {
+          "name": "jaq-x86_64-unknown-linux-musl.tar.xz",
+          "sha256": "47ab25725dd0dc99643bd3151b88fed7105a1ff45da247619f6debde17bd6765",
+          "size": 959540
+        }
+      },
+      "product": "jaq",
+      "repository": "laputa-systems/jaq",
+      "tag": "release-477b0407d558e61531336f9ac5040d200cf5d728",
+      "version": ""
     }
   }
 }
