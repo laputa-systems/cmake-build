@@ -55,7 +55,7 @@ jobs:
           sha=$(jaq -r --arg target "$TARGET" '.targets[$target].archive_sha256' release-budgets.json)
           size=$(jaq -r --arg target "$TARGET" '.targets[$target].memory_archive_bytes' release-budgets.json)
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$sha"
-          test "$(stat -c '%s' "$archive")" = "$size"
+          test "$(wc -c < "$archive" | tr -d ' ')" = "$size"
           jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" > /dev/null
           generation=".work/generations/$TARGET/$sha"
           mkdir -p "$generation"
