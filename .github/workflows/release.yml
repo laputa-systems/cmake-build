@@ -94,7 +94,7 @@ jobs:
           found=''
           while IFS= read -r run_id; do
             gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion,jobs > .work/run.json
-            if jaq -e --arg sha "$GITHUB_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify x86_64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success")' .work/run.json >/dev/null; then
+            if jaq -e --arg sha "$GITHUB_SHA" '.headSha == $sha and .conclusion == "success" and any(.jobs[]; .name == "qualify x86_64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-unknown-linux-musl" and .conclusion == "success") and any(.jobs[]; .name == "qualify aarch64-apple-darwin" and .conclusion == "success")' .work/run.json >/dev/null; then
               found="$run_id"
               break
             fi
@@ -119,7 +119,7 @@ jobs:
           lock_sha=$(sha256sum sources.lock.json | cut -d' ' -f1)
           budget_sha=$(sha256sum release-budgets.json | cut -d' ' -f1)
           rss_scope=$(python3 -c 'from buildsys.budgets import RSS_SCOPE; print(RSS_SCOPE)')
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl aarch64-apple-darwin; do
             folder=".work/download/cmake-prerelease-$target"
             asset="cmake-$version-$target"
             archive="$folder/$asset.tar.xz"
@@ -127,13 +127,21 @@ jobs:
             results="$folder/results-$target.json"
             memory="$folder/memory-$target.json"
             sha=$(sha256sum "$archive" | cut -d' ' -f1)
-            size=$(stat -c '%s' "$archive")
-            jaq -e --arg sha "$sha" --argjson size "$size" '.archive_sha256 == $sha and .archive_size == $size and .qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)' "$results" >/dev/null
+            size=$(wc -c < "$archive" | tr -d ' ')
+            case "$target" in
+              *-apple-darwin)
+                qualified='.qualification.basic == "passed" and .qualification.macho_audit == "passed" and .qualification.hello == "hello" and (.qualification.sizes | keys == ["archive_bytes", "executable_bytes", "unpacked_bytes"])'
+                built='.build.mode == "qualification" and .macho_audit == "passed"' ;;
+              *)
+                qualified='.qualification.basic == "passed" and .qualification.parity == "passed" and .qualification.network == "passed" and .qualification.projects == "passed" and (.qualification.upstream | type == "string" and length > 0)'
+                built='.build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' ;;
+            esac
+            jaq -e --arg sha "$sha" --argjson size "$size" ".archive_sha256 == \$sha and .archive_size == \$size and $qualified" "$results" >/dev/null
             jaq -e --arg sha "$sha" --arg target "$target" --arg budget "$budget_sha" --arg scope "$rss_scope" --argjson size "$size" '.target == $target and .archive_sha256 == $sha and .archive_size == $size and .budget_sha256 == $budget and .rss_scope == $scope and .repetitions >= 5 and .result == "passed" and (.measurements | keys == ["fmt_initial_rss_kib", "libjpeg-turbo_initial_rss_kib", "llvm-clang_initial_rss_kib", "zstd_initial_rss_kib"] and all(.[]; type == "number" and . > 0))' "$memory" >/dev/null
             python3 -c 'from pathlib import Path; from buildsys.package import inspect; import sys; inspect(Path(sys.argv[1]))' "$archive"
             tar -xOf "$archive" usr/share/doc/cmake-build/artifact.json > .work/embedded.json
             cmp -s "$metadata" .work/embedded.json
-            jaq -e --arg sha "$GITHUB_SHA" --arg version "$version" --arg target "$target" '.source.commit == $sha and .source.version == $version and .target.triple == $target and .build.mode == "qualification" and .build.network == "none" and .build.network_probe == "passed"' "$metadata" >/dev/null
+            jaq -e --arg sha "$GITHUB_SHA" --arg version "$version" --arg target "$target" ".source.commit == \$sha and .source.version == \$version and .target.triple == \$target and $built" "$metadata" >/dev/null
             jaq -n --arg version "$version" --arg target "$target" --arg revision "$GITHUB_SHA" --arg lock "$lock_sha" '{schema_version: 1, product: "cmake", version: $version, target: $target, source_revision: $revision, sources_lock_sha256: $lock}' > ".work/release/$asset.manifest.json"
             cp "$archive" "$metadata" "$results" "$memory" "$folder/qualification-$target.md" "$folder/performance-$target.md" .work/release/
           done
